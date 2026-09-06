@@ -1,0 +1,111 @@
+/* ==============================================
+   WeBake — Products Page (products.css)
+   ============================================== */
+
+.products-page { margin-top: var(--header-h); }
+
+/* Product Grid */
+.product-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
+.product-card {
+  border-radius: var(--radius); overflow: hidden; cursor: pointer;
+  transition: var(--ease); border: 1px solid var(--border); background: var(--white);
+}
+.product-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+.product-img {
+  height: 200px; background: var(--light);
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; color: var(--gray); gap: 0.5rem; font-size: 0.85rem;
+}
+.product-img i { font-size: 2rem; opacity: 0.4; }
+.product-img img { width: 100%; height: 100%; object-fit: cover; }
+.product-card-info { padding: 1rem; text-align: center; }
+.product-card-name { font-weight: 600; color: var(--primary); font-size: 1.1rem; margin-bottom: 0.25rem; }
+.product-card-price { color: var(--dark); font-size: 0.9rem; font-weight: 500; }
+.modal-product-img {
+  height: 180px; background: var(--light); border-radius: var(--radius);
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; color: var(--gray); gap: 0.5rem; margin-bottom: 1.25rem;
+}
+.modal-product-img i { font-size: 2.5rem; opacity: 0.3; }
+.modal-product-name { font-size: 1.3rem; font-weight: 700; color: var(--primary); margin-bottom: 0.5rem; }
+.modal-product-desc { font-size: 0.9rem; color: var(--gray); margin-bottom: 1rem; line-height: 1.6; }
+.modal-product-price { font-size: 1.2rem; font-weight: 700; color: var(--primary); margin-bottom: 1.25rem; }
+
+/* Quantity Control */
+.quantity-control { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; }
+.quantity-label { font-size: 0.9rem; font-weight: 500; }
+.quantity-control button {
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--white);
+  font-size: 1rem; transition: var(--ease); display: flex;
+  align-items: center; justify-content: center;
+}
+.quantity-control button:hover { background: var(--accent); border-color: var(--accent); }
+.quantity-control input {
+  width: 80px; text-align: center; border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 0.5rem;
+}
+.modal-actions { display: flex; gap: 0.75rem; }
+.modal-actions .btn { flex: 1; font-size: 0.85rem; padding: 0.65rem 1rem; }
+
+/* Checkout Overlay */
+.checkout-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5); z-index: 2000;
+  align-items: center; justify-content: center;
+}
+.checkout-overlay.active { display: flex; }
+.checkout-container {
+  background: var(--white); border-radius: var(--radius);
+  padding: 2rem; max-width: 520px; width: 90%;
+  max-height: 90vh; overflow-y: auto; position: relative;
+}
+.checkout-step { display: none; }
+.checkout-step.active { display: block; }
+.checkout-step h2 {
+  font-size: 1.2rem; color: var(--primary);
+  margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;
+}
+
+/* Stock Check Animation */
+.stock-loader { text-align: center; padding: 2rem 0; }
+.stock-loader i { font-size: 2.5rem; color: var(--primary); animation: spin 1s linear infinite; }
+.stock-loader p { margin-top: 1rem; color: var(--gray); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Order Summary */
+.order-summary-item {
+  display: flex; justify-content: space-between;
+  padding: 0.6rem 0; border-bottom: 1px solid var(--border); font-size: 0.9rem;
+}
+.order-total {
+  display: flex; justify-content: space-between;
+  padding: 0.75rem 0; font-weight: 700; font-size: 1.1rem; color: var(--primary);
+  margin-bottom: 1.25rem;
+}
+
+/* Confirmation */
+.confirmation-icon { font-size: 3.5rem; color: var(--success); text-align: center; margin-bottom: 1rem; }
+.confirmation-msg { text-align: center; margin-bottom: 2rem; }
+.confirmation-msg h2 { color: var(--primary); margin-bottom: 0.5rem; }
+.confirmation-msg p { color: var(--gray); font-size: 0.95rem; }
+.confirmation-details-section {
+  background: var(--light); border-radius: var(--radius); padding: 1rem 1.25rem;
+  margin-bottom: 1rem; font-size: 0.85rem;
+}
+.confirmation-details-section h4 {
+  font-size: 0.9rem; color: var(--primary); margin-bottom: 0.5rem;
+  padding-bottom: 0.35rem; border-bottom: 1px solid var(--border);
+}
+.confirmation-details-section p { margin-bottom: 0.25rem; color: var(--dark); }
+.confirmation-details-section p span { color: var(--gray); }
+.confirmation-actions { display: flex; gap: 0.75rem; }
+.confirmation-actions .btn { flex: 1; }
+
+/* Responsive */
+@media (max-width: 992px) { .product-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px) {
+  .product-grid { grid-template-columns: 1fr; }
+  .modal-actions { flex-direction: column; }
+  .confirmation-actions { flex-direction: column; }
+}

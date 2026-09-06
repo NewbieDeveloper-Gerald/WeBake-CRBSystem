@@ -1,0 +1,37 @@
+/* ==============================================
+   WeBake — Be a Partner Page (partner.css)
+   ============================================== */
+
+.partner-page { margin-top: var(--header-h); }
+
+.partner-form-container {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.partner-intro {
+  text-align: center;
+  color: var(--gray);
+  margin-bottom: 2.5rem;
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.form-section-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--primary);
+  margin: 2rem 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--accent);
+}
+
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem;
+}
+
+@media (max-width: 768px) {
+  .checkbox-grid { grid-template-columns: 1fr; }
+}

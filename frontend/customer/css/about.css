@@ -1,0 +1,80 @@
+/* ==============================================
+   WeBake — About Us Page (about.css)
+   ============================================== */
+
+.about-page { margin-top: var(--header-h); }
+
+.about-story {
+  max-width: 800px;
+  margin: 0 auto 3rem;
+}
+.about-story p {
+  font-size: 1rem;
+  color: var(--gray);
+  line-height: 1.8;
+  margin-bottom: 1rem;
+}
+
+/* Info Cards */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+.info-card {
+  text-align: center;
+  padding: 1.5rem 1rem;
+  background: var(--light);
+  border-radius: var(--radius);
+  border-left: 4px solid var(--primary);
+  transition: var(--ease);
+}
+.info-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow);
+}
+.info-card i {
+  font-size: 1.5rem;
+  color: var(--primary);
+  margin-bottom: 0.75rem;
+  display: block;
+}
+.info-card h3 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 0.35rem;
+}
+.info-card p { font-size: 0.85rem; color: var(--gray); }
+
+/* Distribution Areas */
+.distribution { text-align: center; }
+.distribution-areas {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1.25rem;
+}
+.area-badge {
+  background: var(--accent);
+  color: var(--primary);
+  padding: 0.5rem 1.5rem;
+  border-radius: 2rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: var(--ease);
+}
+.area-badge:hover {
+  background: var(--primary);
+  color: var(--white);
+}
+
+/* Responsive */
+@media (max-width: 992px) {
+  .info-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .info-grid { grid-template-columns: 1fr; }
+}
