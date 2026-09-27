@@ -42,6 +42,7 @@
 .nav-links a:hover::after { width: 100%; }
 .nav-links a.active { color: var(--primary); }
 .nav-links a.active::after { width: 100%; background: var(--primary); }
+.auth-buttons { display: flex; gap: 0.5rem; align-items: center; }
 .nav-toggle {
   display: none; background: none; border: none;
   font-size: 1.5rem; color: var(--primary); padding: 0.5rem;
@@ -169,9 +170,13 @@
 }
 .toast.active { transform: translateY(0); opacity: 1; }
 
+/* === Mobile auth links (hidden on desktop) === */
+.nav-auth-mobile { display: none; }
+
 /* === RESPONSIVE === */
 @media (max-width: 768px) {
   .nav-toggle { display: block; }
+  .auth-buttons { display: none; }
   .nav-links {
     position: absolute; top: var(--header-h); left: 0; width: 100%;
     flex-direction: column; background: var(--white);
@@ -181,6 +186,15 @@
   .nav-links a { padding: 0.75rem 1.5rem; width: max-content; text-align: center; }
   .nav-links a::after { bottom: 0; }
   .nav-links a:hover { background: var(--light); border-radius: var(--radius); }
+  .nav-auth-divider { width: 80%; height: 1px; background: var(--light); margin: 0.5rem auto; }
+  .nav-auth-mobile { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.5rem 1.5rem 1rem; width: 100%; }
+  /* Override .nav-links a styles for buttons */
+  .nav-links .nav-auth-mobile a.btn { padding: 0.5rem 1rem; width: 100%; text-align: center; border-radius: var(--radius); font-size: 0.85rem; }
+  .nav-links .nav-auth-mobile a.btn::after { display: none; }
+  .nav-links .nav-auth-mobile a.btn-primary { background: var(--primary); color: var(--white); border-color: var(--primary); }
+  .nav-links .nav-auth-mobile a.btn-primary:hover { background: var(--primary-dark); border-color: var(--primary-dark); }
+  .nav-links .nav-auth-mobile a.btn-outline { background: transparent; color: var(--primary); border-color: var(--primary); }
+  .nav-links .nav-auth-mobile a.btn-outline:hover { background: var(--accent); border-color: var(--accent); color: var(--primary); }
   .footer-content { flex-direction: column; text-align: center; }
   .footer-nav { justify-content: center; }
   .footer-social { justify-content: center; }

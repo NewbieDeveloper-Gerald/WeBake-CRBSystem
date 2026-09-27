@@ -12,6 +12,17 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('click', e => { if (!e.target.closest('.nav')) navLinks.classList.remove('active'); });
   }
 
+  /* --- MOBILE AUTH BUTTONS (inside hamburger dropdown) --- */
+  if (navLinks && !navLinks.querySelector('.nav-auth-mobile')) {
+    navLinks.insertAdjacentHTML('beforeend',
+      '<div class="nav-auth-divider"></div>' +
+      '<div class="nav-auth-mobile">' +
+        '<a href="#" class="btn btn-outline btn-sm auth-mobile-btn">Sign In</a>' +
+        '<a href="#" class="btn btn-primary btn-sm auth-mobile-btn">Register</a>' +
+      '</div>'
+    );
+  }
+
   /* --- TOAST --- */
   function showToast(msg) {
     const t = document.getElementById('toast');
@@ -204,6 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
     checkoutItems = []; customerInfo = {};
   });
 
+
   /* --- PARTNER FORM --- */
   document.getElementById('partner-form')?.addEventListener('submit', e => {
     e.preventDefault();
@@ -222,4 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* Init */
   updateCartUI();
+  
 });
+
+
