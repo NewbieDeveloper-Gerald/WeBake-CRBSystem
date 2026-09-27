@@ -15,6 +15,8 @@
 .btn-accent:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
 .btn-outline { background: transparent; color: var(--primary); border-color: var(--primary); }
 .btn-outline:hover { background: var(--accent); border-color: var(--accent); }
+.btn-danger-outline { background: transparent; color: #dc3545; border-color: #dc3545; }
+.btn-danger-outline:hover { background: #dc3545; color: var(--white); }
 .btn-sm { padding: 0.5rem 1rem; font-size: 0.85rem; }
 .btn-block { width: 100%; }
 
@@ -139,6 +141,11 @@
 .cart-footer .btn + .btn { margin-top: 0.5rem; }
 
 /* === FORM CONTROLS === */
+/* Hide Edge default password reveal icon */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
 .form-group { margin-bottom: 1.25rem; }
 .form-group label { display: block; font-weight: 500; margin-bottom: 0.35rem; font-size: 0.9rem; }
 .form-input, .form-select, .form-textarea {
@@ -195,6 +202,8 @@
   .nav-links .nav-auth-mobile a.btn-primary:hover { background: var(--primary-dark); border-color: var(--primary-dark); }
   .nav-links .nav-auth-mobile a.btn-outline { background: transparent; color: var(--primary); border-color: var(--primary); }
   .nav-links .nav-auth-mobile a.btn-outline:hover { background: var(--accent); border-color: var(--accent); color: var(--primary); }
+  .nav-links .nav-auth-mobile a.btn-danger-outline { background: transparent; color: #dc3545; border-color: #dc3545; }
+  .nav-links .nav-auth-mobile a.btn-danger-outline:hover { background: #dc3545; color: var(--white); border-color: #dc3545; }
   .footer-content { flex-direction: column; text-align: center; }
   .footer-nav { justify-content: center; }
   .footer-social { justify-content: center; }

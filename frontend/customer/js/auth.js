@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => t.classList.remove('active'), 2500);
   }
 
-  /* ── Data Store (replace this section with MongoDB API calls later) ── */
+  /* ── Data Store (replace with MongoDB API calls later) ── */
   const USERS_KEY = 'weBakeUsers';
   const store = {
     getAll: () => JSON.parse(localStorage.getItem(USERS_KEY) || '[]'),
@@ -18,11 +18,16 @@ document.addEventListener('DOMContentLoaded', () => {
     find: email => store.getAll().find(u => u.email === email),
     add: user => { const all = store.getAll(); all.push(user); store.save(all); },
     updatePassword: (email, pwd) => {
-      const all = store.getAll();
-      const i = all.findIndex(u => u.email === email);
-      if (i >= 0) { all[i].password = pwd; store.save(all); return true; }
-      return false;
-    }
+      const all = store.getAll(); const i = all.findIndex(u => u.email === email);
+      if (i >= 0) { all[i].password = pwd; store.save(all); return true; } return false;
+    },
+    updateProfile: (email, data) => {
+      const all = store.getAll(); const i = all.findIndex(u => u.email === email);
+      if (i >= 0) { Object.assign(all[i], data); store.save(all); return true; } return false;
+    },
+    setSession: user => localStorage.setItem('weBakeSession', JSON.stringify({ name: user.name, email: user.email })),
+    getSession: () => JSON.parse(localStorage.getItem('weBakeSession') || 'null'),
+    clearSession: () => localStorage.removeItem('weBakeSession')
   };
   /* ── End Data Store ── */
 
@@ -91,7 +96,14 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.insertAdjacentHTML('beforeend', authHtml);
   }
 
+  // Ensure toast element exists on all pages
+  if (!document.getElementById('toast')) {
+    document.body.insertAdjacentHTML('beforeend', '<div class="toast" id="toast"></div>');
+  }
+
   const authOverlay = document.getElementById('auth-overlay');
+  updateNavState();
+  autoFillCheckoutForm();
 
   function openAuthModal(id) {
     document.querySelectorAll('#signin-modal,#register-modal,#forgot-modal,#otp-modal,#reset-modal')
@@ -107,9 +119,36 @@ document.addEventListener('DOMContentLoaded', () => {
     clearInterval(otpInterval);
   }
 
+  // ---------- Nav State (logged in / logged out) ----------
+  function updateNavState() {
+    const s = store.getSession();
+    const navLinks = document.getElementById('nav-links');
+    if (navLinks && !navLinks.querySelector('.nav-auth-mobile')) {
+      navLinks.insertAdjacentHTML('beforeend', '<div class="nav-auth-divider"></div><div class="nav-auth-mobile"></div>');
+    }
+    const db = document.querySelector('.auth-buttons');
+    const mb = document.querySelector('.nav-auth-mobile');
+    if (s) {
+      const inner = `<a href="dashboard.html" class="btn btn-outline btn-sm"><i class="fas fa-user-circle"></i> Profile</a><a href="#" id="logout-btn" class="btn btn-danger-outline btn-sm"><i class="fas fa-sign-out-alt"></i> Log Out</a>`;
+      if (db) db.innerHTML = inner;
+      if (mb) mb.innerHTML = inner.replace('id="logout-btn"', 'id="logout-btn-mobile"');
+    } else {
+      if (db) db.innerHTML = `<a href="#" class="btn btn-outline btn-sm">Sign In</a><a href="#" class="btn btn-primary btn-sm">Register</a>`;
+      if (mb) mb.innerHTML = `<a href="#" class="btn btn-outline btn-sm auth-mobile-btn">Sign In</a><a href="#" class="btn btn-primary btn-sm auth-mobile-btn">Register</a>`;
+    }
+  }
+
+  // ---------- Auto-fill Products page checkout form ----------
+  function autoFillCheckoutForm() {
+    const s = store.getSession(); if (!s) return;
+    const u = store.find(s.email); if (!u) return;
+    const f = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+    f('cust-name', u.name); f('cust-contact', u.contact); f('cust-email', u.email); f('cust-address', u.address);
+  }
+
   // ---------- Global Click Handler ----------
   document.body.addEventListener('click', e => {
-    // Eye toggle (show/hide password)
+    // Eye toggle
     const toggle = e.target.closest('.auth-eye-toggle');
     if (toggle) {
       e.preventDefault();
@@ -117,38 +156,44 @@ document.addEventListener('DOMContentLoaded', () => {
       const icon = toggle.querySelector('i');
       const hidden = input.type === 'password';
       input.type = hidden ? 'text' : 'password';
-      icon.classList.toggle('fa-eye', !hidden);
-      icon.classList.toggle('fa-eye-slash', hidden);
+      icon.classList.toggle('fa-eye', !hidden); icon.classList.toggle('fa-eye-slash', hidden);
     }
-    // Open modal via data-auth-open
-    if (e.target.closest('[data-auth-open]')) {
-      e.preventDefault();
-      openAuthModal(e.target.closest('[data-auth-open]').getAttribute('data-auth-open'));
-    }
+    // Open modal
+    if (e.target.closest('[data-auth-open]')) { e.preventDefault(); openAuthModal(e.target.closest('[data-auth-open]').getAttribute('data-auth-open')); }
     // Close modal
     if (e.target.matches('[data-auth-close]') || e.target.id === 'auth-overlay') closeAuthModals();
     // OTP resend
     if (e.target.closest('#otp-resend-btn')) { e.preventDefault(); generateOtp(pendingEmail); startOtpTimer(); }
-    // Sign In / Register buttons (desktop + mobile hamburger)
+    // Sign In / Register buttons (desktop + mobile)
     const authBtn = e.target.closest('.auth-buttons a, .auth-mobile-btn');
-    if (authBtn) {
+    if (authBtn && (authBtn.textContent.includes('Sign In') || authBtn.textContent.includes('Register'))) {
+      e.preventDefault(); 
+      openAuthModal(authBtn.textContent.includes('Sign In') ? 'signin-modal' : 'register-modal'); 
+    }
+    // Log Out
+    if (e.target.closest('#logout-btn, #logout-btn-mobile')) {
       e.preventDefault();
-      openAuthModal(authBtn.textContent.includes('Sign In') ? 'signin-modal' : 'register-modal');
+      store.clearSession();
+      showToast('You\'ve been signed out. See you again! 👋');
+      setTimeout(() => { window.location.href = 'index.html'; }, 1500);
     }
   });
 
-  // ---------- Sign In (validates credentials) ----------
+  // ---------- Sign In ----------
   document.getElementById('signin-form')?.addEventListener('submit', e => {
     e.preventDefault();
-    const email = e.target.querySelector('input[type="email"]').value.trim();
-    const pwd = e.target.querySelector('input[type="password"]').value;
+    const inputs = e.target.querySelectorAll('input');
+    const email = inputs[0].value.trim();
+    const pwd = inputs[1].value;
     const user = store.find(email);
     if (!user) { showToast('No account found for this email'); return; }
     if (user.password !== pwd) { showToast('Incorrect password'); return; }
-    showToast(`Welcome back, ${user.name}!`); closeAuthModals();
+    store.setSession(user);
+    showToast(`Welcome back, ${user.name}! 🎉`);
+    closeAuthModals(); updateNavState(); autoFillCheckoutForm();
   });
 
-  // ---------- Register (validates before OTP) ----------
+  // ---------- Register ----------
   document.getElementById('register-form')?.addEventListener('submit', e => {
     e.preventDefault();
     const email = document.getElementById('reg-email').value.trim();
@@ -171,7 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
     generateOtp(email); openAuthModal('otp-modal'); startOtpTimer();
   });
 
-  // ---------- OTP Verification ----------
+  // ---------- OTP ----------
   document.getElementById('otp-form')?.addEventListener('submit', e => {
     e.preventDefault();
     const entered = e.target.querySelector('input').value.trim();
@@ -180,11 +225,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (flowMode === 'register') {
       const name = document.querySelector('#register-form input[placeholder="Juan Dela Cruz"]').value.trim();
       const pwd = document.getElementById('reg-pwd').value;
-      store.add({ name, email: pendingEmail, password: pwd });
+      store.add({ name, email: pendingEmail, password: pwd, contact: '', address: '', savedCart: [], orderHistory: [], partnerStatus: 'none' });
       showToast('Account created successfully!'); closeAuthModals(); openAuthModal('signin-modal');
-    } else if (flowMode === 'forgot') {
-      openAuthModal('reset-modal');
-    }
+    } else if (flowMode === 'forgot') { openAuthModal('reset-modal'); }
   });
 
   // ---------- Reset Password ----------
@@ -194,12 +237,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const cpwd = e.target.querySelectorAll('input')[1].value;
     if (pwd.length < 6) { showToast('Password must be at least 6 characters'); return; }
     if (pwd !== cpwd) { showToast('Passwords do not match'); return; }
-    if (store.updatePassword(pendingEmail, pwd)) {
-      showToast('Password updated successfully!'); closeAuthModals(); openAuthModal('signin-modal');
-    } else { showToast('Unexpected error'); }
+    if (store.updatePassword(pendingEmail, pwd)) { showToast('Password updated successfully!'); closeAuthModals(); openAuthModal('signin-modal'); }
+    else { showToast('Unexpected error'); }
   });
 
-  // ---------- OTP Utilities ----------
   function generateOtp(email) {
     const otp = '123456'; // Temporary placeholder for testing
     sessionStorage.setItem('tmpOtp', otp);
@@ -208,8 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function startOtpTimer() {
-    clearInterval(otpInterval);
-    let t = 30;
+    clearInterval(otpInterval); let t = 30;
     const wrap = document.getElementById('otp-timer-wrap'), span = document.getElementById('otp-timer'), btn = document.getElementById('otp-resend-btn');
     wrap.style.display = 'inline'; btn.style.display = 'none'; span.textContent = t;
     otpInterval = setInterval(() => { span.textContent = --t; if (t <= 0) { clearInterval(otpInterval); wrap.style.display = 'none'; btn.style.display = 'inline'; } }, 1000);

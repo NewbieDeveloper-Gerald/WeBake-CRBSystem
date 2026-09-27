@@ -40,6 +40,37 @@ document.addEventListener('DOMContentLoaded', () => {
     { id: 4, name: 'Buttertoast', desc: 'Golden, crunchy butter-toasted bread slices. Perfectly toasted with a rich, buttery flavor ideal for wholesale.', price: 750, min: 100, img: '' }
   ];
   let cart = [], currentProduct = null, checkoutItems = [], customerInfo = {};
+  /* --- HOOKS FOR DASHBOARD --- */
+  function syncCartToStore() {
+    try {
+      const s = JSON.parse(localStorage.getItem('weBakeSession')); if (!s) return;
+      const all = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
+      const u = all.find(u => u.email === s.email);
+      if (u) { u.savedCart = cart; localStorage.setItem('weBakeUsers', JSON.stringify(all)); }
+    } catch(e){}
+  }
+  function addOrderToStore(totalAmt) {
+    try {
+      const s = JSON.parse(localStorage.getItem('weBakeSession')); if (!s) return;
+      const all = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
+      const u = all.find(u => u.email === s.email);
+      if (u) {
+        const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        u.orderHistory = u.orderHistory || [];
+        u.orderHistory.unshift({ date: date, items: checkoutItems, total: totalAmt, status: 'pending' });
+        localStorage.setItem('weBakeUsers', JSON.stringify(all));
+      }
+    } catch(e){}
+  }
+  function loadCartFromStore() {
+    try {
+      const s = JSON.parse(localStorage.getItem('weBakeSession')); if (!s) return;
+      const all = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
+      const u = all.find(u => u.email === s.email);
+      if (u && u.savedCart) { cart = u.savedCart; }
+    } catch(e){}
+  }
+
 
   /* --- RENDER PRODUCT GRID --- */
   const grid = document.getElementById('product-grid');
@@ -97,11 +128,12 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     } else {
       itemsEl.innerHTML = cart.map((item, i) => `<div class="cart-item"><div class="cart-item-info"><h4>${item.name}</h4><div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.25rem;"><button class="cart-qty-btn" data-i="${i}" data-action="minus" style="padding:0.1rem 0.4rem; cursor:pointer;">-</button><span style="font-size:0.85rem;">${item.qty} pcs</span><button class="cart-qty-btn" data-i="${i}" data-action="plus" style="padding:0.1rem 0.4rem; cursor:pointer;">+</button></div><p style="margin-top:0.25rem;">\u20B1${(item.price * item.qty / 100).toLocaleString()}</p></div><button class="cart-item-remove" data-i="${i}"><i class="fas fa-trash"></i></button></div>`).join('');
-      itemsEl.querySelectorAll('.cart-item-remove').forEach(b => b.addEventListener('click', () => { cart.splice(+b.dataset.i, 1); updateCartUI(); }));
+      itemsEl.querySelectorAll('.cart-item-remove').forEach(b => b.addEventListener('click', () => { cart.splice(+b.dataset.i, 1); updateCartUI(); syncCartToStore(); }));
       itemsEl.querySelectorAll('.cart-qty-btn').forEach(b => b.addEventListener('click', () => {
         const i = +b.dataset.i;
         cart[i].qty = b.dataset.action === 'minus' ? Math.max(100, cart[i].qty - 100) : cart[i].qty + 100;
         updateCartUI();
+        syncCartToStore();
       }));
     }
     const total = cart.reduce((s, i) => s + i.price * i.qty / 100, 0);
@@ -118,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const qty = +qtyInput.value, existing = cart.find(c => c.id === currentProduct.id);
     if (existing) existing.qty += qty; else cart.push({ ...currentProduct, qty });
     const name = currentProduct.name;
-    closeModal(); updateCartUI(); showToast(`${name} added to cart!`);
+    closeModal(); updateCartUI(); syncCartToStore(); showToast(`${name} added to cart!`);
   });
 
   /* Buy Now (skip cart) */
@@ -202,7 +234,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('pay-btn');
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...'; btn.disabled = true;
     setTimeout(() => {
-      cart = []; updateCartUI(); showStep('step-success');
+      const totalAmt = checkoutItems.reduce((s, i) => s + i.price * i.qty / 100, 0);
+      addOrderToStore(totalAmt);
+      cart = []; updateCartUI(); syncCartToStore(); showStep('step-success');
       btn.innerHTML = '<i class="fas fa-check"></i> Confirm Payment'; btn.disabled = false;
     }, 1500);
   });
@@ -219,6 +253,20 @@ document.addEventListener('DOMContentLoaded', () => {
   /* --- PARTNER FORM --- */
   document.getElementById('partner-form')?.addEventListener('submit', e => {
     e.preventDefault();
+
+    // ── Save partnership status to the logged-in user ──
+    try {
+      const s = JSON.parse(localStorage.getItem('weBakeSession'));
+      if (s) {
+        const all = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
+        const u = all.find(u => u.email === s.email);
+        if (u) {
+          u.partnerStatus = 'pending';
+          localStorage.setItem('weBakeUsers', JSON.stringify(all));
+        }
+      }
+    } catch(e) {}
+
     showToast('Partnership application submitted successfully!');
     e.target.reset();
   });
@@ -233,6 +281,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('gcash-ref')?.addEventListener('input', e => validateInput(e.target, e.target.value.trim().length >= 13));
 
   /* Init */
+  loadCartFromStore();
   updateCartUI();
   
 });

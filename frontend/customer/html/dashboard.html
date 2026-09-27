@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — WeBake</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="../css/variables.css">
+  <link rel="stylesheet" href="../css/globals.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/dashboard.css">
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <nav class="nav container">
+      <a href="index.html" class="logo">We<span>Bake</span></a>
+      <div class="nav-right">
+        <div class="nav-links" id="nav-links">
+          <a href="index.html">Home</a>
+          <a href="products.html">Products</a>
+          <a href="partner.html">Be a Partner</a>
+          <a href="about.html">About Us</a>
+        </div>
+        <div class="auth-buttons">
+          <a href="login.html" class="btn btn-outline btn-sm">Sign In</a>
+          <a href="register.html" class="btn btn-primary btn-sm">Register</a>
+        </div>
+        <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu">
+          <i class="fas fa-bars"></i>
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <!-- DASHBOARD MAIN -->
+  <main class="dashboard-main">
+    <div class="container">
+      <h1 class="section-title">My Dashboard</h1>
+
+      <div class="dashboard-grid">
+        
+        <!-- Profile Card -->
+        <div class="dash-card">
+          <div class="dash-card-title"><i class="fas fa-user-circle"></i> Profile Information</div>
+          <form id="profile-form">
+            <div class="profile-grid">
+              <div class="form-group">
+                <label class="dash-label">Full Name</label>
+                <input type="text" class="form-input" id="dash-name" required>
+              </div>
+              <div class="form-group">
+                <label class="dash-label">Contact Number</label>
+                <input type="tel" class="form-input" id="dash-contact" placeholder="09XX XXX XXXX">
+              </div>
+              <div class="form-group full-width">
+                <label class="dash-label">Email Address</label>
+                <input type="email" class="form-input" id="dash-email" readonly style="background:var(--light); cursor:not-allowed;">
+              </div>
+              <div class="form-group full-width">
+                <label class="dash-label">Saved Delivery Address</label>
+                <textarea class="form-textarea" id="dash-address" placeholder="Enter your full delivery address..."></textarea>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save"></i> Save Changes</button>
+          </form>
+        </div>
+
+        <!-- Saved Cart Card -->
+        <div class="dash-card">
+          <div class="dash-card-title"><i class="fas fa-shopping-cart"></i> Saved Cart</div>
+          <div id="dash-cart-container">
+            <!-- Populated by JS -->
+            <p class="empty-state">Your cart is empty.</p>
+          </div>
+        </div>
+
+        <!-- Order History Card -->
+        <div class="dash-card">
+          <div class="dash-card-title"><i class="fas fa-box-open"></i> Order History</div>
+          <div id="dash-orders-container">
+            <!-- Populated by JS -->
+            <p class="empty-state">You haven't placed any orders yet.</p>
+          </div>
+        </div>
+
+        <!-- Partnership Card -->
+        <div class="dash-card">
+          <div class="dash-card-title"><i class="fas fa-handshake"></i> Partnership Status</div>
+          <div style="display: flex; flex-direction: column; gap: 0.75rem; align-items: flex-start;">
+            <div id="dash-partner-badge" class="partner-badge badge-none">
+              <i class="fas fa-minus-circle"></i> No Partnership
+            </div>
+            <p class="partner-cta" id="dash-partner-cta">Interested in wholesale? <a href="partner.html">Apply to be a partner today!</a></p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-brand">
+          <a href="index.html" class="logo">We<span>Bake</span></a>
+          <p>Crumbs N' Rolls Bakery</p>
+        </div>
+        <nav class="footer-nav">
+          <a href="index.html">Home</a>
+          <a href="products.html">Products</a>
+          <a href="partner.html">Be a Partner</a>
+          <a href="about.html">About Us</a>
+        </nav>
+        <div class="footer-social">
+          <a href="#" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
+          <a href="#" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
+          <a href="#" aria-label="TikTok"><i class="fab fa-tiktok"></i></a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        &copy; 2026 Crumbs N' Rolls Bakery. All Rights Reserved.
+      </div>
+    </div>
+  </footer>
+
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toast">Notification Message</div>
+
+  <!-- Scripts -->
+  <script src="../js/main.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/dashboard.js"></script>
+</body>
+</html>
