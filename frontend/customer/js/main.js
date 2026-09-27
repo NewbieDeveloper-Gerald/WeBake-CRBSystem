@@ -185,7 +185,31 @@ document.addEventListener('DOMContentLoaded', () => {
   /* Back from Info → close checkout */
   document.getElementById('info-back-btn')?.addEventListener('click', closeCheckout);
 
-  /* Info → Payment (Combined Order Summary & Payment) */
+  let generatedOTP = null;
+  let checkoutOtpInterval = null;
+
+  function startCheckoutOtpTimer() {
+    clearInterval(checkoutOtpInterval);
+    let t = 30;
+    const wrap = document.getElementById('checkout-otp-timer-wrap');
+    const span = document.getElementById('checkout-otp-timer');
+    const btn = document.getElementById('checkout-otp-resend-btn');
+    if (wrap && span && btn) {
+      wrap.style.display = 'inline';
+      btn.style.display = 'none';
+      span.textContent = t;
+      checkoutOtpInterval = setInterval(() => {
+        span.textContent = --t;
+        if (t <= 0) {
+          clearInterval(checkoutOtpInterval);
+          wrap.style.display = 'none';
+          btn.style.display = 'inline';
+        }
+      }, 1000);
+    }
+  }
+
+  /* Info → OTP (if guest) or Payment (if logged in) */
   document.getElementById('info-form')?.addEventListener('submit', e => {
     e.preventDefault();
     customerInfo = {
@@ -203,7 +227,52 @@ document.addEventListener('DOMContentLoaded', () => {
     checkoutItems.forEach(i => { html += `<p>${i.name} — ${i.qty} pcs — \u20B1${(i.price * i.qty / 100).toLocaleString()}</p>`; });
     html += `<p style="font-weight:700;margin-top:0.5rem;color:var(--primary)">Total: \u20B1${total.toLocaleString()}</p></div>`;
     document.getElementById('review-details').innerHTML = html;
-    showStep('step-payment');
+    
+    let session = null;
+    try {
+      session = JSON.parse(localStorage.getItem('weBakeSession'));
+    } catch(err) {}
+
+    if (!session) {
+      // Guest user -> require OTP
+      generatedOTP = Math.floor(100000 + Math.random() * 900000).toString();
+      // Simulate sending OTP via email by showing it in a toast
+      showToast(`OTP sent to ${customerInfo.email}: ${generatedOTP}`);
+      
+      const otpInput = document.getElementById('otp-input');
+      const otpError = document.getElementById('otp-error');
+      if (otpInput) otpInput.value = '';
+      if (otpError) otpError.style.display = 'none';
+      
+      const emailDisplay = document.getElementById('checkout-otp-email-display');
+      if (emailDisplay) emailDisplay.textContent = customerInfo.email;
+      
+      startCheckoutOtpTimer();
+      showStep('step-otp');
+    } else {
+      // Logged in user -> skip OTP
+      showStep('step-payment');
+    }
+  });
+
+  document.getElementById('checkout-otp-resend-btn')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    generatedOTP = Math.floor(100000 + Math.random() * 900000).toString();
+    showToast(`OTP resent to ${customerInfo.email}: ${generatedOTP}`);
+    startCheckoutOtpTimer();
+  });
+
+  /* OTP Handlers */
+  document.getElementById('otp-back-btn')?.addEventListener('click', () => showStep('step-info'));
+  document.getElementById('otp-verify-btn')?.addEventListener('click', () => {
+    const entered = document.getElementById('otp-input')?.value;
+    const otpError = document.getElementById('otp-error');
+    if (entered === generatedOTP) {
+      if (otpError) otpError.style.display = 'none';
+      showStep('step-payment');
+    } else {
+      if (otpError) otpError.style.display = 'block';
+    }
   });
 
   /* Payment → back to Info */

@@ -123,6 +123,29 @@
           </div>
         </form>
       </div>
+      <!-- Step: OTP Verification -->
+      <div class="checkout-step" id="step-otp">
+        <div style="padding: 2.5rem; display: flex; flex-direction: column; align-items: center; max-width: 400px; margin: 0 auto;">
+          <div style="text-align:center;font-size:2.5rem;color:var(--accent);margin-bottom:1rem"><i class="fas fa-envelope-open-text"></i></div>
+          <h3 class="auth-modal-title" style="margin-bottom:.25rem">Verify Email</h3>
+          <p class="auth-modal-subtitle">Enter the 6‑digit code sent to <br><strong id="checkout-otp-email-display" style="color:var(--dark)"></strong></p>
+          
+          <div class="form-group" style="width: 100%;">
+            <input type="text" class="form-input" id="otp-input" placeholder="0 0 0 0 0 0" required style="text-align:center;font-size:1.5rem;letter-spacing:.75rem;font-weight:600" maxlength="6">
+            <div class="invalid-feedback" id="otp-error" style="display:none; color:var(--danger); margin-top:0.5rem; text-align: center;">Invalid OTP. Please try again.</div>
+          </div>
+          
+          <div style="display: flex; gap: 1rem; width: 100%; margin-top: 1rem;">
+            <button type="button" class="btn btn-outline" id="otp-back-btn" style="flex: 1;"><i class="fas fa-arrow-left"></i> Back</button>
+            <button type="button" class="btn btn-primary" id="otp-verify-btn" style="flex: 1;"><i class="fas fa-check-circle"></i> Verify</button>
+          </div>
+          
+          <p style="text-align:center;margin-top:1.5rem;font-size:.9rem;color:var(--gray)">
+            <span id="checkout-otp-timer-wrap">Resend code in <strong id="checkout-otp-timer">30</strong>s</span> 
+            <a href="#" id="checkout-otp-resend-btn" class="auth-link" style="display:none"><i class="fas fa-redo-alt"></i> Resend OTP</a>
+          </p>
+        </div>
+      </div>
       <!-- Step 3: Order Summary & Payment -->
       <div class="checkout-step" id="step-payment">
         <h2 style="display:flex; justify-content:center; align-items:center; text-align:center"><i class="fas fa-clipboard-check"></i> Order Summary & Payment</h2>
