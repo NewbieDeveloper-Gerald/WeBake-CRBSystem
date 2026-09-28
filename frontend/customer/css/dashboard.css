@@ -54,3 +54,9 @@
   .dashboard-grid { grid-template-columns: 1fr; }
   .profile-grid { grid-template-columns: 1fr; }
 }
+
+#dash-orders-container { max-height: 360px; overflow-y: auto; padding-right: 5px; }
+#dash-orders-container::-webkit-scrollbar { width: 6px; }
+#dash-orders-container::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+#dash-orders-container::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+#dash-orders-container::-webkit-scrollbar-thumb:hover { background: #aaa; }

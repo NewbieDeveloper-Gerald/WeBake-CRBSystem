@@ -224,7 +224,22 @@ document.addEventListener('DOMContentLoaded', () => {
     html += `<p><span>Name:</span> ${customerInfo.name}</p><p><span>Contact:</span> ${customerInfo.contact}</p>`;
     html += `<p><span>Email:</span> ${customerInfo.email}</p><p><span>Address:</span> ${customerInfo.address}</p></div>`;
     html += `<div class="confirmation-details-section"><h4><i class="fas fa-box"></i> Items Ordered</h4>`;
-    checkoutItems.forEach(i => { html += `<p>${i.name} — ${i.qty} bundle(s) — \u20B1${(i.price * i.qty).toLocaleString()}</p>`; });
+    html += `
+      <div style="font-size:0.8rem; font-weight:bold; padding: 4px 0; display:flex; justify-content:space-between; color:#666; border-bottom: 1px solid #ddd; margin-bottom: 4px;">
+        <span style="flex:1;">Product Name</span>
+        <span style="flex:1; text-align:center;">bundle(pcs)</span>
+        <span style="flex:1; text-align:right;">price</span>
+      </div>
+    `;
+    checkoutItems.forEach(i => { 
+      html += `
+        <div style="font-size:0.85rem; padding: 4px 0; display:flex; justify-content:space-between; border-bottom: 1px dashed #eee;">
+          <span style="flex:1;">${i.name}</span>
+          <span style="flex:1; text-align:center;">${i.qty} bundle(${i.qty * (i.min || 100)} pcs)</span>
+          <span style="flex:1; text-align:right;">\u20B1${(i.price * i.qty).toLocaleString()}</span>
+        </div>
+      `; 
+    });
     html += `<p style="font-weight:700;margin-top:0.5rem;color:var(--primary)">Total: \u20B1${total.toLocaleString()}</p></div>`;
     document.getElementById('review-details').innerHTML = html;
     

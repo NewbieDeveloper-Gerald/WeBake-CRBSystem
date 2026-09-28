@@ -177,13 +177,32 @@ document.addEventListener('DOMContentLoaded', () => {
         if (order.status === 'completed') { statusClass = 'status-completed'; statusText = 'Completed'; }
         else if (order.status === 'cancelled') { statusClass = 'status-cancelled'; statusText = 'Cancelled'; }
         
+        let itemsHtml = `
+          <div style="font-size:0.8rem; font-weight:bold; padding: 4px 0; display:flex; justify-content:space-between; color:#666; border-bottom: 1px solid #ddd;">
+            <span style="flex:1;">Product Name</span>
+            <span style="flex:1; text-align:center;">bundle(pcs)</span>
+            <span style="flex:1; text-align:right;">price</span>
+          </div>
+        ` + order.items.map(i => {
+          return `<div style="font-size:0.85rem; padding: 6px 0; display:flex; justify-content:space-between; border-bottom: 1px dashed #eee;">
+                    <span style="flex:1;">${i.name}</span>
+                    <span style="flex:1; text-align:center;">${i.qty} bundle(${i.qty * (i.min || 100)} pcs)</span>
+                    <span style="flex:1; text-align:right;">\u20B1${(i.price * i.qty).toLocaleString()}</span>
+                  </div>`;
+        }).join('');
+
         html += `
-          <div class="order-item">
-            <div>
-              <strong>${order.date}</strong> <br>
-              <span style="color:var(--gray); font-size:0.8rem;">${order.items.length} items • ₱${order.total.toFixed(2)}</span>
+          <div class="order-item" style="display:flex; flex-direction:column; gap:0.5rem; align-items:flex-start; padding: 1rem; border: 1px solid #eee; border-radius: 8px; margin-bottom: 1rem;">
+            <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+              <strong><i class="far fa-calendar-alt"></i> ${order.date}</strong>
+              <div class="order-status ${statusClass}">${statusText}</div>
             </div>
-            <div class="order-status ${statusClass}">${statusText}</div>
+            <div style="width:100%; border-top: 1px solid #eee; padding-top: 0.5rem; margin-top: 0.5rem;">
+              ${itemsHtml}
+            </div>
+            <div style="text-align:right; width:100%; font-weight:bold; margin-top:0.5rem; color: var(--primary);">
+              Total: \u20B1${order.total.toLocaleString()}
+            </div>
           </div>
         `;
       });
