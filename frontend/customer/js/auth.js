@@ -62,7 +62,22 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="modal-close" data-auth-close>&times;</button>
         <h3 class="auth-modal-title">Create Account</h3>
         <p class="auth-modal-subtitle">Join us and enjoy freshly baked goods!</p>
-        <form id="register-form"><div class="form-group"><label>Full Name</label><div class="auth-icon-input"><i class="fas fa-user"></i><input type="text" class="form-input" required placeholder="Juan Dela Cruz"></div></div><div class="form-group"><label>Email</label><div class="auth-icon-input"><i class="fas fa-envelope"></i><input type="email" class="form-input" required id="reg-email" placeholder="juan@example.com"></div></div><div class="form-group"><label>Password</label><div class="auth-icon-input"><i class="fas fa-lock"></i><input type="password" class="form-input" required id="reg-pwd" placeholder="Create a strong password"><button type="button" class="auth-eye-toggle"><i class="fas fa-eye"></i></button></div></div><div class="form-group"><label>Confirm Password</label><div class="auth-icon-input"><i class="fas fa-lock"></i><input type="password" class="form-input" required id="reg-cpwd" placeholder="Confirm your password"><button type="button" class="auth-eye-toggle"><i class="fas fa-eye"></i></button></div></div><button type="submit" class="btn btn-primary btn-block"><i class="fas fa-user-plus"></i> Register Account</button></form>
+        <form id="register-form">
+          <div class="form-group"><label>Full Name</label><div class="auth-icon-input"><i class="fas fa-user"></i><input type="text" class="form-input" required placeholder="Juan Dela Cruz"></div></div>
+          <div class="form-group"><label>Email</label><div class="auth-icon-input"><i class="fas fa-envelope"></i><input type="email" class="form-input" required id="reg-email" placeholder="juan@example.com"></div></div>
+          <div class="form-group">
+            <label>Password</label>
+            <div class="auth-icon-input"><i class="fas fa-lock"></i><input type="password" class="form-input" required id="reg-pwd" placeholder="Create a strong password"><button type="button" class="auth-eye-toggle"><i class="fas fa-eye"></i></button></div>
+            <div class="pwd-strength" style="display:none; margin-top:0.5rem; height:4px; border-radius:2px; background:#eee; overflow:hidden;"><div class="pwd-strength-bar" style="width:0; height:100%; transition:all 0.3s;"></div></div>
+            <div class="pwd-strength-text" style="display:none; font-size:0.75rem; margin-top:0.25rem; font-weight:600;"></div>
+          </div>
+          <div class="form-group">
+            <label>Confirm Password</label>
+            <div class="auth-icon-input"><i class="fas fa-lock"></i><input type="password" class="form-input" required id="reg-cpwd" placeholder="Confirm your password"><button type="button" class="auth-eye-toggle"><i class="fas fa-eye"></i></button></div>
+            <div class="cpwd-error" style="display:none; color:var(--danger); font-size:0.75rem; margin-top:0.25rem;">Passwords do not match</div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block" id="reg-submit-btn"><i class="fas fa-user-plus"></i> Register Account</button>
+        </form>
         <p style="text-align:center;margin-top:1.5rem;font-size:.9rem">Already have an account? <a href="#" data-auth-open="signin-modal" class="auth-link">Sign In</a></p>
       </div>
 
@@ -100,11 +115,100 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="modal-close" data-auth-close>&times;</button>
         <h3 class="auth-modal-title">Set New Password</h3>
         <p class="auth-modal-subtitle">Enter and confirm your new password.</p>
-        <form id="reset-form"><div class="form-group"><label>New Password</label><div class="auth-icon-input"><i class="fas fa-lock"></i><input type="password" class="form-input" required placeholder="New password"><button type="button" class="auth-eye-toggle"><i class="fas fa-eye"></i></button></div></div><div class="form-group"><label>Confirm Password</label><div class="auth-icon-input"><i class="fas fa-lock"></i><input type="password" class="form-input" required placeholder="Confirm password"><button type="button" class="auth-eye-toggle"><i class="fas fa-eye"></i></button></div></div><button type="submit" class="btn btn-primary btn-block"><i class="fas fa-save"></i> Save Password</button></form>
+        <form id="reset-form">
+          <div class="form-group">
+            <label>New Password</label>
+            <div class="auth-icon-input"><i class="fas fa-lock"></i><input type="password" class="form-input" required id="reset-pwd" placeholder="New password"><button type="button" class="auth-eye-toggle"><i class="fas fa-eye"></i></button></div>
+            <div class="pwd-strength" style="display:none; margin-top:0.5rem; height:4px; border-radius:2px; background:#eee; overflow:hidden;"><div class="pwd-strength-bar" style="width:0; height:100%; transition:all 0.3s;"></div></div>
+            <div class="pwd-strength-text" style="display:none; font-size:0.75rem; margin-top:0.25rem; font-weight:600;"></div>
+          </div>
+          <div class="form-group">
+            <label>Confirm Password</label>
+            <div class="auth-icon-input"><i class="fas fa-lock"></i><input type="password" class="form-input" required id="reset-cpwd" placeholder="Confirm password"><button type="button" class="auth-eye-toggle"><i class="fas fa-eye"></i></button></div>
+            <div class="cpwd-error" style="display:none; color:var(--danger); font-size:0.75rem; margin-top:0.25rem;">Passwords do not match</div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block" id="reset-submit-btn"><i class="fas fa-save"></i> Save Password</button>
+        </form>
       </div>
     `;
     document.body.insertAdjacentHTML('beforeend', authHtml);
   }
+
+  // ---------- Password Strength & Matching Logic ----------
+  function checkStrength(pwd) {
+    let strength = 0;
+    if (pwd.length >= 6) strength += 25;
+    if (pwd.length >= 10) strength += 25;
+    if (/[A-Z]/.test(pwd)) strength += 25;
+    if (/[0-9!@#$%^&*]/.test(pwd)) strength += 25;
+    return strength;
+  }
+  
+  function updatePwdUI(formId, pwdId, cpwdId, submitId) {
+    const form = document.getElementById(formId);
+    if (!form) return;
+    const pwdInput = document.getElementById(pwdId);
+    const cpwdInput = document.getElementById(cpwdId);
+    
+    const strengthBar = form.querySelector('.pwd-strength-bar');
+    const strengthText = form.querySelector('.pwd-strength-text');
+    const strengthWrap = form.querySelector('.pwd-strength');
+    const cpwdError = form.querySelector('.cpwd-error');
+    const submitBtn = document.getElementById(submitId);
+    
+    function validate() {
+      const pwd = pwdInput.value;
+      const cpwd = cpwdInput.value;
+      
+      // Strength
+      if (pwd) {
+        strengthWrap.style.display = 'block';
+        strengthText.style.display = 'block';
+        const score = checkStrength(pwd);
+        strengthBar.style.width = score + '%';
+        if (score <= 25) {
+          strengthBar.style.background = 'red';
+          strengthText.textContent = 'Weak';
+          strengthText.style.color = 'red';
+        } else if (score <= 50) {
+          strengthBar.style.background = 'orange';
+          strengthText.textContent = 'Fair';
+          strengthText.style.color = 'orange';
+        } else if (score <= 75) {
+          strengthBar.style.background = '#e6c200';
+          strengthText.textContent = 'Good';
+          strengthText.style.color = '#e6c200';
+        } else {
+          strengthBar.style.background = 'green';
+          strengthText.textContent = 'Strong';
+          strengthText.style.color = 'green';
+        }
+      } else {
+        strengthWrap.style.display = 'none';
+        strengthText.style.display = 'none';
+      }
+      
+      // Match
+      if (cpwd) {
+        if (pwd !== cpwd) {
+          cpwdError.style.display = 'block';
+          if(submitBtn) submitBtn.disabled = true;
+        } else {
+          cpwdError.style.display = 'none';
+          if(submitBtn) submitBtn.disabled = (pwd.length < 6);
+        }
+      } else {
+        cpwdError.style.display = 'none';
+        if(submitBtn) submitBtn.disabled = false;
+      }
+    }
+    
+    if (pwdInput) pwdInput.addEventListener('input', validate);
+    if (cpwdInput) cpwdInput.addEventListener('input', validate);
+  }
+  
+  updatePwdUI('register-form', 'reg-pwd', 'reg-cpwd', 'reg-submit-btn');
+  updatePwdUI('reset-form', 'reset-pwd', 'reset-cpwd', 'reset-submit-btn');
 
   // Ensure toast element exists on all pages
   if (!document.getElementById('toast')) {
