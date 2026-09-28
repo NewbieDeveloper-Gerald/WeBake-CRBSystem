@@ -81,7 +81,17 @@ document.addEventListener('DOMContentLoaded', () => {
         <div style="text-align:center;font-size:2.5rem;color:var(--accent);margin-bottom:1rem"><i class="fas fa-envelope-open-text"></i></div>
         <h3 class="auth-modal-title" style="margin-bottom:.25rem">Verify Email</h3>
         <p class="auth-modal-subtitle">Enter the 6‑digit code sent to <br><strong id="otp-email-display" style="color:var(--dark)"></strong></p>
-        <form id="otp-form"><div class="form-group"><input type="text" class="form-input" placeholder="0 0 0 0 0 0" required style="text-align:center;font-size:1.5rem;letter-spacing:.75rem;font-weight:600" maxlength="6"></div><button type="submit" class="btn btn-primary btn-block"><i class="fas fa-check-circle"></i> Verify</button></form>
+        <form id="otp-form">
+          <div class="form-group otp-inputs" id="otpInputs" style="display:flex;gap:0.5rem;justify-content:center;margin-bottom:1.5rem">
+            <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
+            <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
+            <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
+            <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
+            <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
+            <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
+          </div>
+          <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-check-circle"></i> Verify</button>
+        </form>
         <p style="text-align:center;margin-top:1.5rem;font-size:.9rem;color:var(--gray)"><span id="otp-timer-wrap">Resend code in <strong id="otp-timer">30</strong>s</span> <a href="#" id="otp-resend-btn" class="auth-link" style="display:none"><i class="fas fa-redo-alt"></i> Resend OTP</a></p>
       </div>
 
@@ -109,7 +119,14 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('#signin-modal,#register-modal,#forgot-modal,#otp-modal,#reset-modal')
       .forEach(m => m.classList.remove('active'));
     authOverlay.classList.add('active');
-    document.getElementById(id).classList.add('active');
+    const modal = document.getElementById(id);
+    modal.classList.add('active');
+    
+    // Auto-focus first input
+    setTimeout(() => {
+      const firstInput = modal.querySelector('input');
+      if (firstInput) firstInput.focus();
+    }, 100);
   }
 
   function closeAuthModals() {
@@ -175,7 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       store.clearSession();
       showToast('You\'ve been signed out. See you again! 👋');
-      setTimeout(() => { window.location.href = 'index.html'; }, 1500);
+      setTimeout(() => { window.location.href = 'home.html'; }, 1500);
     }
   });
 
@@ -219,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---------- OTP ----------
   document.getElementById('otp-form')?.addEventListener('submit', e => {
     e.preventDefault();
-    const entered = e.target.querySelector('input').value.trim();
+    const entered = Array.from(e.target.querySelectorAll('.otp-input')).map(i => i.value).join('');
     if (entered !== sessionStorage.getItem('tmpOtp')) { showToast('Invalid OTP code'); return; }
     clearInterval(otpInterval); sessionStorage.removeItem('tmpOtp');
     if (flowMode === 'register') {
@@ -254,4 +271,22 @@ document.addEventListener('DOMContentLoaded', () => {
     wrap.style.display = 'inline'; btn.style.display = 'none'; span.textContent = t;
     otpInterval = setInterval(() => { span.textContent = --t; if (t <= 0) { clearInterval(otpInterval); wrap.style.display = 'none'; btn.style.display = 'inline'; } }, 1000);
   }
+
+  // ---------- OTP Auto-Focus Logic ----------
+  document.body.addEventListener('input', e => {
+    if (e.target.classList.contains('otp-input')) {
+      const val = e.target.value;
+      if (val && e.target.nextElementSibling) {
+        e.target.nextElementSibling.focus();
+      }
+    }
+  });
+
+  document.body.addEventListener('keydown', e => {
+    if (e.target.classList.contains('otp-input')) {
+      if (e.key === 'Backspace' && !e.target.value && e.target.previousElementSibling) {
+        e.target.previousElementSibling.focus();
+      }
+    }
+  });
 });

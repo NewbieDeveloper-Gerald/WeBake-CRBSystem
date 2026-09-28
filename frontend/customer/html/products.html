@@ -14,10 +14,10 @@
   <!-- HEADER -->
   <header class="header">
     <nav class="nav container">
-      <a href="index.html" class="logo">We<span>Bake</span></a>
+      <a href="home.html" class="logo">We<span>Bake</span></a>
       <div class="nav-right">
         <div class="nav-links" id="nav-links">
-          <a href="index.html">Home</a>
+          <a href="home.html">Home</a>
           <a href="products.html" class="active">Products</a>
           <a href="partner.html">Be a Partner</a>
           <a href="about.html">About Us</a>
@@ -131,7 +131,14 @@
           <p class="auth-modal-subtitle">Enter the 6‑digit code sent to <br><strong id="checkout-otp-email-display" style="color:var(--dark)"></strong></p>
           
           <div class="form-group" style="width: 100%;">
-            <input type="text" class="form-input" id="otp-input" placeholder="0 0 0 0 0 0" required style="text-align:center;font-size:1.5rem;letter-spacing:.75rem;font-weight:600" maxlength="6">
+            <div class="otp-inputs" style="display:flex;gap:0.5rem;justify-content:center;margin-bottom:0.5rem">
+              <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
+              <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
+              <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
+              <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
+              <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
+              <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
+            </div>
             <div class="invalid-feedback" id="otp-error" style="display:none; color:var(--danger); margin-top:0.5rem; text-align: center;">Invalid OTP. Please try again.</div>
           </div>
           
@@ -184,7 +191,7 @@
           <p style="text-align:center; color:var(--gray);">Thank you for your order. We will contact you shortly for delivery details.</p>
         </div>
         <div class="confirmation-actions" style="width:100%; display:flex; justify-content:center; gap:1rem;">
-          <a href="index.html" class="btn btn-outline"><i class="fas fa-home"></i> Back to Home</a>
+          <a href="home.html" class="btn btn-outline"><i class="fas fa-home"></i> Back to Home</a>
           <button class="btn btn-primary" id="order-again-btn"><i class="fas fa-rotate"></i> Order Again</button>
         </div>
       </div>
@@ -196,11 +203,11 @@
     <div class="container">
       <div class="footer-content">
         <div class="footer-brand">
-          <a href="index.html" class="logo">We<span>Bake</span></a>
+          <a href="home.html" class="logo">We<span>Bake</span></a>
           <p>Crumbs N' Rolls Bakery</p>
         </div>
         <nav class="footer-nav">
-          <a href="index.html">Home</a>
+          <a href="home.html">Home</a>
           <a href="products.html">Products</a>
           <a href="partner.html">Be a Partner</a>
           <a href="about.html">About Us</a>

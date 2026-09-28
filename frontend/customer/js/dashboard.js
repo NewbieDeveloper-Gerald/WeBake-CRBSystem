@@ -1,4 +1,4 @@
-/* ==============================================
+﻿/* ==============================================
    WeBake - Dashboard JavaScript (dashboard.js)
    ============================================== */
 
@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const sessionString = localStorage.getItem('weBakeSession');
   if (!sessionString) {
     // If not logged in, redirect to home
-    window.location.href = 'index.html';
+    window.location.href = 'home.html';
     return;
   }
   
@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (!currentUser) {
     localStorage.removeItem('weBakeSession');
-    window.location.href = 'index.html';
+    window.location.href = 'home.html';
     return;
   }
 

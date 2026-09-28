@@ -225,7 +225,14 @@ document.addEventListener('DOMContentLoaded', () => {
   /* --- CHECKOUT FLOW: Stock → Info → Review → Payment → Success --- */
   function showStep(id) {
     document.querySelectorAll('.checkout-step').forEach(s => s.classList.remove('active'));
-    document.getElementById(id)?.classList.add('active');
+    const step = document.getElementById(id);
+    if (step) {
+      step.classList.add('active');
+      setTimeout(() => {
+        const firstInput = step.querySelector('input:not([type="hidden"])');
+        if (firstInput) firstInput.focus();
+      }, 100);
+    }
   }
   function closeCheckout() {
     document.getElementById('checkout-overlay')?.classList.remove('active');
@@ -308,9 +315,9 @@ document.addEventListener('DOMContentLoaded', () => {
       // Simulate sending OTP via email by showing it in a toast
       showToast(`OTP sent to ${customerInfo.email}: ${generatedOTP}`);
       
-      const otpInput = document.getElementById('otp-input');
+      const otpInputs = document.querySelectorAll('.otp-input');
       const otpError = document.getElementById('otp-error');
-      if (otpInput) otpInput.value = '';
+      otpInputs.forEach(i => i.value = '');
       if (otpError) otpError.style.display = 'none';
       
       const emailDisplay = document.getElementById('checkout-otp-email-display');
@@ -334,7 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
   /* OTP Handlers */
   document.getElementById('otp-back-btn')?.addEventListener('click', () => showStep('step-info'));
   document.getElementById('otp-verify-btn')?.addEventListener('click', () => {
-    const entered = document.getElementById('otp-input')?.value;
+    const entered = Array.from(document.querySelectorAll('.otp-input')).map(i => i.value).join('');
     const otpError = document.getElementById('otp-error');
     if (entered === generatedOTP) {
       if (otpError) otpError.style.display = 'none';
@@ -374,7 +381,13 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
       const totalAmt = checkoutItems.reduce((s, i) => s + i.price * i.qty, 0);
       addOrderToStore(totalAmt);
-      cart = []; updateCartUI(); syncCartToStore(); showStep('step-success');
+      
+      // Only remove the checked out items from the cart
+      checkoutItems.forEach(item => {
+        cart = cart.filter(c => c.id !== item.id);
+      });
+      
+      updateCartUI(); syncCartToStore(); showStep('step-success');
       btn.innerHTML = '<i class="fas fa-check"></i> Confirm Payment'; btn.disabled = false;
     }, 1500);
   });
