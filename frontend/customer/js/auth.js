@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const authHtml = `
       <style>
         .auth-icon-input{position:relative}
-        .auth-icon-input i.fa-lock,.auth-icon-input i.fa-envelope,.auth-icon-input i.fa-user{position:absolute;left:1rem;top:50%;transform:translateY(-50%);color:var(--gray);font-size:.9rem}
+        .auth-icon-input i.fa-lock,.auth-icon-input i.fa-envelope,.auth-icon-input i.fa-user,.auth-icon-input i.fa-phone,.auth-icon-input i.fa-map-marker-alt{position:absolute;left:1rem;top:50%;transform:translateY(-50%);color:var(--gray);font-size:.9rem}
         .auth-icon-input input{padding-left:2.5rem!important;padding-right:2.5rem!important}
         .auth-eye-toggle{position:absolute;right:1rem;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--gray);font-size:.95rem;background:none;border:none;padding:0}
         .auth-eye-toggle:hover{color:var(--dark)}
@@ -65,6 +65,8 @@ document.addEventListener('DOMContentLoaded', () => {
         <form id="register-form">
           <div class="form-group"><label>Full Name</label><div class="auth-icon-input"><i class="fas fa-user"></i><input type="text" class="form-input" required placeholder="Juan Dela Cruz"></div></div>
           <div class="form-group"><label>Email</label><div class="auth-icon-input"><i class="fas fa-envelope"></i><input type="email" class="form-input" required id="reg-email" placeholder="juan@example.com"></div></div>
+          <div class="form-group"><label>Contact Number</label><div class="auth-icon-input"><i class="fas fa-phone"></i><input type="tel" class="form-input" required id="reg-contact" placeholder="09XXXXXXXXX" pattern="09[0-9]{9}" maxlength="11" title="Must start with 09 and be 11 digits long"></div></div>
+          <div class="form-group"><label>Delivery Address</label><div class="auth-icon-input"><i class="fas fa-map-marker-alt"></i><input type="text" class="form-input" required id="reg-address" placeholder="123 Bakery St, City"></div></div>
           <div class="form-group">
             <label>Password</label>
             <div class="auth-icon-input"><i class="fas fa-lock"></i><input type="password" class="form-input" required id="reg-pwd" placeholder="Create a strong password"><button type="button" class="auth-eye-toggle"><i class="fas fa-eye"></i></button></div>
@@ -346,7 +348,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (flowMode === 'register') {
       const name = document.querySelector('#register-form input[placeholder="Juan Dela Cruz"]').value.trim();
       const pwd = document.getElementById('reg-pwd').value;
-      store.add({ name, email: pendingEmail, password: pwd, contact: '', address: '', savedCart: [], orderHistory: [], partnerStatus: 'none' });
+      const contact = document.getElementById('reg-contact').value.trim();
+      const address = document.getElementById('reg-address').value.trim();
+      store.add({ name, email: pendingEmail, password: pwd, contact: contact, address: address, savedCart: [], orderHistory: [], partnerStatus: 'none' });
       showToast('Account created successfully!'); closeAuthModals(); openAuthModal('signin-modal');
     } else if (flowMode === 'forgot') { openAuthModal('reset-modal'); }
   });
