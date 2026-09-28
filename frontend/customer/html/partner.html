@@ -49,17 +49,17 @@
             <div class="form-row">
               <div class="form-group">
                 <label>Bakery / Business Name *</label>
-                <input class="form-input" type="text" placeholder="Your bakery name" required>
+                <input class="form-input" id="partner-bakery-name" type="text" placeholder="Your bakery name" required>
               </div>
               <div class="form-group">
                 <label>Owner / Representative Name *</label>
-                <input class="form-input" type="text" placeholder="Full name" required>
+                <input class="form-input" id="partner-owner-name" type="text" placeholder="Full name" required>
               </div>
             </div>
             <div class="form-row">
               <div class="form-group">
                 <label>Business Type *</label>
-                <select class="form-select" required>
+                <select class="form-select" id="partner-type" required>
                   <option value="" disabled selected>Select type</option>
                   <option>Bakery</option>
                   <option>Retail Store</option>
@@ -70,21 +70,21 @@
               </div>
               <div class="form-group">
                 <label>Years in Operation *</label>
-                <input class="form-input" type="number" placeholder="e.g. 5" min="0" required>
+                <input class="form-input" id="partner-years" type="number" placeholder="e.g. 5" min="0" required>
               </div>
             </div>
             <div class="form-group">
               <label>Business Address *</label>
-              <input class="form-input" type="text" placeholder="Complete business address" required>
+              <input class="form-input" id="partner-address" type="text" placeholder="Complete business address" required>
             </div>
             <div class="form-row">
               <div class="form-group">
                 <label>Number of Branches</label>
-                <input class="form-input" type="number" placeholder="e.g. 1" min="1">
+                <input class="form-input" id="partner-branches" type="number" placeholder="e.g. 1" min="1">
               </div>
               <div class="form-group">
                 <label>Business Permit Number</label>
-                <input class="form-input" type="text" placeholder="If available">
+                <input class="form-input" id="partner-permit" type="text" placeholder="If available">
               </div>
             </div>
 
@@ -93,16 +93,16 @@
             <div class="form-row">
               <div class="form-group">
                 <label>Email Address *</label>
-                <input class="form-input" type="email" placeholder="you@email.com" required>
+                <input class="form-input" id="partner-email" type="email" placeholder="you@email.com" required>
               </div>
               <div class="form-group">
                 <label>Contact Number *</label>
-                <input class="form-input" type="tel" placeholder="09XX XXX XXXX" required>
+                <input class="form-input" id="partner-phone" type="tel" placeholder="09XX XXX XXXX" required>
               </div>
             </div>
             <div class="form-group">
               <label>TIN (Tax Identification Number)</label>
-              <input class="form-input" type="text" placeholder="If available">
+              <input class="form-input" id="partner-tin" type="text" placeholder="If available">
             </div>
 
             <!-- Products of Interest -->
@@ -118,7 +118,7 @@
             <h3 class="form-section-title"><i class="fas fa-message"></i> Additional Information</h3>
             <div class="form-group">
               <label>Message / Special Requests</label>
-              <textarea class="form-textarea" placeholder="Tell us more about your business needs..."></textarea>
+              <textarea class="form-textarea" id="partner-notes" placeholder="Tell us more about your business needs..."></textarea>
             </div>
 
             <div style="display:flex; gap:1rem;">
@@ -166,4 +166,7 @@
   <script src="../js/auth.js"></script>
 </body>
 </html>
+
+
+
 

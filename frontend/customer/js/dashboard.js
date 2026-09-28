@@ -245,23 +245,79 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // --- Render Partnership Status ---
-  const partnerBadge = document.getElementById('dash-partner-badge');
-  const partnerCta = document.getElementById('dash-partner-cta');
-  if (partnerBadge && partnerCta) {
-    const status = currentUser.partnerStatus || 'none';
+  function renderPartnership() {
+    const partnerBadge = document.getElementById('dash-partner-badge');
+    const partnerCta = document.getElementById('dash-partner-cta');
+    const partnerActions = document.getElementById('dash-partner-actions');
+    if (!partnerBadge || !partnerCta || !partnerActions) return;
+
+    const allUsers = getUsers();
+    const freshUser = allUsers.find(u => u.email === session.email);
+    const status = freshUser ? (freshUser.partnerStatus || 'none') : 'none';
+
+    partnerActions.innerHTML = '';
+
     if (status === 'active') {
       partnerBadge.className = 'partner-badge badge-active';
       partnerBadge.innerHTML = '<i class="fas fa-check-circle"></i> Active Partner';
       partnerCta.style.display = 'none';
+      partnerActions.innerHTML = `
+        <a href="partner.html" class="btn btn-outline" style="padding:0.4rem 1rem; font-size:0.85rem;">Update Details</a>
+        <button id="cancel-partner-btn" class="btn btn-primary" style="padding:0.4rem 1rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545;">Cancel Partnership</button>
+      `;
     } else if (status === 'pending') {
       partnerBadge.className = 'partner-badge badge-pending';
       partnerBadge.innerHTML = '<i class="fas fa-clock"></i> Application Pending';
       partnerCta.innerHTML = 'Your partnership application is currently being reviewed.';
+      partnerCta.style.display = 'block';
+      partnerActions.innerHTML = `
+        <a href="partner.html" class="btn btn-outline" style="padding:0.4rem 1rem; font-size:0.85rem;">Edit Application</a>
+        <button id="cancel-partner-btn" class="btn btn-primary" style="padding:0.4rem 1rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545;">Cancel Request</button>
+      `;
     } else {
       partnerBadge.className = 'partner-badge badge-none';
       partnerBadge.innerHTML = '<i class="fas fa-minus-circle"></i> No Partnership';
+      partnerCta.innerHTML = 'Interested in wholesale? <a href="partner.html">Apply to be a partner today!</a>';
       partnerCta.style.display = 'block';
     }
+
+    const cancelBtn = document.getElementById('cancel-partner-btn');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => {
+        const modalHtml = `
+          <div id="cancel-partner-modal" class="overlay active" style="z-index:9999;">
+            <div class="modal active" style="max-width:400px; text-align:center; padding: 2rem;">
+              <h3 style="color:#dc3545; margin-bottom:1rem;"><i class="fas fa-exclamation-triangle"></i> Cancel Application</h3>
+              <p style="margin-bottom:1.5rem; color:#555;">Are you sure you want to cancel your partnership request? This action cannot be undone.</p>
+              <div style="display:flex; justify-content:center; gap:1rem;">
+                <button id="cancel-modal-no" class="btn btn-outline">No, Keep It</button>
+                <button id="cancel-modal-yes" class="btn btn-primary" style="background:#dc3545; border-color:#dc3545;">Yes, Cancel Request</button>
+              </div>
+            </div>
+          </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        document.getElementById('cancel-modal-no').addEventListener('click', () => {
+          document.getElementById('cancel-partner-modal').remove();
+        });
+
+        document.getElementById('cancel-modal-yes').addEventListener('click', () => {
+          document.getElementById('cancel-partner-modal').remove();
+          const freshAll = getUsers();
+          const target = freshAll.find(u => u.email === session.email);
+          if (target) {
+            target.partnerStatus = 'none';
+            target.partnerDetails = null; // Clear their saved info when they cancel
+            localStorage.setItem(USERS_KEY, JSON.stringify(freshAll));
+            renderPartnership();
+            showToast('Partnership cancelled.');
+          }
+        });
+      });
+    }
   }
+
+  renderPartnership();
 });
 

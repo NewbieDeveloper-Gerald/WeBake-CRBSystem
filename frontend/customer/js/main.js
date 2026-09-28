@@ -335,24 +335,66 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
   /* --- PARTNER FORM --- */
-  document.getElementById('partner-form')?.addEventListener('submit', e => {
-    e.preventDefault();
+  const partnerForm = document.getElementById('partner-form');
+  if (partnerForm) {
+    try {
+      const s = JSON.parse(localStorage.getItem('weBakeSession'));
+      if (s) {
+        const all = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
+        const u = all.find(u => u.email === s.email);
+        if (u && (u.partnerStatus === 'pending' || u.partnerStatus === 'active')) {
+          const intro = document.querySelector('.partner-intro');
+          if (intro) intro.innerHTML = `<div style="background:#e3f2fd; color:#0c5460; padding:1rem; border-radius:8px; margin-bottom:1rem; font-weight:bold;"><i class="fas fa-info-circle"></i> You have already submitted an application. You can update your existing details below.</div>`;
+          const submitBtn = partnerForm.querySelector('button[type="submit"]');
+          if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-save"></i> Update Application';
+          
+          // Pre-populate fields
+          if (u.partnerDetails) {
+            ['bakery-name', 'owner-name', 'type', 'years', 'address', 'branches', 'permit', 'tin', 'email', 'phone', 'notes'].forEach(key => {
+              const el = document.getElementById(`partner-${key}`);
+              if (el && u.partnerDetails[key]) el.value = u.partnerDetails[key];
+            });
+            // Handle checkboxes
+            if (u.partnerDetails.products) {
+              const checkboxes = partnerForm.querySelectorAll('input[type="checkbox"]');
+              checkboxes.forEach(cb => {
+                if (u.partnerDetails.products.includes(cb.value)) cb.checked = true;
+              });
+            }
+          }
+        }
+      }
+    } catch(e) {}
+  }
 
-    // ── Save partnership status to the logged-in user ──
+  partnerForm?.addEventListener('submit', e => {
+    e.preventDefault();
+    let isUpdate = false;
     try {
       const s = JSON.parse(localStorage.getItem('weBakeSession'));
       if (s) {
         const all = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
         const u = all.find(u => u.email === s.email);
         if (u) {
-          u.partnerStatus = 'pending';
+          if (u.partnerStatus === 'pending' || u.partnerStatus === 'active') isUpdate = true;
+          u.partnerStatus = u.partnerStatus === 'active' ? 'active' : 'pending';
+          
+          // Gather details
+          const details = {};
+          ['bakery-name', 'owner-name', 'type', 'years', 'address', 'branches', 'permit', 'tin', 'email', 'phone', 'notes'].forEach(key => {
+            const el = document.getElementById(`partner-${key}`);
+            if (el) details[key] = el.value;
+          });
+          details.products = Array.from(partnerForm.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+          u.partnerDetails = details;
+
           localStorage.setItem('weBakeUsers', JSON.stringify(all));
         }
       }
     } catch(e) {}
 
-    showToast('Partnership application submitted successfully!');
-    e.target.reset();
+    showToast(isUpdate ? 'Partnership application updated successfully!' : 'Partnership application submitted successfully!');
+    setTimeout(() => { window.location.href = 'dashboard.html'; }, 1500);
   });
 
   /* --- VALIDATION --- */
@@ -385,5 +427,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
 });
+
 
 
