@@ -367,6 +367,22 @@ document.addEventListener('DOMContentLoaded', () => {
   /* Init */
   loadCartFromStore();
   updateCartUI();
+
+  /* Auto-checkout from Dashboard */
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('checkout') === 'true' && cart.length > 0) {
+    const itemsParam = urlParams.get('items');
+    if (itemsParam) {
+      const indices = itemsParam.split(',').map(n => parseInt(n));
+      checkoutItems = indices.map(i => cart[i]).filter(item => item !== undefined);
+    } else {
+      checkoutItems = [...cart];
+    }
+    
+    if (checkoutItems.length > 0) {
+      startCheckout();
+    }
+  }
   
 });
 

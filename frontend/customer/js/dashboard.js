@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    let html = '<table class="cart-table"><thead><tr><th>Product</th><th>Qty</th><th>Price</th><th></th></tr></thead><tbody>';
+    let html = '<table class="cart-table"><thead><tr><th style="width:30px;"><input type="checkbox" id="cart-select-all" checked></th><th style="text-align:left;">Product Name</th><th style="text-align:center;">Bundle(pcs)</th><th style="text-align:right;">Price</th><th></th></tr></thead><tbody>';
     let total = 0;
 
     cart.forEach((item, index) => {
@@ -95,34 +95,63 @@ document.addEventListener('DOMContentLoaded', () => {
       total += itemTotal;
       html += `
         <tr>
+          <td><input type="checkbox" class="cart-item-check" data-index="${index}" data-price="${itemTotal}" checked></td>
           <td><strong>${item.name}</strong></td>
-          <td>
-            <div style="display:flex; align-items:center; gap:0.5rem;">
-              <input type="number" min="1" value="${item.qty}" class="qty-input" data-index="${index}" style="width: 60px;">
-              <span style="font-size: 0.75rem; color: #888;">bundle(s)<br>(${item.qty * (item.min || 100)} pcs)</span>
-            </div>
+          <td style="text-align:center;">
+            ${item.qty} Bundle(${item.qty * (item.min || 100)} pcs)
           </td>
-          <td>₱${itemTotal.toFixed(2)}</td>
+          <td style="text-align:right;">\u20B1${itemTotal.toFixed(2)}</td>
           <td style="text-align:right;">
-            <button class="remove-btn" data-index="${index}" title="Remove"><i class="fas fa-times"></i></button>
+            <button class="remove-btn" data-index="${index}" title="Remove" style="color:#dc3545; background:none; border:none; cursor:pointer;"><i class="fas fa-trash"></i></button>
           </td>
         </tr>
       `;
     });
     
-    html += `</tbody></table><div class="cart-total">Total: ₱${total.toFixed(2)}</div>`;
+    html += `</tbody></table>
+      <div style="display:flex; flex-direction:column; align-items:flex-end; margin-top: 1rem; gap: 0.5rem;">
+        <div class="cart-total" style="margin:0;">Total: \u20B1${total.toFixed(2)}</div>
+        <button id="dash-checkout-btn" class="btn btn-primary" style="padding: 0.5rem 1.5rem;"><i class="fas fa-shopping-cart"></i> Checkout Now</button>
+      </div>`;
     cartContainer.innerHTML = html;
 
-    // Bind events for qty change and remove
-    const qtyInputs = cartContainer.querySelectorAll('.qty-input');
-    qtyInputs.forEach(input => {
-      input.addEventListener('change', (e) => {
-        let newQty = parseInt(e.target.value);
-        if (isNaN(newQty) || newQty < 1) newQty = 1;
-        const idx = e.target.getAttribute('data-index');
-        updateCartItem(idx, newQty);
+    const itemChecks = cartContainer.querySelectorAll('.cart-item-check');
+    const selectAll = document.getElementById('cart-select-all');
+    const totalEl = cartContainer.querySelector('.cart-total');
+
+    function updateSelectedTotal() {
+      let currentTotal = 0;
+      itemChecks.forEach(chk => {
+        if (chk.checked) currentTotal += parseFloat(chk.getAttribute('data-price'));
       });
-    });
+      if (totalEl) totalEl.textContent = 'Total: \u20B1' + currentTotal.toFixed(2);
+      if (selectAll) selectAll.checked = Array.from(itemChecks).every(c => c.checked);
+    }
+
+    itemChecks.forEach(chk => chk.addEventListener('change', updateSelectedTotal));
+    if (selectAll) {
+      selectAll.addEventListener('change', (e) => {
+        itemChecks.forEach(chk => chk.checked = e.target.checked);
+        updateSelectedTotal();
+      });
+    }
+
+    const dashCheckoutBtn = document.getElementById('dash-checkout-btn');
+    if (dashCheckoutBtn) {
+      dashCheckoutBtn.addEventListener('click', () => {
+        const selectedIndices = [];
+        itemChecks.forEach(chk => {
+          if (chk.checked) selectedIndices.push(chk.getAttribute('data-index'));
+        });
+        if (selectedIndices.length === 0) {
+          showToast('Please select at least one item to checkout.');
+          return;
+        }
+        window.location.href = 'products.html?checkout=true&items=' + selectedIndices.join(',');
+      });
+    }
+
+    // Bind events for qty change and remove
 
     const removeBtns = cartContainer.querySelectorAll('.remove-btn');
     removeBtns.forEach(btn => {
@@ -234,5 +263,5 @@ document.addEventListener('DOMContentLoaded', () => {
       partnerCta.style.display = 'block';
     }
   }
-
 });
+
