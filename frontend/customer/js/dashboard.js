@@ -98,7 +98,14 @@ document.addEventListener('DOMContentLoaded', () => {
           <td><input type="checkbox" class="cart-item-check" data-index="${index}" data-price="${itemTotal}" checked></td>
           <td><strong>${item.name}</strong></td>
           <td style="text-align:center;">
-            ${item.qty} Bundle(${item.qty * (item.min || 100)} pcs)
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;">
+              <div style="display:flex; align-items:center; gap:0.25rem;">
+                <button class="cart-qty-btn btn btn-outline" data-index="${index}" data-action="minus" style="padding:0 0.4rem; cursor:pointer; min-width:unset; line-height:1.2;">-</button>
+                <span style="font-weight:bold; min-width:1.5rem; text-align:center;">${item.qty}</span>
+                <button class="cart-qty-btn btn btn-outline" data-index="${index}" data-action="plus" style="padding:0 0.4rem; cursor:pointer; min-width:unset; line-height:1.2;">+</button>
+              </div>
+              <span style="font-size:0.75rem; color:#666;">(${item.qty * (item.min || 100)} pcs)</span>
+            </div>
           </td>
           <td style="text-align:right;">\u20B1${itemTotal.toFixed(2)}</td>
           <td style="text-align:right;">
@@ -111,7 +118,10 @@ document.addEventListener('DOMContentLoaded', () => {
     html += `</tbody></table>
       <div style="display:flex; flex-direction:column; align-items:flex-end; margin-top: 1rem; gap: 0.5rem;">
         <div class="cart-total" style="margin:0;">Total: \u20B1${total.toFixed(2)}</div>
-        <button id="dash-checkout-btn" class="btn btn-primary" style="padding: 0.5rem 1.5rem;"><i class="fas fa-shopping-cart"></i> Checkout Now</button>
+        <div style="display:flex; gap:0.5rem;">
+          <a href="products.html" class="btn btn-outline" style="padding: 0.5rem 1.5rem;"><i class="fas fa-arrow-left"></i> Continue Browsing</a>
+          <button id="dash-checkout-btn" class="btn btn-primary" style="padding: 0.5rem 1.5rem;"><i class="fas fa-shopping-cart"></i> Checkout Now</button>
+        </div>
       </div>`;
     cartContainer.innerHTML = html;
 
@@ -151,7 +161,18 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Bind events for qty change and remove
+    const qtyBtns = cartContainer.querySelectorAll('.cart-qty-btn');
+    qtyBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = e.currentTarget.getAttribute('data-index');
+        const action = e.currentTarget.getAttribute('data-action');
+        const currentItem = currentUser.savedCart[idx];
+        let newQty = currentItem.qty;
+        if (action === 'minus') newQty = Math.max(1, newQty - 1);
+        if (action === 'plus') newQty += 1;
+        updateCartItem(idx, newQty);
+      });
+    });
 
     const removeBtns = cartContainer.querySelectorAll('.remove-btn');
     removeBtns.forEach(btn => {
@@ -209,13 +230,13 @@ document.addEventListener('DOMContentLoaded', () => {
         let itemsHtml = `
           <div style="font-size:0.8rem; font-weight:bold; padding: 4px 0; display:flex; justify-content:space-between; color:#666; border-bottom: 1px solid #ddd;">
             <span style="flex:1;">Product Name</span>
-            <span style="flex:1; text-align:center;">bundle(pcs)</span>
-            <span style="flex:1; text-align:right;">price</span>
+            <span style="flex:1; text-align:center;">Bundle(pcs)</span>
+            <span style="flex:1; text-align:right;">Price</span>
           </div>
         ` + order.items.map(i => {
           return `<div style="font-size:0.85rem; padding: 6px 0; display:flex; justify-content:space-between; border-bottom: 1px dashed #eee;">
                     <span style="flex:1;">${i.name}</span>
-                    <span style="flex:1; text-align:center;">${i.qty} bundle(${i.qty * (i.min || 100)} pcs)</span>
+                    <span style="flex:1; text-align:center;">${i.qty} Bundle(${i.qty * (i.min || 100)} pcs)</span>
                     <span style="flex:1; text-align:right;">\u20B1${(i.price * i.qty).toLocaleString()}</span>
                   </div>`;
         }).join('');

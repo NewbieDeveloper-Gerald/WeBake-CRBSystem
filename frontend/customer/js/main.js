@@ -127,7 +127,32 @@ document.addEventListener('DOMContentLoaded', () => {
         if (grid) window.scrollTo({ top: grid.offsetTop - 100, behavior: 'smooth' });
       });
     } else {
-      itemsEl.innerHTML = cart.map((item, i) => `<div class="cart-item"><div class="cart-item-info"><h4>${item.name}</h4><div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.25rem;"><button class="cart-qty-btn" data-i="${i}" data-action="minus" style="padding:0.1rem 0.4rem; cursor:pointer;">-</button><span style="font-size:0.85rem;">${item.qty} bundle(s) <span style="color:#888;">(${item.qty * item.min} pcs)</span></span><button class="cart-qty-btn" data-i="${i}" data-action="plus" style="padding:0.1rem 0.4rem; cursor:pointer;">+</button></div><p style="margin-top:0.25rem;">\u20B1${(item.price * item.qty).toLocaleString()}</p></div><button class="cart-item-remove" data-i="${i}"><i class="fas fa-trash"></i></button></div>`).join('');
+      itemsEl.innerHTML = `
+        <div style="font-size: 0.85rem; font-weight: bold; padding-bottom: 0.5rem; border-bottom: 1px solid #eee; margin-bottom: 0.5rem; display: flex; justify-content: space-between; text-align:center;">
+          <span style="width: 25px;"><input type="checkbox" id="sidebar-select-all" checked></span>
+          <span style="flex: 2; text-align:left;">Product Name</span>
+          <span style="flex: 2;">Bundle(pcs)</span>
+          <span style="flex: 1; text-align:right;">Price</span>
+          <span style="width: 25px;"></span>
+        </div>
+      ` + cart.map((item, i) => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px dashed #eee; font-size: 0.9rem;">
+          <span style="width: 25px;"><input type="checkbox" class="sidebar-item-check" data-i="${i}" data-price="${item.price * item.qty}" checked></span>
+          <span style="flex: 2; text-align:left; font-weight: 500;">${item.name}</span>
+          <div style="flex: 2; display: flex; flex-direction:column; align-items: center; justify-content: center; gap: 2px;">
+            <div style="display:flex; align-items:center; gap: 0.25rem;">
+              <button class="cart-qty-btn btn btn-outline" data-i="${i}" data-action="minus" style="padding:0 0.4rem; cursor:pointer; min-width:unset; line-height:1.2;">-</button>
+              <span style="font-weight:bold; min-width: 1rem; text-align:center;">${item.qty}</span>
+              <button class="cart-qty-btn btn btn-outline" data-i="${i}" data-action="plus" style="padding:0 0.4rem; cursor:pointer; min-width:unset; line-height:1.2;">+</button>
+            </div>
+            <span style="font-size: 0.7rem; color: #888;">(${item.qty * item.min} pcs)</span>
+          </div>
+          <span style="flex: 1; text-align:right; color: var(--primary); font-weight:bold;">\u20B1${(item.price * item.qty).toLocaleString()}</span>
+          <div style="width: 25px; text-align:right;">
+            <button class="cart-item-remove" data-i="${i}" style="background:none; border:none; color: #dc3545; cursor:pointer; padding:0;"><i class="fas fa-trash"></i></button>
+          </div>
+        </div>
+      `).join('');
       itemsEl.querySelectorAll('.cart-item-remove').forEach(b => b.addEventListener('click', () => { cart.splice(+b.dataset.i, 1); updateCartUI(); syncCartToStore(); }));
       itemsEl.querySelectorAll('.cart-qty-btn').forEach(b => b.addEventListener('click', () => {
         const i = +b.dataset.i;
@@ -136,8 +161,23 @@ document.addEventListener('DOMContentLoaded', () => {
         syncCartToStore();
       }));
     }
-    const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
-    if (totalEl) totalEl.textContent = `\u20B1${total.toLocaleString()}`;
+
+    const checks = itemsEl?.querySelectorAll('.sidebar-item-check') || [];
+    const selectAll = document.getElementById('sidebar-select-all');
+    function updateSidebarTotal() {
+      let currentTotal = 0;
+      checks.forEach(chk => { if(chk.checked) currentTotal += parseFloat(chk.dataset.price); });
+      if (totalEl) totalEl.textContent = `\u20B1${currentTotal.toLocaleString()}`;
+      if (selectAll && checks.length > 0) selectAll.checked = Array.from(checks).every(c => c.checked);
+    }
+    checks.forEach(chk => chk.addEventListener('change', updateSidebarTotal));
+    if (selectAll) {
+      selectAll.addEventListener('change', e => {
+        checks.forEach(chk => chk.checked = e.target.checked);
+        updateSidebarTotal();
+      });
+    }
+    updateSidebarTotal();
   }
   function toggleCart(show) {
     document.getElementById('cart-sidebar')?.classList.toggle('active', show);
@@ -165,7 +205,21 @@ document.addEventListener('DOMContentLoaded', () => {
   ['cart-close', 'cart-overlay', 'continue-browsing'].forEach(id => document.getElementById(id)?.addEventListener('click', () => toggleCart(false)));
   document.getElementById('proceed-checkout')?.addEventListener('click', () => {
     if (!cart.length) { showToast('Your cart is empty!'); return; }
-    checkoutItems = [...cart]; toggleCart(false); startCheckout();
+    
+    const checks = document.querySelectorAll('.sidebar-item-check');
+    const selectedIndices = [];
+    checks.forEach(chk => {
+      if (chk.checked) selectedIndices.push(+chk.dataset.i);
+    });
+
+    if (selectedIndices.length === 0) {
+      showToast('Please select at least one item to checkout.');
+      return;
+    }
+
+    checkoutItems = selectedIndices.map(i => cart[i]);
+    toggleCart(false); 
+    startCheckout();
   });
 
   /* --- CHECKOUT FLOW: Stock → Info → Review → Payment → Success --- */
