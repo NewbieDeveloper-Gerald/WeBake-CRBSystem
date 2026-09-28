@@ -97,7 +97,10 @@ document.addEventListener('DOMContentLoaded', () => {
         <tr>
           <td><strong>${item.name}</strong></td>
           <td>
-            <input type="number" min="1" value="${item.qty}" class="qty-input" data-index="${index}">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <input type="number" min="1" value="${item.qty}" class="qty-input" data-index="${index}" style="width: 60px;">
+              <span style="font-size: 0.75rem; color: #888;">bundle(s)<br>(${item.qty * (item.min || 100)} pcs)</span>
+            </div>
           </td>
           <td>₱${itemTotal.toFixed(2)}</td>
           <td style="text-align:right;">

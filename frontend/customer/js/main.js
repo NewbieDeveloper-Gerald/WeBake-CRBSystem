@@ -34,10 +34,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* --- PRODUCT DATA --- */
   const products = [
-    { id: 1, name: 'Mamon', desc: 'Soft and fluffy Filipino sponge cake, perfect for merienda or pasalubong. Light, airy, and melt-in-your-mouth delicious.', price: 850, min: 100, img: '' },
-    { id: 2, name: 'Otap', desc: 'Crispy, flaky oval-shaped puff pastry with a caramelized sugar coating. A beloved Visayan delicacy enjoyed by all ages.', price: 650, min: 100, img: '' },
-    { id: 3, name: 'Eggnog', desc: 'Sweet and crumbly meringue-based cookie, delicately baked to perfection. A classic Filipino bakery staple.', price: 550, min: 100, img: '' },
-    { id: 4, name: 'Buttertoast', desc: 'Golden, crunchy butter-toasted bread slices. Perfectly toasted with a rich, buttery flavor ideal for wholesale.', price: 750, min: 100, img: '' }
+    { id: 1, name: 'Mamon', desc: 'Soft and fluffy Filipino sponge cake, perfect for merienda or pasalubong. Light, airy, and melt-in-your-mouth delicious.', price: 105, min: 25, img: '' },
+    { id: 2, name: 'Otap', desc: 'Crispy, flaky oval-shaped puff pastry with a caramelized sugar coating. A beloved Visayan delicacy enjoyed by all ages.', price: 105, min: 25, img: '' },
+    { id: 3, name: 'Eggnog', desc: 'Sweet and crumbly meringue-based cookie, delicately baked to perfection. A classic Filipino bakery staple.', price: 105, min: 25, img: '' },
+    { id: 4, name: 'Buttertoast', desc: 'Golden, crunchy butter-toasted bread slices. Perfectly toasted with a rich, buttery flavor ideal for wholesale.', price: 105, min: 25, img: '' }
   ];
   let cart = [], currentProduct = null, checkoutItems = [], customerInfo = {};
   /* --- HOOKS FOR DASHBOARD --- */
@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="product-img">${p.img ? `<img src="${p.img}" alt="${p.name}">` : `<i class="fas fa-image"></i><span>No image added</span>`}</div>
         <div class="product-card-info">
           <div class="product-card-name">${p.name}</div>
-          <div class="product-card-price">\u20B1${p.price.toLocaleString()} / ${p.min}pcs</div>
+          <div class="product-card-price">\u20B1${p.price.toLocaleString()} / 1 Bundle <div style="font-size: 0.75rem; color: #666; font-weight: normal; margin-top: 0.2rem;">(Note: 1 bundle = ${p.min} pcs)</div></div>
         </div>
       </div>`).join('');
     grid.addEventListener('click', e => { const c = e.target.closest('.product-card'); if (c) openProduct(+c.dataset.id); });
@@ -95,8 +95,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!(currentProduct = products.find(p => p.id === id)) || !modal) return;
     document.getElementById('modal-name').textContent = currentProduct.name;
     document.getElementById('modal-desc').textContent = currentProduct.desc;
-    document.getElementById('modal-price').textContent = `\u20B1${currentProduct.price.toLocaleString()} per ${currentProduct.min} pcs`;
-    qtyInput.value = currentProduct.min;
+    document.getElementById('modal-price').innerHTML = `\u20B1${currentProduct.price.toLocaleString()} per 1 Bundle <br><span style="font-size: 0.85rem; color: #666; font-weight: normal;">(Note: 1 bundle is equivalent to ${currentProduct.min} pcs)</span>`;
+    qtyInput.value = 1;
     modal.classList.add('active'); modalOv.classList.add('active');
   }
   function closeModal() {
@@ -105,8 +105,8 @@ document.addEventListener('DOMContentLoaded', () => {
     currentProduct = null;
   }
   ['modal-close', 'modal-overlay'].forEach(id => document.getElementById(id)?.addEventListener('click', closeModal));
-  document.getElementById('qty-minus')?.addEventListener('click', () => { qtyInput.value = Math.max(100, +qtyInput.value - 100); });
-  document.getElementById('qty-plus')?.addEventListener('click', () => { qtyInput.value = +qtyInput.value + 100; });
+  document.getElementById('qty-minus')?.addEventListener('click', () => { qtyInput.value = Math.max(1, +qtyInput.value - 1); });
+  document.getElementById('qty-plus')?.addEventListener('click', () => { qtyInput.value = +qtyInput.value + 1; });
 
   /* --- CART --- */
   function updateCartUI() {
@@ -127,16 +127,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (grid) window.scrollTo({ top: grid.offsetTop - 100, behavior: 'smooth' });
       });
     } else {
-      itemsEl.innerHTML = cart.map((item, i) => `<div class="cart-item"><div class="cart-item-info"><h4>${item.name}</h4><div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.25rem;"><button class="cart-qty-btn" data-i="${i}" data-action="minus" style="padding:0.1rem 0.4rem; cursor:pointer;">-</button><span style="font-size:0.85rem;">${item.qty} pcs</span><button class="cart-qty-btn" data-i="${i}" data-action="plus" style="padding:0.1rem 0.4rem; cursor:pointer;">+</button></div><p style="margin-top:0.25rem;">\u20B1${(item.price * item.qty / 100).toLocaleString()}</p></div><button class="cart-item-remove" data-i="${i}"><i class="fas fa-trash"></i></button></div>`).join('');
+      itemsEl.innerHTML = cart.map((item, i) => `<div class="cart-item"><div class="cart-item-info"><h4>${item.name}</h4><div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.25rem;"><button class="cart-qty-btn" data-i="${i}" data-action="minus" style="padding:0.1rem 0.4rem; cursor:pointer;">-</button><span style="font-size:0.85rem;">${item.qty} bundle(s) <span style="color:#888;">(${item.qty * item.min} pcs)</span></span><button class="cart-qty-btn" data-i="${i}" data-action="plus" style="padding:0.1rem 0.4rem; cursor:pointer;">+</button></div><p style="margin-top:0.25rem;">\u20B1${(item.price * item.qty).toLocaleString()}</p></div><button class="cart-item-remove" data-i="${i}"><i class="fas fa-trash"></i></button></div>`).join('');
       itemsEl.querySelectorAll('.cart-item-remove').forEach(b => b.addEventListener('click', () => { cart.splice(+b.dataset.i, 1); updateCartUI(); syncCartToStore(); }));
       itemsEl.querySelectorAll('.cart-qty-btn').forEach(b => b.addEventListener('click', () => {
         const i = +b.dataset.i;
-        cart[i].qty = b.dataset.action === 'minus' ? Math.max(100, cart[i].qty - 100) : cart[i].qty + 100;
+        cart[i].qty = b.dataset.action === 'minus' ? Math.max(1, cart[i].qty - 1) : cart[i].qty + 1;
         updateCartUI();
         syncCartToStore();
       }));
     }
-    const total = cart.reduce((s, i) => s + i.price * i.qty / 100, 0);
+    const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
     if (totalEl) totalEl.textContent = `\u20B1${total.toLocaleString()}`;
   }
   function toggleCart(show) {
@@ -219,12 +219,12 @@ document.addEventListener('DOMContentLoaded', () => {
       address: document.getElementById('cust-address')?.value || ''
     };
     /* Build centered review details inside payment step */
-    const total = checkoutItems.reduce((s, i) => s + i.price * i.qty / 100, 0);
+    const total = checkoutItems.reduce((s, i) => s + i.price * i.qty, 0);
     let html = `<div class="confirmation-details-section"><h4><i class="fas fa-user"></i> Customer Information</h4>`;
     html += `<p><span>Name:</span> ${customerInfo.name}</p><p><span>Contact:</span> ${customerInfo.contact}</p>`;
     html += `<p><span>Email:</span> ${customerInfo.email}</p><p><span>Address:</span> ${customerInfo.address}</p></div>`;
     html += `<div class="confirmation-details-section"><h4><i class="fas fa-box"></i> Items Ordered</h4>`;
-    checkoutItems.forEach(i => { html += `<p>${i.name} — ${i.qty} pcs — \u20B1${(i.price * i.qty / 100).toLocaleString()}</p>`; });
+    checkoutItems.forEach(i => { html += `<p>${i.name} — ${i.qty} bundle(s) — \u20B1${(i.price * i.qty).toLocaleString()}</p>`; });
     html += `<p style="font-weight:700;margin-top:0.5rem;color:var(--primary)">Total: \u20B1${total.toLocaleString()}</p></div>`;
     document.getElementById('review-details').innerHTML = html;
     
@@ -303,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('pay-btn');
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...'; btn.disabled = true;
     setTimeout(() => {
-      const totalAmt = checkoutItems.reduce((s, i) => s + i.price * i.qty / 100, 0);
+      const totalAmt = checkoutItems.reduce((s, i) => s + i.price * i.qty, 0);
       addOrderToStore(totalAmt);
       cart = []; updateCartUI(); syncCartToStore(); showStep('step-success');
       btn.innerHTML = '<i class="fas fa-check"></i> Confirm Payment'; btn.disabled = false;
