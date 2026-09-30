@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (u) { u.savedCart = cart; localStorage.setItem('weBakeUsers', JSON.stringify(all)); }
     } catch(e){}
   }
-  function addOrderToStore(totalAmt) {
+  function addOrderToStore(totalAmt, paymentDetails) {
     try {
       const s = JSON.parse(localStorage.getItem('weBakeSession')); if (!s) return;
       const all = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
@@ -57,7 +57,18 @@ document.addEventListener('DOMContentLoaded', () => {
       if (u) {
         const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
         u.orderHistory = u.orderHistory || [];
-        u.orderHistory.unshift({ date: date, items: checkoutItems, total: totalAmt, status: 'pending' });
+        const downpayment = paymentDetails?.downpayment ?? Math.round(totalAmt * 0.5);
+        const balance = paymentDetails?.balance ?? (totalAmt - downpayment);
+        u.orderHistory.unshift({
+          date: date,
+          items: checkoutItems,
+          total: totalAmt,
+          downpayment: downpayment,
+          balance: balance,
+          paymentMethod: paymentDetails?.method || 'GCash',
+          referenceNumber: paymentDetails?.referenceNumber || '',
+          status: 'pending'
+        });
         localStorage.setItem('weBakeUsers', JSON.stringify(all));
       }
     } catch(e){}
@@ -228,6 +239,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const step = document.getElementById(id);
     if (step) {
       step.classList.add('active');
+      if (id === 'step-success') {
+        const successNavBtn = document.getElementById('success-nav-btn');
+        let currentSession = null;
+        try {
+          currentSession = JSON.parse(localStorage.getItem('weBakeSession'));
+        } catch(e) {}
+        if (successNavBtn) {
+          if (currentSession && currentSession.email) {
+            successNavBtn.href = 'dashboard.html';
+            successNavBtn.innerHTML = '<i class="fas fa-receipt"></i> View in Dashboard';
+          } else {
+            successNavBtn.href = 'home.html';
+            successNavBtn.innerHTML = '<i class="fas fa-home"></i> Back to Home Page';
+          }
+        }
+      }
       setTimeout(() => {
         const firstInput = step.querySelector('input:not([type="hidden"])');
         if (firstInput) firstInput.focus();
@@ -281,6 +308,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     /* Build centered review details inside payment step */
     const total = checkoutItems.reduce((s, i) => s + i.price * i.qty, 0);
+    const downpayment = Math.round(total * 0.5);
+    const balance = total - downpayment;
+
     let html = `<div class="confirmation-details-section"><h4><i class="fas fa-user"></i> Customer Information</h4>`;
     html += `<p><span>Name:</span> ${customerInfo.name}</p><p><span>Contact:</span> ${customerInfo.contact}</p>`;
     html += `<p><span>Email:</span> ${customerInfo.email}</p><p><span>Address:</span> ${customerInfo.address}</p></div>`;
@@ -301,7 +331,25 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       `; 
     });
-    html += `<p style="font-weight:700;margin-top:0.5rem;color:var(--primary)">Total: \u20B1${total.toLocaleString()}</p></div>`;
+    html += `</div>`;
+
+    // 50% Downpayment Breakdown Box
+    html += `
+      <div class="downpayment-breakdown-box">
+        <div class="downpayment-breakdown-row">
+          <span>Total Order:</span>
+          <span>\u20B1${total.toLocaleString()}</span>
+        </div>
+        <div class="downpayment-breakdown-row highlight">
+          <span><i class="fas fa-coins"></i> 50% Downpayment (Due Now):</span>
+          <span>\u20B1${downpayment.toLocaleString()}</span>
+        </div>
+        <div class="downpayment-breakdown-row balance">
+          <span><i class="fas fa-truck"></i> Remaining Balance (Upon Delivery):</span>
+          <span>\u20B1${balance.toLocaleString()}</span>
+        </div>
+      </div>
+    `;
     document.getElementById('review-details').innerHTML = html;
     
     let session = null;
@@ -354,41 +402,142 @@ document.addEventListener('DOMContentLoaded', () => {
   /* Payment → back to Info */
   document.getElementById('payment-back-btn')?.addEventListener('click', () => showStep('step-info'));
 
-  /* GCash toggle */
-  const paymentMethod = document.getElementById('payment-method');
-  const gcashFields = document.getElementById('gcash-fields');
-  if (paymentMethod && gcashFields) {
-    paymentMethod.addEventListener('change', () => {
-      gcashFields.style.display = paymentMethod.value === 'GCash' ? 'block' : 'none';
-    });
+  /* Payment Method (GCash & Maya) Tabs and QR Logic */
+  const btnMethodGcash = document.getElementById('btn-method-gcash');
+  const btnMethodMaya = document.getElementById('btn-method-maya');
+  const paymentMethodInput = document.getElementById('payment-method');
+  const paymentQrImg = document.getElementById('payment-qr-img');
+  const qrBrandLabel = document.getElementById('qr-brand-label');
+  const qrNumDisplay = document.getElementById('qr-num-display');
+  const refFieldLabel = document.getElementById('ref-field-label');
+  const gcashRefInput = document.getElementById('gcash-ref');
+  const copyAccBtn = document.getElementById('copy-acc-btn');
+  const copyBtnText = document.getElementById('copy-btn-text');
+
+  function setPaymentMethod(method) {
+    if (paymentMethodInput) paymentMethodInput.value = method;
+    if (method === 'GCash') {
+      btnMethodGcash?.classList.add('active-gcash');
+      btnMethodMaya?.classList.remove('active-maya');
+      if (paymentQrImg) { paymentQrImg.src = '../img/gcash-qr.svg'; paymentQrImg.alt = 'GCash QR Code'; }
+      if (qrBrandLabel) qrBrandLabel.textContent = 'GCash';
+      if (qrNumDisplay) qrNumDisplay.textContent = '0912 221 7577';
+      if (refFieldLabel) refFieldLabel.textContent = 'GCash';
+      if (gcashRefInput) gcashRefInput.placeholder = 'e.g. 1234 5678 9012 (GCash Ref)';
+    } else {
+      btnMethodMaya?.classList.add('active-maya');
+      btnMethodGcash?.classList.remove('active-gcash');
+      if (paymentQrImg) { paymentQrImg.src = '../img/paymaya-qr.svg'; paymentQrImg.alt = 'Maya QR Code'; }
+      if (qrBrandLabel) qrBrandLabel.textContent = 'Maya';
+      if (qrNumDisplay) qrNumDisplay.textContent = '0912 221 7577';
+      if (refFieldLabel) refFieldLabel.textContent = 'Maya';
+      if (gcashRefInput) gcashRefInput.placeholder = 'e.g. 9876 5432 1098 (Maya Ref)';
+    }
   }
+
+  btnMethodGcash?.addEventListener('click', () => setPaymentMethod('GCash'));
+  btnMethodMaya?.addEventListener('click', () => setPaymentMethod('PayMaya'));
+
+  /* Quick Copy Account Number */
+  copyAccBtn?.addEventListener('click', () => {
+    const numToCopy = '09122217577';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(numToCopy).then(() => {
+        if (copyBtnText) copyBtnText.textContent = 'Copied!';
+        copyAccBtn.classList.add('copied');
+        showToast('Payment account number copied: ' + numToCopy);
+        setTimeout(() => {
+          if (copyBtnText) copyBtnText.textContent = 'Copy';
+          copyAccBtn.classList.remove('copied');
+        }, 2000);
+      }).catch(() => {
+        showToast('Payment number: ' + numToCopy);
+      });
+    } else {
+      showToast('Payment number: ' + numToCopy);
+    }
+  });
 
   /* Payment → Success */
   document.getElementById('pay-btn')?.addEventListener('click', () => {
-    const method = paymentMethod?.value || 'Cash on Delivery';
+    const method = paymentMethodInput?.value || 'GCash';
     const errBox = document.getElementById('payment-error-msg');
     if (errBox) errBox.style.display = 'none';
-    if (method === 'GCash') {
-      const ref = document.getElementById('gcash-ref');
-      const proof = document.getElementById('gcash-proof');
-      if (!ref.value.trim() || !proof.files.length) { 
-        if (errBox) { errBox.textContent = 'Please enter GCash reference and upload screenshot.'; errBox.style.display = 'block'; }
-        return; 
+
+    const ref = document.getElementById('gcash-ref');
+    const proof = document.getElementById('gcash-proof');
+
+    if (!ref || !ref.value.trim()) {
+      if (errBox) { 
+        errBox.textContent = `Please enter your ${method} reference number.`; 
+        errBox.style.display = 'block'; 
       }
+      ref?.focus();
+      return;
     }
+
+    if (!proof || !proof.files.length) {
+      if (errBox) { 
+        errBox.textContent = `Please upload the screenshot proof of your 50% downpayment transfer.`; 
+        errBox.style.display = 'block'; 
+      }
+      return;
+    }
+
+    const totalAmt = checkoutItems.reduce((s, i) => s + i.price * i.qty, 0);
+    const downpayment = Math.round(totalAmt * 0.5);
+    const balance = totalAmt - downpayment;
+
     const btn = document.getElementById('pay-btn');
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...'; btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing Downpayment...';
+    btn.disabled = true;
+
     setTimeout(() => {
-      const totalAmt = checkoutItems.reduce((s, i) => s + i.price * i.qty, 0);
-      addOrderToStore(totalAmt);
+      addOrderToStore(totalAmt, {
+        method: method,
+        referenceNumber: ref.value.trim(),
+        downpayment: downpayment,
+        balance: balance
+      });
       
+      // Populate success breakdown
+      const successSummary = document.getElementById('success-downpayment-summary');
+      if (successSummary) {
+        successSummary.innerHTML = `
+          <div class="downpayment-breakdown-box" style="text-align:left;">
+            <div class="downpayment-breakdown-row">
+              <span>Total Order Value:</span>
+              <strong>\u20B1${totalAmt.toLocaleString()}</strong>
+            </div>
+            <div class="downpayment-breakdown-row highlight" style="color:var(--success); border-color:#d4edda; background:#e8f5e9; border-radius:6px; padding:0.6rem 0.85rem;">
+              <span><i class="fas fa-check-circle"></i> 50% Downpayment Paid (${method}):</span>
+              <strong>\u20B1${downpayment.toLocaleString()}</strong>
+            </div>
+            <div class="downpayment-breakdown-row" style="font-size:0.8rem; color:#666;">
+              <span>Reference Number:</span>
+              <span>${ref.value.trim()}</span>
+            </div>
+            <div class="downpayment-breakdown-row balance" style="margin-top:0.4rem; padding-top:0.4rem; border-top:1px dashed #ebd9c8;">
+              <span><i class="fas fa-truck"></i> Remaining Balance Upon Delivery:</span>
+              <strong style="font-size:1.05rem; color:var(--primary);">\u20B1${balance.toLocaleString()}</strong>
+            </div>
+          </div>
+          <div style="background:#fff3cd; color:#856404; padding:0.75rem 1rem; border-radius:var(--radius); font-size:0.82rem; text-align:left; border:1px solid #ffeeba;">
+            <i class="fas fa-info-circle"></i> <strong>Reminder:</strong> Please prepare <strong>\u20B1${balance.toLocaleString()}</strong> upon delivery. You may pay in cash to the delivery rider or scan their ${method} QR upon handover.
+          </div>
+        `;
+      }
+
       // Only remove the checked out items from the cart
       checkoutItems.forEach(item => {
         cart = cart.filter(c => c.id !== item.id);
       });
       
-      updateCartUI(); syncCartToStore(); showStep('step-success');
-      btn.innerHTML = '<i class="fas fa-check"></i> Confirm Payment'; btn.disabled = false;
+      updateCartUI();
+      syncCartToStore();
+      showStep('step-success');
+      btn.innerHTML = '<i class="fas fa-check-circle"></i> Confirm 50% Payment';
+      btn.disabled = false;
     }, 1500);
   });
 
@@ -396,7 +545,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('order-again-btn')?.addEventListener('click', () => {
     closeCheckout();
     document.getElementById('info-form')?.reset();
-    if (gcashFields) gcashFields.style.display = 'none';
+    const gcashRef = document.getElementById('gcash-ref');
+    const gcashProof = document.getElementById('gcash-proof');
+    if (gcashRef) gcashRef.value = '';
+    if (gcashProof) gcashProof.value = '';
+    const errBox = document.getElementById('payment-error-msg');
+    if (errBox) errBox.style.display = 'none';
+    setPaymentMethod('GCash');
     checkoutItems = []; customerInfo = {};
   });
 

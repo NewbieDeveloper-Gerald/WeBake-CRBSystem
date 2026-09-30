@@ -109,3 +109,163 @@
   .modal-actions { flex-direction: column; }
   .confirmation-actions { flex-direction: column; }
 }
+
+/* 50% Downpayment & Payment Method Styles */
+.downpayment-notice-banner {
+  background: #FFF8E6;
+  border: 1px solid #FFE082;
+  border-left: 4px solid #FFA000;
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  font-size: 0.85rem;
+  color: #5D4037;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  text-align: left;
+  line-height: 1.45;
+}
+.downpayment-notice-banner i {
+  color: #FFA000;
+  font-size: 1.15rem;
+  margin-top: 2px;
+}
+
+.payment-method-selector {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+.payment-method-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--dark);
+  transition: var(--ease);
+}
+.payment-method-btn:hover {
+  border-color: #aaa;
+}
+.payment-method-btn.active-gcash {
+  border-color: #007DFE;
+  background: rgba(0, 125, 254, 0.05);
+  color: #007DFE;
+}
+.payment-method-btn.active-maya {
+  border-color: #00D632;
+  background: rgba(0, 214, 50, 0.06);
+  color: #068A20;
+}
+.payment-logo-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #fff;
+}
+.payment-logo-badge.gcash { background: #007DFE; }
+.payment-logo-badge.maya { background: #00D632; }
+
+.payment-details-card {
+  background: var(--light);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+  text-align: center;
+}
+.payment-qr-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+.payment-qr-img {
+  max-width: 230px;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+}
+
+.copy-number-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.85rem;
+  margin: 0.75rem 0;
+  font-size: 0.9rem;
+}
+.copy-number-box .num-val {
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--primary);
+}
+.btn-copy-num {
+  background: var(--light);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--ease);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.btn-copy-num:hover {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.btn-copy-num.copied {
+  background: var(--success);
+  color: #fff;
+  border-color: var(--success);
+}
+
+.downpayment-breakdown-box {
+  background: #faf6f3;
+  border: 1px solid #ebd9c8;
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.25rem;
+}
+.downpayment-breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.3rem 0;
+  font-size: 0.88rem;
+  color: var(--dark);
+}
+.downpayment-breakdown-row.highlight {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--primary);
+  border-top: 1px dashed #ebd9c8;
+  border-bottom: 1px dashed #ebd9c8;
+  padding: 0.5rem 0;
+  margin: 0.4rem 0;
+}
+.downpayment-breakdown-row.balance {
+  font-weight: 600;
+  color: #d97706;
+}
+

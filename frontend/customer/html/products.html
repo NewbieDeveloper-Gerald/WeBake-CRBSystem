@@ -156,42 +156,87 @@
       <!-- Step 3: Order Summary & Payment -->
       <div class="checkout-step" id="step-payment">
         <h2 style="display:flex; justify-content:center; align-items:center; text-align:center"><i class="fas fa-clipboard-check"></i> Order Summary & Payment</h2>
-        <div id="review-details" style="text-align:center; margin-bottom: 1.5rem;"></div>
         
-        <div class="form-group" style="text-align:left;">
-          <label>Payment Method</label>
-          <select class="form-select" id="payment-method">
-            <option>Cash on Delivery</option>
-            <option>GCash</option>
-            <option>Bank Transfer</option>
-          </select>
+        <!-- 50% Downpayment Policy Notice -->
+        <div class="downpayment-notice-banner">
+          <i class="fas fa-shield-alt"></i>
+          <div>
+            <strong>50% Downpayment Policy:</strong> To confirm authentic orders and prevent bogus requests, pay half (50%) now. The remaining 50% balance is collected upon receipt of your order.
+          </div>
         </div>
-        <div id="gcash-fields" style="display:none; text-align:left;">
+
+        <div id="review-details" style="text-align:center; margin-bottom: 1.25rem;"></div>
+        
+        <!-- Payment Method Selection (Only GCash and PayMaya) -->
+        <div class="form-group" style="text-align:left; margin-bottom: 0.75rem;">
+          <label style="font-weight:600; margin-bottom:0.5rem; display:block;">Select Payment Method *</label>
+          <div class="payment-method-selector">
+            <button type="button" class="payment-method-btn active-gcash" id="btn-method-gcash" data-method="GCash">
+              <span class="payment-logo-badge gcash">G</span> GCash
+            </button>
+            <button type="button" class="payment-method-btn" id="btn-method-maya" data-method="PayMaya">
+              <span class="payment-logo-badge maya">M</span> Maya (PayMaya)
+            </button>
+          </div>
+          <input type="hidden" id="payment-method" value="GCash">
+        </div>
+
+        <!-- Payment Instructions & QR Card -->
+        <div class="payment-details-card" id="payment-qr-container">
+          <div class="payment-qr-wrap">
+            <img src="../img/gcash-qr.svg" alt="GCash QR Code" id="payment-qr-img" class="payment-qr-img">
+          </div>
+          <div style="font-size:0.85rem; color:var(--gray); margin-bottom:0.5rem;">
+            Scan the QR code above or send manually:
+          </div>
+          <div class="copy-number-box">
+            <div>
+              <span style="font-size:0.75rem; color:#888; display:block;">ACCOUNT NUMBER (<span id="qr-brand-label">GCash</span>)</span>
+              <span class="num-val" id="qr-num-display">0912 221 7577</span>
+            </div>
+            <button type="button" class="btn-copy-num" id="copy-acc-btn">
+              <i class="far fa-copy"></i> <span id="copy-btn-text">Copy</span>
+            </button>
+          </div>
+          <div style="font-size:0.8rem; color:#555;">
+            Account Name: <strong id="qr-name-display">Gerald V.</strong>
+          </div>
+        </div>
+
+        <!-- Payment Verification Fields -->
+        <div id="payment-verification-fields" style="text-align:left;">
           <div class="form-group">
-            <label>GCash Reference Number *</label>
-            <input class="form-input" id="gcash-ref" type="text" placeholder="e.g. 1234 5678 9012">
-            <div class="invalid-feedback">Reference number must be at least 13 characters.</div>
+            <label><span id="ref-field-label">GCash</span> Reference Number *</label>
+            <input class="form-input" id="gcash-ref" type="text" placeholder="e.g. 1234 5678 9012" autocomplete="off">
+            <div class="invalid-feedback">Please enter a valid reference number.</div>
           </div>
           <div class="form-group">
-            <label>Upload Payment Screenshot *</label>
+            <label>Upload Payment Screenshot (Receipt) *</label>
             <input class="form-input" id="gcash-proof" type="file" accept="image/*">
+            <div style="font-size:0.78rem; color:var(--gray); margin-top:4px;">Upload screenshot of your 50% downpayment transfer.</div>
           </div>
         </div>
+
         <div id="payment-error-msg" style="display:none; color:var(--danger); background:rgba(220,53,69,0.1); padding:0.75rem; border-radius:var(--radius); margin-bottom:1rem; text-align:center; font-weight:500;"></div>
+        
         <div class="modal-actions">
           <button class="btn btn-outline" id="payment-back-btn"><i class="fas fa-arrow-left"></i> Back</button>
-          <button class="btn btn-primary" id="pay-btn"><i class="fas fa-check"></i> Confirm Payment</button>
+          <button class="btn btn-primary" id="pay-btn"><i class="fas fa-check-circle"></i> Confirm 50% Payment</button>
         </div>
       </div>
       <!-- Step 5: Success -->
       <div class="checkout-step" id="step-success" style="text-align:center;">
         <div class="confirmation-icon" style="margin-bottom:1rem; display:flex; justify-content:center;"><i class="fas fa-circle-check" style="font-size:4rem; color:var(--success);"></i></div>
-        <div class="confirmation-msg" style="width:100%; text-align:center; margin-bottom:2rem;">
+        <div class="confirmation-msg" style="width:100%; text-align:center; margin-bottom:1.5rem;">
           <h2 style="display:flex; justify-content:center; align-items:center; color:var(--primary); margin-bottom:0.5rem; text-align:center;">Order Placed Successfully!</h2>
-          <p style="text-align:center; color:var(--gray);">Thank you for your order. We will contact you shortly for delivery details.</p>
+          <p style="text-align:center; color:var(--gray);">Your 50% downpayment has been recorded. We are now preparing your order!</p>
         </div>
+        
+        <!-- Summary Card in Success Screen -->
+        <div id="success-downpayment-summary" style="margin-bottom: 1.5rem;"></div>
+
         <div class="confirmation-actions" style="width:100%; display:flex; justify-content:center; gap:1rem;">
-          <a href="home.html" class="btn btn-outline"><i class="fas fa-home"></i> Back to Home</a>
+          <a href="home.html" class="btn btn-outline" id="success-nav-btn"><i class="fas fa-home"></i> Back to Home Page</a>
           <button class="btn btn-primary" id="order-again-btn"><i class="fas fa-rotate"></i> Order Again</button>
         </div>
       </div>

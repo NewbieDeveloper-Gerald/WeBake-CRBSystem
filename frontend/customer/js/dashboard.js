@@ -1,4 +1,4 @@
-﻿/* ==============================================
+/* ==============================================
    WeBake - Dashboard JavaScript (dashboard.js)
    ============================================== */
 
@@ -223,9 +223,22 @@ document.addEventListener('DOMContentLoaded', () => {
       orders.forEach(order => {
         // order status: completed, pending, cancelled
         let statusClass = 'status-pending';
-        let statusText = 'Pending';
-        if (order.status === 'completed') { statusClass = 'status-completed'; statusText = 'Completed'; }
-        else if (order.status === 'cancelled') { statusClass = 'status-cancelled'; statusText = 'Cancelled'; }
+        let statusText = 'Pending Downpayment Verification';
+        if (order.status === 'completed') { 
+          statusClass = 'status-completed'; 
+          statusText = 'Completed'; 
+        } else if (order.status === 'cancelled') { 
+          statusClass = 'status-cancelled'; 
+          statusText = 'Cancelled'; 
+        } else if (order.status === 'processing' || order.status === 'preparing') {
+          statusClass = 'status-pending';
+          statusText = 'In Production / Preparing';
+        }
+
+        const downpayment = order.downpayment !== undefined ? order.downpayment : Math.round(order.total * 0.5);
+        const balance = order.balance !== undefined ? order.balance : (order.total - downpayment);
+        const method = order.paymentMethod || 'GCash';
+        const refNo = order.referenceNumber ? `(Ref: ${order.referenceNumber})` : '';
         
         let itemsHtml = `
           <div style="font-size:0.8rem; font-weight:bold; padding: 4px 0; display:flex; justify-content:space-between; color:#666; border-bottom: 1px solid #ddd;">
@@ -233,7 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <span style="flex:1; text-align:center;">Bundle(pcs)</span>
             <span style="flex:1; text-align:right;">Price</span>
           </div>
-        ` + order.items.map(i => {
+        ` + (order.items || []).map(i => {
           return `<div style="font-size:0.85rem; padding: 6px 0; display:flex; justify-content:space-between; border-bottom: 1px dashed #eee;">
                     <span style="flex:1;">${i.name}</span>
                     <span style="flex:1; text-align:center;">${i.qty} Bundle(${i.qty * (i.min || 100)} pcs)</span>
@@ -243,15 +256,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         html += `
           <div class="order-item" style="display:flex; flex-direction:column; gap:0.5rem; align-items:flex-start; padding: 1rem; border: 1px solid #eee; border-radius: 8px; margin-bottom: 1rem;">
-            <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+            <div style="display:flex; justify-content:space-between; width:100%; align-items:center; flex-wrap:wrap; gap:0.5rem;">
               <strong><i class="far fa-calendar-alt"></i> ${order.date}</strong>
               <div class="order-status ${statusClass}">${statusText}</div>
             </div>
             <div style="width:100%; border-top: 1px solid #eee; padding-top: 0.5rem; margin-top: 0.5rem;">
               ${itemsHtml}
             </div>
-            <div style="text-align:right; width:100%; font-weight:bold; margin-top:0.5rem; color: var(--primary);">
-              Total: \u20B1${order.total.toLocaleString()}
+            
+            <!-- 50% Downpayment & Delivery Balance Breakdown -->
+            <div style="width:100%; background: #faf6f3; border: 1px dashed #ebd9c8; border-radius: 6px; padding: 0.65rem 0.85rem; margin-top: 0.5rem; font-size: 0.85rem;">
+              <div style="display:flex; justify-content:space-between; margin-bottom: 3px;">
+                <span style="color:#666;">Total Order Value:</span>
+                <strong>\u20B1${order.total.toLocaleString()}</strong>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-bottom: 3px; color:#28a745;">
+                <span><i class="fas fa-check-circle"></i> 50% Downpayment Paid (${method} ${refNo}):</span>
+                <strong>\u20B1${downpayment.toLocaleString()}</strong>
+              </div>
+              <div style="display:flex; justify-content:space-between; color:var(--primary); font-weight:700; border-top:1px dashed #ebd9c8; padding-top:4px; margin-top:4px;">
+                <span><i class="fas fa-truck"></i> Balance Due on Delivery:</span>
+                <span>\u20B1${balance.toLocaleString()}</span>
+              </div>
             </div>
           </div>
         `;
