@@ -132,6 +132,32 @@ document.addEventListener('DOMContentLoaded', () => {
           <button type="submit" class="btn btn-primary btn-block" id="reset-submit-btn"><i class="fas fa-save"></i> Save Password</button>
         </form>
       </div>
+
+      <!-- TRACK ORDER & REFUND MODAL -->
+      <div class="modal" id="track-order-modal" style="z-index:3001;padding:2rem;max-width:540px;width:92%;max-height:90vh;overflow-y:auto;">
+        <button class="modal-close" data-auth-close>&times;</button>
+        <h3 class="auth-modal-title" style="margin-bottom:0.25rem;"><i class="fas fa-search-location"></i> Track Order & Refund</h3>
+        <p class="auth-modal-subtitle" style="margin-bottom:1.25rem;">Enter your Order ID and contact details to check status or request a downpayment refund.</p>
+        
+        <form id="track-order-form" style="margin-bottom:1rem;">
+          <div class="form-group" style="text-align:left;">
+            <label style="font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:0.45rem;margin-bottom:0.35rem;color:var(--dark);">
+              <i class="fas fa-receipt" style="color:var(--primary);font-size:0.95rem;"></i> Order ID *
+            </label>
+            <input type="text" class="form-input" id="track-input-id" required placeholder="e.g. WB-84920" style="text-transform:uppercase;">
+          </div>
+          <div class="form-group" style="text-align:left;">
+            <label style="font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:0.45rem;margin-bottom:0.35rem;color:var(--dark);">
+              <i class="fas fa-address-card" style="color:var(--primary);font-size:0.95rem;"></i> Email or Contact Number *
+            </label>
+            <input type="text" class="form-input" id="track-input-contact" required placeholder="Email or phone used at checkout">
+          </div>
+          <div id="track-error-msg" style="display:none; color:var(--danger); background:rgba(220,53,69,0.1); padding:0.6rem; border-radius:var(--radius); font-size:0.85rem; text-align:center; margin-bottom:0.75rem;"></div>
+          <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-search"></i> Check Order Status</button>
+        </form>
+
+        <div id="track-result-container" style="display:none; text-align:left;"></div>
+      </div>
     `;
     document.body.insertAdjacentHTML('beforeend', authHtml);
   }
@@ -222,11 +248,11 @@ document.addEventListener('DOMContentLoaded', () => {
   autoFillCheckoutForm();
 
   function openAuthModal(id) {
-    document.querySelectorAll('#signin-modal,#register-modal,#forgot-modal,#otp-modal,#reset-modal')
+    document.querySelectorAll('#signin-modal,#register-modal,#forgot-modal,#otp-modal,#reset-modal,#track-order-modal')
       .forEach(m => m.classList.remove('active'));
     authOverlay.classList.add('active');
     const modal = document.getElementById(id);
-    modal.classList.add('active');
+    if (modal) modal.classList.add('active');
     
     // Auto-focus first input
     setTimeout(() => {
@@ -236,7 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function closeAuthModals() {
-    document.querySelectorAll('#signin-modal,#register-modal,#forgot-modal,#otp-modal,#reset-modal')
+    document.querySelectorAll('#signin-modal,#register-modal,#forgot-modal,#otp-modal,#reset-modal,#track-order-modal')
       .forEach(m => m.classList.remove('active'));
     authOverlay.classList.remove('active');
     clearInterval(otpInterval);
@@ -246,8 +272,18 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateNavState() {
     const s = store.getSession();
     const navLinks = document.getElementById('nav-links');
-    if (navLinks && !navLinks.querySelector('.nav-auth-mobile')) {
-      navLinks.insertAdjacentHTML('beforeend', '<div class="nav-auth-divider"></div><div class="nav-auth-mobile"></div>');
+    if (navLinks) {
+      if (!navLinks.querySelector('#nav-track-order')) {
+        const trackLink = document.createElement('a');
+        trackLink.href = '#';
+        trackLink.id = 'nav-track-order';
+        trackLink.innerHTML = '<i class="fas fa-search-location"></i> Track Order';
+        trackLink.setAttribute('data-track-order-open', 'true');
+        navLinks.appendChild(trackLink);
+      }
+      if (!navLinks.querySelector('.nav-auth-mobile')) {
+        navLinks.insertAdjacentHTML('beforeend', '<div class="nav-auth-divider"></div><div class="nav-auth-mobile"></div>');
+      }
     }
     const db = document.querySelector('.auth-buttons');
     const mb = document.querySelector('.nav-auth-mobile');
@@ -269,6 +305,280 @@ document.addEventListener('DOMContentLoaded', () => {
     f('cust-name', u.name); f('cust-contact', u.contact); f('cust-email', u.email); f('cust-address', u.address);
   }
 
+  // ---------- Track Order & Cancellation Logic ----------
+  window.openTrackOrderModal = function(orderId = '', contact = '') {
+    openAuthModal('track-order-modal');
+    const idInput = document.getElementById('track-input-id');
+    const contactInput = document.getElementById('track-input-contact');
+    const errBox = document.getElementById('track-error-msg');
+    const resBox = document.getElementById('track-result-container');
+    if (errBox) errBox.style.display = 'none';
+    if (resBox) { resBox.style.display = 'none'; resBox.innerHTML = ''; }
+    if (idInput && orderId) idInput.value = orderId;
+    if (contactInput && contact) contactInput.value = contact;
+    if (orderId && contact) {
+      setTimeout(() => {
+        document.getElementById('track-order-form')?.dispatchEvent(new Event('submit'));
+      }, 150);
+    }
+  };
+
+  document.getElementById('track-order-form')?.addEventListener('submit', e => {
+    e.preventDefault();
+    const idInput = document.getElementById('track-input-id');
+    const contactInput = document.getElementById('track-input-contact');
+    const errBox = document.getElementById('track-error-msg');
+    const resBox = document.getElementById('track-result-container');
+
+    const enteredId = idInput?.value.trim().toUpperCase();
+    const enteredContact = contactInput?.value.trim().toLowerCase();
+
+    if (!enteredId || !enteredContact) return;
+
+    let allOrders = JSON.parse(localStorage.getItem('weBakeAllOrders') || '[]');
+    let found = allOrders.find(o => o.orderId && o.orderId.toUpperCase() === enteredId);
+
+    if (!found) {
+      const allUsers = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
+      for (const u of allUsers) {
+        if (u.orderHistory) {
+          const match = u.orderHistory.find(o => o.orderId && o.orderId.toUpperCase() === enteredId);
+          if (match) {
+            found = match;
+            if (!found.customer) found.customer = { name: u.name, email: u.email, contact: u.contact, address: u.address };
+            break;
+          }
+        }
+      }
+    }
+
+    const cleanEnteredContact = enteredContact.replace(/\D/g, '');
+    const cleanCustomerContact = (found?.customer?.contact || '').replace(/\D/g, '');
+    const emailMatch = found?.customer?.email && found.customer.email.toLowerCase() === enteredContact;
+    const phoneMatch = cleanEnteredContact.length >= 7 && cleanCustomerContact.includes(cleanEnteredContact);
+
+    if (!found || (!emailMatch && !phoneMatch)) {
+      if (errBox) {
+        errBox.textContent = 'No matching order found. Please verify your Order ID and the email or phone number used at checkout.';
+        errBox.style.display = 'block';
+      }
+      if (resBox) resBox.style.display = 'none';
+      return;
+    }
+
+    if (errBox) errBox.style.display = 'none';
+    renderTrackOrderResult(found, resBox);
+  });
+
+  function renderTrackOrderResult(order, resBox) {
+    if (!resBox) return;
+
+    let statusText = 'Pending Downpayment Verification';
+    let statusBg = '#fff3cd';
+    let statusColor = '#856404';
+
+    if (order.status === 'completed') {
+      statusText = 'Completed';
+      statusBg = '#d4edda';
+      statusColor = '#155724';
+    } else if (order.status === 'cancelled') {
+      statusText = 'Cancelled & Refunded';
+      statusBg = '#f8d7da';
+      statusColor = '#721c24';
+    } else if (order.status === 'cancellation_requested') {
+      statusText = 'Cancellation & Refund Requested';
+      statusBg = '#ffe8d6';
+      statusColor = '#a73a00';
+    } else if (order.status === 'preparing' || order.status === 'in_production') {
+      statusText = 'In Production / Baking';
+      statusBg = '#cce5ff';
+      statusColor = '#004085';
+    } else if (order.status === 'delivery') {
+      statusText = 'Out for Delivery';
+      statusBg = '#e2d9f3';
+      statusColor = '#4a154b';
+    }
+
+    const downpayment = order.downpayment !== undefined ? order.downpayment : Math.round(order.total * 0.5);
+    const balance = order.balance !== undefined ? order.balance : (order.total - downpayment);
+    const method = order.paymentMethod || 'GCash';
+    const refNo = order.referenceNumber ? `(Ref: ${order.referenceNumber})` : '';
+
+    let itemsHtml = `
+      <div style="font-size:0.75rem; font-weight:bold; padding: 4px 0; display:flex; justify-content:space-between; color:#666; border-bottom: 1px solid #ddd;">
+        <span style="flex:1;">Product Name</span>
+        <span style="flex:1; text-align:center;">Bundle(pcs)</span>
+        <span style="flex:1; text-align:right;">Price</span>
+      </div>
+    ` + (order.items || []).map(i => {
+      return `<div style="font-size:0.8rem; padding: 4px 0; display:flex; justify-content:space-between; border-bottom: 1px dashed #eee;">
+                <span style="flex:1;">${i.name}</span>
+                <span style="flex:1; text-align:center;">${i.qty} Bundle(${i.qty * (i.min || 100)} pcs)</span>
+                <span style="flex:1; text-align:right;">\u20B1${(i.price * i.qty).toLocaleString()}</span>
+              </div>`;
+    }).join('');
+
+    let refundSectionHtml = '';
+    if (order.status === 'pending') {
+      refundSectionHtml = `
+        <div style="background:#e8f5e9; border:1px solid #c8e6c9; border-radius:6px; padding:0.75rem; margin-top:0.75rem; font-size:0.82rem; color:#2e7d32;">
+          <i class="fas fa-check-circle"></i> <strong>Eligible for 100% Downpayment Refund:</strong> Baking has not started yet. You may cancel this order and receive a full \u20B1${downpayment.toLocaleString()} refund.
+        </div>
+        <button type="button" class="btn btn-outline btn-sm btn-block" id="btn-toggle-refund-form" style="margin-top:0.5rem; color:#dc3545; border-color:#dc3545;">
+          <i class="fas fa-undo"></i> Request Cancellation & Downpayment Refund
+        </button>
+        <div id="refund-form-card" style="display:none; background:#fff; border:1px solid #ebd9c8; border-radius:6px; padding:0.85rem; margin-top:0.65rem;">
+          <h5 style="margin-bottom:0.5rem; color:var(--primary); font-size:0.88rem;"><i class="fas fa-money-bill-wave"></i> Downpayment Refund Request</h5>
+          <div class="form-group" style="margin-bottom:0.5rem;">
+            <label style="font-size:0.78rem;font-weight:600;display:flex;align-items:center;gap:0.35rem;"><i class="fas fa-question-circle" style="color:var(--primary);"></i> Reason for Cancellation *</label>
+            <select class="form-select" id="refund-select-reason" style="font-size:0.82rem; padding:0.4rem;">
+              <option>Change of plans / Event cancelled</option>
+              <option>Accidental or duplicate order</option>
+              <option>Ordered wrong items or quantity</option>
+              <option>Found another supplier</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0.5rem;">
+            <label style="font-size:0.78rem;font-weight:600;display:flex;align-items:center;gap:0.35rem;"><i class="fas fa-wallet" style="color:var(--primary);"></i> Refund To (E-Wallet) *</label>
+            <select class="form-select" id="refund-select-wallet" style="font-size:0.82rem; padding:0.4rem;">
+              <option value="GCash" ${method === 'GCash' ? 'selected' : ''}>GCash</option>
+              <option value="PayMaya" ${method === 'PayMaya' ? 'selected' : ''}>PayMaya / Maya</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0.5rem;">
+            <label style="font-size:0.78rem;font-weight:600;display:flex;align-items:center;gap:0.35rem;"><i class="fas fa-mobile-alt" style="color:var(--primary);"></i> Account Number to Receive Refund *</label>
+            <input type="tel" class="form-input" id="refund-input-number" value="${order.customer?.contact || ''}" placeholder="09XXXXXXXXX" style="font-size:0.82rem; padding:0.4rem;">
+          </div>
+          <div class="form-group" style="margin-bottom:0.75rem;">
+            <label style="font-size:0.78rem;font-weight:600;display:flex;align-items:center;gap:0.35rem;"><i class="fas fa-user" style="color:var(--primary);"></i> Account Name *</label>
+            <input type="text" class="form-input" id="refund-input-name" value="${order.customer?.name || ''}" placeholder="Name on GCash / Maya" style="font-size:0.82rem; padding:0.4rem;">
+          </div>
+          <button type="button" class="btn btn-primary btn-sm btn-block" id="btn-submit-refund-action" style="background:#dc3545; border-color:#dc3545;">
+            Confirm & Request \u20B1${downpayment.toLocaleString()} Refund
+          </button>
+        </div>
+      `;
+    } else if (order.status === 'cancellation_requested') {
+      refundSectionHtml = `
+        <div style="background:#fff3cd; border:1px solid #ffeeba; border-radius:6px; padding:0.75rem; margin-top:0.75rem; font-size:0.82rem; color:#856404;">
+          <i class="fas fa-clock"></i> <strong>Cancellation & Refund in Progress:</strong> We received your request to cancel this order and refund <strong>\u20B1${downpayment.toLocaleString()}</strong> to your ${order.refundDetails?.wallet || 'E-Wallet'} (${order.refundDetails?.accountNum || ''}). Our bakery team is reviewing and will credit your refund within 24 hours.
+        </div>
+      `;
+    } else if (order.status === 'cancelled') {
+      refundSectionHtml = `
+        <div style="background:#f8d7da; border:1px solid #f5c6cb; border-radius:6px; padding:0.75rem; margin-top:0.75rem; font-size:0.82rem; color:#721c24;">
+          <i class="fas fa-check-circle"></i> <strong>Order Cancelled:</strong> This order has been cancelled and the downpayment refund processed.
+        </div>
+      `;
+    } else {
+      refundSectionHtml = `
+        <div style="background:#f8d7da; border:1px solid #f5c6cb; border-radius:6px; padding:0.75rem; margin-top:0.75rem; font-size:0.82rem; color:#721c24;">
+          <i class="fas fa-ban"></i> <strong>Cancellation Closed:</strong> This order is already in production/delivery. Per bakery policy for perishable goods, downpayments cannot be refunded once ingredients and dough preparation have commenced.
+        </div>
+      `;
+    }
+
+    resBox.innerHTML = `
+      <div style="border:1px solid var(--border); border-radius:8px; padding:1rem; background:#fff; margin-top:0.75rem;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.75rem; flex-wrap:wrap; gap:0.5rem;">
+          <div>
+            <span style="font-size:0.75rem; color:var(--gray); text-transform:uppercase; font-weight:700;">Order ID</span>
+            <div style="font-size:1.15rem; font-weight:800; color:var(--primary);">${order.orderId}</div>
+            <div style="font-size:0.78rem; color:#888;"><i class="far fa-calendar-alt"></i> ${order.date}</div>
+          </div>
+          <span style="padding:0.25rem 0.65rem; border-radius:20px; font-size:0.78rem; font-weight:700; background:${statusBg}; color:${statusColor};">
+            ${statusText}
+          </span>
+        </div>
+
+        <div style="font-size:0.82rem; color:#555; margin-bottom:0.75rem; padding-bottom:0.5rem; border-bottom:1px solid #eee;">
+          <div><strong>Customer:</strong> ${order.customer?.name || 'Customer'} (${order.customer?.contact || ''})</div>
+          <div><strong>Delivery Address:</strong> ${order.customer?.address || 'N/A'}</div>
+        </div>
+
+        <div style="margin-bottom:0.75rem;">
+          ${itemsHtml}
+        </div>
+
+        <div style="background:#faf6f3; border:1px dashed #ebd9c8; border-radius:6px; padding:0.65rem 0.85rem; font-size:0.85rem;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+            <span style="color:#666;">Total Order Value:</span>
+            <strong>\u20B1${order.total.toLocaleString()}</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:3px; color:#28a745;">
+            <span><i class="fas fa-check-circle"></i> 50% Downpayment (${method} ${refNo}):</span>
+            <strong>\u20B1${downpayment.toLocaleString()}</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; color:var(--primary); font-weight:700; border-top:1px dashed #ebd9c8; padding-top:4px; margin-top:4px;">
+            <span><i class="fas fa-truck"></i> Remaining Balance Upon Delivery:</span>
+            <span>\u20B1${balance.toLocaleString()}</span>
+          </div>
+        </div>
+
+        ${refundSectionHtml}
+      </div>
+    `;
+
+    resBox.style.display = 'block';
+
+    document.getElementById('btn-toggle-refund-form')?.addEventListener('click', () => {
+      const card = document.getElementById('refund-form-card');
+      if (card) card.style.display = card.style.display === 'none' ? 'block' : 'none';
+    });
+
+    document.getElementById('btn-submit-refund-action')?.addEventListener('click', () => {
+      const reason = document.getElementById('refund-select-reason')?.value;
+      const wallet = document.getElementById('refund-select-wallet')?.value;
+      const accountNum = document.getElementById('refund-input-number')?.value.trim();
+      const accountName = document.getElementById('refund-input-name')?.value.trim();
+
+      if (!accountNum) {
+        showToast('Please enter your ' + wallet + ' account number for refund.');
+        return;
+      }
+
+      if (!confirm(`Are you sure you want to request cancellation for order ${order.orderId}?\n\nDownpayment of ₱${downpayment.toLocaleString()} will be refunded to your ${wallet} account (${accountNum}).`)) {
+        return;
+      }
+
+      const allOrders = JSON.parse(localStorage.getItem('weBakeAllOrders') || '[]');
+      const targetO = allOrders.find(o => o.orderId === order.orderId);
+      const refundData = {
+        reason: reason,
+        wallet: wallet,
+        accountNum: accountNum,
+        accountName: accountName,
+        requestedAt: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+      };
+
+      if (targetO) {
+        targetO.status = 'cancellation_requested';
+        targetO.refundDetails = refundData;
+        localStorage.setItem('weBakeAllOrders', JSON.stringify(allOrders));
+      }
+
+      const allUsers = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
+      let updatedUser = false;
+      for (const u of allUsers) {
+        if (u.orderHistory) {
+          const match = u.orderHistory.find(o => o.orderId === order.orderId);
+          if (match) {
+            match.status = 'cancellation_requested';
+            match.refundDetails = refundData;
+            updatedUser = true;
+          }
+        }
+      }
+      if (updatedUser) localStorage.setItem('weBakeUsers', JSON.stringify(allUsers));
+
+      order.status = 'cancellation_requested';
+      order.refundDetails = refundData;
+      showToast('Cancellation & refund request submitted successfully.');
+      renderTrackOrderResult(order, resBox);
+    });
+  }
+
   // ---------- Global Click Handler ----------
   document.body.addEventListener('click', e => {
     // Eye toggle
@@ -280,6 +590,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const hidden = input.type === 'password';
       input.type = hidden ? 'text' : 'password';
       icon.classList.toggle('fa-eye', !hidden); icon.classList.toggle('fa-eye-slash', hidden);
+    }
+    // Track Order link clicked
+    if (e.target.closest('[data-track-order-open]')) {
+      e.preventDefault();
+      window.openTrackOrderModal();
     }
     // Open modal
     if (e.target.closest('[data-auth-open]')) { e.preventDefault(); openAuthModal(e.target.closest('[data-auth-open]').getAttribute('data-auth-open')); }

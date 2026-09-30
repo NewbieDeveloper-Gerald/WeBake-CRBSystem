@@ -229,7 +229,10 @@ document.addEventListener('DOMContentLoaded', () => {
           statusText = 'Completed'; 
         } else if (order.status === 'cancelled') { 
           statusClass = 'status-cancelled'; 
-          statusText = 'Cancelled'; 
+          statusText = 'Cancelled & Refunded'; 
+        } else if (order.status === 'cancellation_requested') {
+          statusClass = 'status-pending';
+          statusText = 'Cancellation & Refund Requested';
         } else if (order.status === 'processing' || order.status === 'preparing') {
           statusClass = 'status-pending';
           statusText = 'In Production / Preparing';
@@ -239,6 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const balance = order.balance !== undefined ? order.balance : (order.total - downpayment);
         const method = order.paymentMethod || 'GCash';
         const refNo = order.referenceNumber ? `(Ref: ${order.referenceNumber})` : '';
+        const orderIdDisplay = order.orderId ? `<span style="font-weight:700; color:var(--primary);">${order.orderId}</span> · ` : '';
         
         let itemsHtml = `
           <div style="font-size:0.8rem; font-weight:bold; padding: 4px 0; display:flex; justify-content:space-between; color:#666; border-bottom: 1px solid #ddd;">
@@ -257,7 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
         html += `
           <div class="order-item" style="display:flex; flex-direction:column; gap:0.5rem; align-items:flex-start; padding: 1rem; border: 1px solid #eee; border-radius: 8px; margin-bottom: 1rem;">
             <div style="display:flex; justify-content:space-between; width:100%; align-items:center; flex-wrap:wrap; gap:0.5rem;">
-              <strong><i class="far fa-calendar-alt"></i> ${order.date}</strong>
+              <strong><i class="fas fa-receipt"></i> ${orderIdDisplay}<span style="color:#777; font-weight:500;"><i class="far fa-calendar-alt"></i> ${order.date}</span></strong>
               <div class="order-status ${statusClass}">${statusText}</div>
             </div>
             <div style="width:100%; border-top: 1px solid #eee; padding-top: 0.5rem; margin-top: 0.5rem;">
@@ -279,6 +283,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span>\u20B1${balance.toLocaleString()}</span>
               </div>
             </div>
+            ${order.orderId ? `
+            <div style="text-align:right; width:100%; margin-top:0.25rem;">
+              <a href="#" onclick="event.preventDefault(); window.openTrackOrderModal && window.openTrackOrderModal('${order.orderId}', '${session.email}')" style="font-size:0.8rem; color:var(--primary); font-weight:600; text-decoration:none;">
+                <i class="fas fa-search-location"></i> View Details / Refund
+              </a>
+            </div>` : ''}
           </div>
         `;
       });
