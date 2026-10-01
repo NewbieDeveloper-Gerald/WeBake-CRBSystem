@@ -887,31 +887,116 @@ document.addEventListener('DOMContentLoaded', () => {
   partnerForm?.addEventListener('submit', e => {
     e.preventDefault();
     let isUpdate = false;
+    
+    // Gather details from form
+    const details = {};
+    ['bakery-name', 'owner-name', 'type', 'years', 'address', 'branches', 'permit', 'tin', 'email', 'phone', 'notes'].forEach(key => {
+      const el = document.getElementById(`partner-${key}`);
+      if (el) details[key] = el.value.trim();
+    });
+    details.products = Array.from(partnerForm.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+
+    // Save to global weBakePartnerApplications
+    const allApps = JSON.parse(localStorage.getItem('weBakePartnerApplications') || '[]');
+    let existingApp = allApps.find(a => 
+      (a.details?.email && a.details.email.toLowerCase() === details.email.toLowerCase()) || 
+      (a.details?.phone && a.details.phone.replace(/\D/g, '') === details.phone.replace(/\D/g, ''))
+    );
+
+    let appId = existingApp ? existingApp.appId : ('WB-PRT-' + Math.floor(10000 + Math.random() * 90000));
+
+    if (existingApp) {
+      isUpdate = true;
+      existingApp.details = details;
+      existingApp.updatedAt = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    } else {
+      allApps.unshift({
+        appId: appId,
+        date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+        status: 'pending',
+        details: details
+      });
+    }
+    localStorage.setItem('weBakePartnerApplications', JSON.stringify(allApps));
+
+    // Also link to logged-in user if session exists
+    let hasSession = false;
     try {
       const s = JSON.parse(localStorage.getItem('weBakeSession'));
       if (s) {
-        const all = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
-        const u = all.find(u => u.email === s.email);
+        hasSession = true;
+        const allUsers = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
+        const u = allUsers.find(u => u.email === s.email);
         if (u) {
-          if (u.partnerStatus === 'pending' || u.partnerStatus === 'active') isUpdate = true;
           u.partnerStatus = u.partnerStatus === 'active' ? 'active' : 'pending';
-          
-          // Gather details
-          const details = {};
-          ['bakery-name', 'owner-name', 'type', 'years', 'address', 'branches', 'permit', 'tin', 'email', 'phone', 'notes'].forEach(key => {
-            const el = document.getElementById(`partner-${key}`);
-            if (el) details[key] = el.value;
-          });
-          details.products = Array.from(partnerForm.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
           u.partnerDetails = details;
-
-          localStorage.setItem('weBakeUsers', JSON.stringify(all));
+          u.partnerAppId = appId;
+          localStorage.setItem('weBakeUsers', JSON.stringify(allUsers));
         }
       }
-    } catch(e) {}
+    } catch(err) {}
 
     showToast(isUpdate ? 'Partnership application updated successfully!' : 'Partnership application submitted successfully!');
-    setTimeout(() => { window.location.href = 'dashboard.html'; }, 1500);
+
+    if (hasSession) {
+      setTimeout(() => { window.location.href = 'dashboard.html'; }, 1500);
+    } else {
+      // Guest applicant: Render a confirmation card with Reference ID & direct Track link
+      const formContainer = document.querySelector('.partner-form-container');
+      if (formContainer) {
+        formContainer.innerHTML = `
+          <div style="text-align:center; padding:1.5rem 0; animation: fadeIn 0.4s ease;">
+            <div style="font-size:3.5rem; color:#28a745; margin-bottom:1rem;"><i class="fas fa-check-circle"></i></div>
+            <h3 style="color:var(--primary); font-size:1.6rem; font-weight:700; margin-bottom:0.5rem;">Partnership Application Submitted!</h3>
+            <p style="color:var(--gray); font-size:0.95rem; max-width:540px; margin:0 auto 1.75rem; line-height:1.6;">
+              Thank you for applying to be an authorized wholesale partner with Crumbs N' Rolls Bakery. Our wholesale team reviews business applications within 24–48 hours.
+            </p>
+
+            <div style="background:#FAF6F0; border:1px dashed #ebd9c8; border-radius:10px; padding:1.25rem 1.5rem; max-width:440px; margin:0 auto 1.5rem;">
+              <span style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:#888; display:block; letter-spacing:0.5px;">Your Application Reference ID</span>
+              <div style="font-size:1.85rem; font-weight:800; color:var(--primary); margin:0.35rem 0;" id="app-reference-id">${appId}</div>
+              <button type="button" class="btn btn-sm btn-outline" id="btn-copy-partner-id" style="padding:0.35rem 1rem; font-size:0.8rem;">
+                <i class="far fa-copy"></i> <span id="copy-partner-text">Copy Reference ID</span>
+              </button>
+            </div>
+
+            <div style="background:#e8f4fd; border:1px solid #b8daff; border-radius:8px; padding:0.85rem 1rem; max-width:480px; margin:0 auto 1.75rem; font-size:0.85rem; color:#004085;">
+              <i class="fas fa-info-circle"></i> Keep this Reference ID safe. You can track your application review status and notes anytime via <strong>Track Transactions</strong>.
+            </div>
+
+            <div style="display:flex; justify-content:center; gap:0.75rem; flex-wrap:wrap;">
+              <button type="button" class="btn btn-primary" id="btn-track-partner-now" style="padding:0.75rem 1.75rem;">
+                <i class="fas fa-search-dollar"></i> Track This Application
+              </button>
+              <a href="home.html" class="btn btn-outline" style="padding:0.75rem 1.5rem;">
+                <i class="fas fa-home"></i> Return to Home
+              </a>
+            </div>
+          </div>
+        `;
+
+        document.getElementById('btn-copy-partner-id')?.addEventListener('click', () => {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(appId).then(() => {
+              const txt = document.getElementById('copy-partner-text');
+              if (txt) txt.textContent = 'Copied!';
+              showToast('Application ID copied: ' + appId);
+              setTimeout(() => { if (txt) txt.textContent = 'Copy Reference ID'; }, 2000);
+            });
+          } else {
+            showToast('Application ID: ' + appId);
+          }
+        });
+
+        document.getElementById('btn-track-partner-now')?.addEventListener('click', () => {
+          if (window.openTrackOrderModal) {
+            window.openTrackOrderModal(appId, details.email || details.phone || '', 'partner');
+          }
+        });
+
+        window.scrollTo({ top: formContainer.offsetTop - 100, behavior: 'smooth' });
+      }
+    }
   });
 
   /* --- VALIDATION --- */
@@ -944,6 +1029,3 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
 });
-
-
-

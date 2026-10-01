@@ -133,27 +133,38 @@ document.addEventListener('DOMContentLoaded', () => {
         </form>
       </div>
 
-      <!-- TRACK ORDER & REFUND MODAL -->
-      <div class="modal" id="track-order-modal" style="z-index:3001;padding:2rem;max-width:540px;width:92%;max-height:90vh;overflow-y:auto;">
+      <!-- TRACK TRANSACTIONS MODAL -->
+      <div class="modal" id="track-order-modal" style="z-index:3001;padding:2rem;max-width:560px;width:92%;max-height:90vh;overflow-y:auto;">
         <button class="modal-close" data-auth-close>&times;</button>
-        <h3 class="auth-modal-title" style="margin-bottom:0.25rem;"><i class="fas fa-search-location"></i> Track Order & Refund</h3>
-        <p class="auth-modal-subtitle" style="margin-bottom:1.25rem;">Enter your Order ID and contact details to check status or request a downpayment refund.</p>
+        <h3 class="auth-modal-title" style="margin-bottom:0.25rem;"><i class="fas fa-search-dollar"></i> Track Transactions</h3>
+        <p class="auth-modal-subtitle" style="margin-bottom:1.25rem;">Look up bread delivery orders, 50% downpayments, refunds, or wholesale partnership applications in real-time.</p>
         
+        <!-- Track Mode Tabs -->
+        <div class="track-tab-wrap" style="display:flex; gap:0.5rem; margin-bottom:1.25rem; background:#f5f0eb; padding:4px; border-radius:8px;">
+          <button type="button" class="btn btn-sm track-tab-btn" id="tab-btn-orders" style="flex:1; border-radius:6px; font-weight:600; font-size:0.85rem; padding:0.55rem; border:none; transition:all 0.2s; background:var(--primary); color:#fff; cursor:pointer;">
+            <i class="fas fa-bread-slice"></i> Bread Orders
+          </button>
+          <button type="button" class="btn btn-sm track-tab-btn" id="tab-btn-partner" style="flex:1; border-radius:6px; font-weight:600; font-size:0.85rem; padding:0.55rem; border:none; transition:all 0.2s; background:transparent; color:#666; cursor:pointer;">
+            <i class="fas fa-handshake"></i> Partnership Applications
+          </button>
+        </div>
+
         <form id="track-order-form" style="margin-bottom:1rem;">
+          <input type="hidden" id="track-type-mode" value="order">
           <div class="form-group" style="text-align:left;">
-            <label style="font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:0.45rem;margin-bottom:0.35rem;color:var(--dark);">
+            <label id="track-label-id" style="font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:0.45rem;margin-bottom:0.35rem;color:var(--dark);">
               <i class="fas fa-receipt" style="color:var(--primary);font-size:0.95rem;"></i> Order ID *
             </label>
             <input type="text" class="form-input" id="track-input-id" required placeholder="e.g. WB-84920" style="text-transform:uppercase;">
           </div>
           <div class="form-group" style="text-align:left;">
-            <label style="font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:0.45rem;margin-bottom:0.35rem;color:var(--dark);">
+            <label id="track-label-contact" style="font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:0.45rem;margin-bottom:0.35rem;color:var(--dark);">
               <i class="fas fa-address-card" style="color:var(--primary);font-size:0.95rem;"></i> Email or Contact Number *
             </label>
             <input type="text" class="form-input" id="track-input-contact" required placeholder="Email or phone used at checkout">
           </div>
           <div id="track-error-msg" style="display:none; color:var(--danger); background:rgba(220,53,69,0.1); padding:0.6rem; border-radius:var(--radius); font-size:0.85rem; text-align:center; margin-bottom:0.75rem;"></div>
-          <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-search"></i> Check Order Status</button>
+          <button type="submit" class="btn btn-primary btn-block" id="track-submit-btn"><i class="fas fa-search"></i> Check Order Status</button>
         </form>
 
         <div id="track-result-container" style="display:none; text-align:left;"></div>
@@ -277,7 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const trackLink = document.createElement('a');
         trackLink.href = '#';
         trackLink.id = 'nav-track-order';
-        trackLink.innerHTML = '<i class="fas fa-search-location"></i> Track Order';
+        trackLink.innerHTML = '<i class="fas fa-search-dollar"></i> Track Transactions';
         trackLink.setAttribute('data-track-order-open', 'true');
         navLinks.appendChild(trackLink);
       }
@@ -305,36 +316,62 @@ document.addEventListener('DOMContentLoaded', () => {
     f('cust-name', u.name); f('cust-contact', u.contact); f('cust-email', u.email); f('cust-address', u.address);
   }
 
-  // ---------- Track Order & Cancellation Logic ----------
-  window.openTrackOrderModal = function(orderId = '', contact = '') {
+  // ---------- Track Transactions (Orders & Applications) Hub ----------
+  function setTrackTab(mode) {
+    const modeInput = document.getElementById('track-type-mode');
+    const tabOrders = document.getElementById('tab-btn-orders');
+    const tabPartner = document.getElementById('tab-btn-partner');
+    const labelId = document.getElementById('track-label-id');
+    const inputId = document.getElementById('track-input-id');
+    const labelContact = document.getElementById('track-label-contact');
+    const inputContact = document.getElementById('track-input-contact');
+    const submitBtn = document.getElementById('track-submit-btn');
+    const errBox = document.getElementById('track-error-msg');
+    const resBox = document.getElementById('track-result-container');
+
+    if (errBox) errBox.style.display = 'none';
+    if (resBox) { resBox.style.display = 'none'; resBox.innerHTML = ''; }
+
+    if (mode === 'partner') {
+      if (modeInput) modeInput.value = 'partner';
+      if (tabOrders) { tabOrders.style.background = 'transparent'; tabOrders.style.color = '#666'; }
+      if (tabPartner) { tabPartner.style.background = 'var(--primary)'; tabPartner.style.color = '#fff'; }
+      if (labelId) labelId.innerHTML = '<i class="fas fa-id-badge" style="color:var(--primary);font-size:0.95rem;"></i> Partner Reference ID *';
+      if (inputId) { inputId.placeholder = 'e.g. WB-PRT-58291'; }
+      if (labelContact) labelContact.innerHTML = '<i class="fas fa-address-card" style="color:var(--primary);font-size:0.95rem;"></i> Business Email or Contact Number *';
+      if (inputContact) { inputContact.placeholder = 'Email or phone used in application'; }
+      if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-search"></i> Check Application Status';
+    } else {
+      if (modeInput) modeInput.value = 'order';
+      if (tabOrders) { tabOrders.style.background = 'var(--primary)'; tabOrders.style.color = '#fff'; }
+      if (tabPartner) { tabPartner.style.background = 'transparent'; tabPartner.style.color = '#666'; }
+      if (labelId) labelId.innerHTML = '<i class="fas fa-receipt" style="color:var(--primary);font-size:0.95rem;"></i> Order ID *';
+      if (inputId) { inputId.placeholder = 'e.g. WB-84920'; }
+      if (labelContact) labelContact.innerHTML = '<i class="fas fa-address-card" style="color:var(--primary);font-size:0.95rem;"></i> Email or Contact Number *';
+      if (inputContact) { inputContact.placeholder = 'Email or phone used at checkout'; }
+      if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-search"></i> Check Order Status';
+    }
+  }
+
+  window.openTrackOrderModal = function(id = '', contact = '', mode = 'order') {
     openAuthModal('track-order-modal');
+    setTrackTab(mode);
     const idInput = document.getElementById('track-input-id');
     const contactInput = document.getElementById('track-input-contact');
     const errBox = document.getElementById('track-error-msg');
     const resBox = document.getElementById('track-result-container');
     if (errBox) errBox.style.display = 'none';
     if (resBox) { resBox.style.display = 'none'; resBox.innerHTML = ''; }
-    if (idInput && orderId) idInput.value = orderId;
+    if (idInput && id) idInput.value = id;
     if (contactInput && contact) contactInput.value = contact;
-    if (orderId && contact) {
+    if (id && contact) {
       setTimeout(() => {
         document.getElementById('track-order-form')?.dispatchEvent(new Event('submit'));
       }, 150);
     }
   };
 
-  document.getElementById('track-order-form')?.addEventListener('submit', e => {
-    e.preventDefault();
-    const idInput = document.getElementById('track-input-id');
-    const contactInput = document.getElementById('track-input-contact');
-    const errBox = document.getElementById('track-error-msg');
-    const resBox = document.getElementById('track-result-container');
-
-    const enteredId = idInput?.value.trim().toUpperCase();
-    const enteredContact = contactInput?.value.trim().toLowerCase();
-
-    if (!enteredId || !enteredContact) return;
-
+  function findOrderRecord(enteredId, enteredContact) {
     let allOrders = JSON.parse(localStorage.getItem('weBakeAllOrders') || '[]');
     let found = allOrders.find(o => o.orderId && o.orderId.toUpperCase() === enteredId);
 
@@ -352,22 +389,119 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    const cleanEnteredContact = enteredContact.replace(/\D/g, '');
-    const cleanCustomerContact = (found?.customer?.contact || '').replace(/\D/g, '');
-    const emailMatch = found?.customer?.email && found.customer.email.toLowerCase() === enteredContact;
-    const phoneMatch = cleanEnteredContact.length >= 7 && cleanCustomerContact.includes(cleanEnteredContact);
+    if (found) {
+      const cleanEnteredContact = enteredContact.replace(/\D/g, '');
+      const cleanCustomerContact = (found?.customer?.contact || '').replace(/\D/g, '');
+      const emailMatch = found?.customer?.email && found.customer.email.toLowerCase() === enteredContact;
+      const phoneMatch = cleanEnteredContact.length >= 7 && cleanCustomerContact.includes(cleanEnteredContact);
+      if (emailMatch || phoneMatch || found.orderId.toUpperCase() === enteredId) {
+        return found;
+      }
+    }
+    return null;
+  }
 
-    if (!found || (!emailMatch && !phoneMatch)) {
+  function findPartnerRecord(enteredId, enteredContact) {
+    const allApps = JSON.parse(localStorage.getItem('weBakePartnerApplications') || '[]');
+    let foundApp = allApps.find(a => a.appId && a.appId.toUpperCase() === enteredId);
+
+    if (!foundApp) {
+      const allUsers = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
+      for (const u of allUsers) {
+        if (u.partnerDetails && u.partnerStatus && u.partnerStatus !== 'none') {
+          const matchesId = u.partnerAppId && u.partnerAppId.toUpperCase() === enteredId;
+          const matchesEmail = u.email && u.email.toLowerCase() === enteredContact;
+          const matchesPhone = u.contact && u.contact.replace(/\D/g, '') === enteredContact.replace(/\D/g, '');
+          if (matchesId || matchesEmail || matchesPhone) {
+            foundApp = {
+              appId: u.partnerAppId || ('WB-PRT-' + Math.floor(10000 + Math.random() * 90000)),
+              date: 'Recently Submitted',
+              status: u.partnerStatus,
+              details: u.partnerDetails
+            };
+            break;
+          }
+        }
+      }
+    }
+
+    if (foundApp) {
+      const appEmail = (foundApp.details?.email || '').toLowerCase();
+      const appPhone = (foundApp.details?.phone || '').replace(/\D/g, '');
+      const cleanEnteredContact = enteredContact.replace(/\D/g, '');
+      const emailMatch = appEmail && (appEmail === enteredContact);
+      const phoneMatch = cleanEnteredContact.length >= 7 && appPhone.includes(cleanEnteredContact);
+      if (emailMatch || phoneMatch || (foundApp.appId && foundApp.appId.toUpperCase() === enteredId)) {
+        return foundApp;
+      }
+    }
+    return null;
+  }
+
+  document.getElementById('track-order-form')?.addEventListener('submit', e => {
+    e.preventDefault();
+    const idInput = document.getElementById('track-input-id');
+    const contactInput = document.getElementById('track-input-contact');
+    const errBox = document.getElementById('track-error-msg');
+    const resBox = document.getElementById('track-result-container');
+    const currentMode = document.getElementById('track-type-mode')?.value || 'order';
+
+    const enteredId = idInput?.value.trim().toUpperCase();
+    const enteredContact = contactInput?.value.trim().toLowerCase();
+
+    if (!enteredId || !enteredContact) return;
+
+    // Smart Lookup: Auto-detect if user entered a Partner ID or Order ID
+    const isPartnerQuery = (currentMode === 'partner') || enteredId.startsWith('WB-PRT') || enteredId.includes('PRT');
+
+    if (isPartnerQuery) {
+      const app = findPartnerRecord(enteredId, enteredContact);
+      if (app) {
+        if (errBox) errBox.style.display = 'none';
+        setTrackTab('partner');
+        renderTrackPartnerResult(app, resBox);
+        return;
+      }
+      // Smart Fallback: check if it's an order instead
+      const order = findOrderRecord(enteredId, enteredContact);
+      if (order) {
+        if (errBox) errBox.style.display = 'none';
+        setTrackTab('order');
+        renderTrackOrderResult(order, resBox);
+        return;
+      }
+
       if (errBox) {
-        errBox.textContent = 'No matching order found. Please verify your Order ID and the email or phone number used at checkout.';
+        errBox.textContent = 'No matching partnership application found. Please verify your Reference ID (e.g. WB-PRT-XXXXX) and registered email or phone.';
         errBox.style.display = 'block';
       }
       if (resBox) resBox.style.display = 'none';
       return;
     }
 
-    if (errBox) errBox.style.display = 'none';
-    renderTrackOrderResult(found, resBox);
+    // Default: Bread Orders lookup
+    const order = findOrderRecord(enteredId, enteredContact);
+    if (order) {
+      if (errBox) errBox.style.display = 'none';
+      setTrackTab('order');
+      renderTrackOrderResult(order, resBox);
+      return;
+    }
+
+    // Smart Fallback: check if user entered a partner application on the order tab
+    const app = findPartnerRecord(enteredId, enteredContact);
+    if (app) {
+      if (errBox) errBox.style.display = 'none';
+      setTrackTab('partner');
+      renderTrackPartnerResult(app, resBox);
+      return;
+    }
+
+    if (errBox) {
+      errBox.textContent = 'No matching order found. Please verify your Order ID and the email or phone number used at checkout.';
+      errBox.style.display = 'block';
+    }
+    if (resBox) resBox.style.display = 'none';
   });
 
   function renderTrackOrderResult(order, resBox) {
@@ -579,8 +713,76 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function renderTrackPartnerResult(app, resBox) {
+    if (!resBox) return;
+
+    let statusText = 'Under Review (Pending)';
+    let statusBg = '#fff3cd';
+    let statusColor = '#856404';
+    let statusIcon = 'fa-clock';
+
+    if (app.status === 'approved' || app.status === 'active') {
+      statusText = 'Approved — Wholesale Partner Active';
+      statusBg = '#d4edda';
+      statusColor = '#155724';
+      statusIcon = 'fa-check-circle';
+    } else if (app.status === 'rejected' || app.status === 'declined') {
+      statusText = 'Application Declined';
+      statusBg = '#f8d7da';
+      statusColor = '#721c24';
+      statusIcon = 'fa-times-circle';
+    }
+
+    const details = app.details || {};
+    const productsList = (details.products && details.products.length) ? details.products.join(', ') : 'All Products';
+
+    resBox.innerHTML = `
+      <div style="border:1px solid var(--border); border-radius:8px; padding:1.25rem; background:#fff; margin-top:0.75rem;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.75rem; flex-wrap:wrap; gap:0.5rem;">
+          <div>
+            <span style="font-size:0.75rem; color:var(--gray); text-transform:uppercase; font-weight:700;">Partnership Application ID</span>
+            <div style="font-size:1.15rem; font-weight:800; color:var(--primary);">${app.appId}</div>
+            <div style="font-size:0.78rem; color:#888;"><i class="far fa-calendar-alt"></i> Submitted: ${app.date || 'Recent'}</div>
+          </div>
+          <span style="padding:0.25rem 0.65rem; border-radius:20px; font-size:0.78rem; font-weight:700; background:${statusBg}; color:${statusColor}; display:inline-flex; align-items:center; gap:0.35rem;">
+            <i class="fas ${statusIcon}"></i> ${statusText}
+          </span>
+        </div>
+
+        <div style="background:#faf6f0; border:1px solid #ebd9c8; border-radius:6px; padding:0.85rem; font-size:0.83rem; margin-bottom:0.85rem; line-height:1.6;">
+          <div><strong>Bakery / Business Name:</strong> ${details['bakery-name'] || 'N/A'}</div>
+          <div><strong>Representative:</strong> ${details['owner-name'] || 'N/A'}</div>
+          <div><strong>Business Type:</strong> ${details.type || 'Bakery'} (${details.years || '0'} years in operation)</div>
+          <div><strong>Business Address:</strong> ${details.address || 'N/A'}</div>
+          <div><strong>Contact Info:</strong> ${details.phone || 'N/A'} · ${details.email || 'N/A'}</div>
+          <div><strong>Products of Interest:</strong> ${productsList}</div>
+          ${details.permit ? `<div><strong>Business Permit:</strong> ${details.permit}</div>` : ''}
+          ${details.tin ? `<div><strong>TIN:</strong> ${details.tin}</div>` : ''}
+        </div>
+
+        <div style="font-size:0.82rem; color:#555; background:#f9f9f9; border-left:3px solid var(--primary); padding:0.65rem 0.85rem; border-radius:0 4px 4px 0; line-height:1.5;">
+          <strong><i class="fas fa-info-circle" style="color:var(--primary);"></i> Next Steps:</strong><br>
+          ${app.status === 'approved' || app.status === 'active' 
+            ? 'Congratulations! Your wholesale partnership is active. You may now place orders with your partner privileges and bulk terms.' 
+            : 'Our bakery management team is reviewing your business profile and location. We will contact you directly within 24–48 hours to finalize supply terms.'}
+        </div>
+      </div>
+    `;
+
+    resBox.style.display = 'block';
+  }
+
   // ---------- Global Click Handler ----------
   document.body.addEventListener('click', e => {
+    // Tab switching for Track Transactions modal
+    if (e.target.closest('#tab-btn-orders')) {
+      e.preventDefault();
+      setTrackTab('order');
+    }
+    if (e.target.closest('#tab-btn-partner')) {
+      e.preventDefault();
+      setTrackTab('partner');
+    }
     // Eye toggle
     const toggle = e.target.closest('.auth-eye-toggle');
     if (toggle) {
