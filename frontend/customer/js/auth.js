@@ -45,6 +45,22 @@ document.addEventListener('DOMContentLoaded', () => {
         .auth-modal-subtitle{text-align:center;color:var(--gray);margin-bottom:1.5rem;font-size:.9rem}
         .auth-link{color:#6B3A2A;font-weight:600;text-decoration:none;transition:var(--ease)}
         .auth-link:hover{text-decoration:underline;color:#D4A96A}
+        .track-tab-wrap{display:flex;gap:0.5rem;margin-bottom:1.25rem;background:#f5f0eb;padding:4px;border-radius:8px;width:100%;box-sizing:border-box}
+        .track-tab-btn{flex:1 1 0;min-width:0;border-radius:6px;font-weight:600;font-size:0.85rem;padding:0.55rem 0.5rem;border:none;transition:all .2s;cursor:pointer;white-space:normal!important;text-align:center;line-height:1.25;display:inline-flex;align-items:center;justify-content:center;gap:0.4rem;box-sizing:border-box;word-break:normal;overflow-wrap:break-word}
+        .track-tab-btn i{flex-shrink:0}
+        .track-tab-btn.active{background:var(--primary)!important;color:#fff!important}
+        .track-tab-btn:not(.active){background:transparent!important;color:#666!important}
+        .track-tab-btn:hover:not(.active){color:var(--primary)!important}
+        @media(max-width:520px){
+          #track-order-modal{padding:1.5rem 1rem!important;width:95%!important}
+          .track-tab-wrap{gap:0.35rem;padding:3px}
+          .track-tab-btn{font-size:0.78rem;padding:0.5rem 0.35rem;gap:0.3rem}
+          .track-tab-btn i{font-size:0.82rem}
+        }
+        @media(max-width:380px){
+          .track-tab-wrap{flex-direction:column;gap:0.35rem}
+          .track-tab-btn{width:100%;padding:0.6rem 0.75rem;font-size:0.82rem}
+        }
       </style>
       <div class="overlay" id="auth-overlay" style="z-index:3000"></div>
 
@@ -140,12 +156,12 @@ document.addEventListener('DOMContentLoaded', () => {
         <p class="auth-modal-subtitle" style="margin-bottom:1.25rem;">Look up bread delivery orders, 50% downpayments, refunds, or wholesale partnership applications in real-time.</p>
         
         <!-- Track Mode Tabs -->
-        <div class="track-tab-wrap" style="display:flex; gap:0.5rem; margin-bottom:1.25rem; background:#f5f0eb; padding:4px; border-radius:8px;">
-          <button type="button" class="btn btn-sm track-tab-btn" id="tab-btn-orders" style="flex:1; border-radius:6px; font-weight:600; font-size:0.85rem; padding:0.55rem; border:none; transition:all 0.2s; background:var(--primary); color:#fff; cursor:pointer;">
-            <i class="fas fa-bread-slice"></i> Bread Orders
+        <div class="track-tab-wrap">
+          <button type="button" class="btn btn-sm track-tab-btn active" id="tab-btn-orders">
+            <i class="fas fa-bread-slice"></i> <span>Bread Orders</span>
           </button>
-          <button type="button" class="btn btn-sm track-tab-btn" id="tab-btn-partner" style="flex:1; border-radius:6px; font-weight:600; font-size:0.85rem; padding:0.55rem; border:none; transition:all 0.2s; background:transparent; color:#666; cursor:pointer;">
-            <i class="fas fa-handshake"></i> Partnership Applications
+          <button type="button" class="btn btn-sm track-tab-btn" id="tab-btn-partner">
+            <i class="fas fa-handshake"></i> <span>Partnership Applications</span>
           </button>
         </div>
 
@@ -355,8 +371,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (mode === 'partner') {
       if (modeInput) modeInput.value = 'partner';
-      if (tabOrders) { tabOrders.style.background = 'transparent'; tabOrders.style.color = '#666'; }
-      if (tabPartner) { tabPartner.style.background = 'var(--primary)'; tabPartner.style.color = '#fff'; }
+      if (tabOrders) { tabOrders.classList.remove('active'); tabOrders.style.background = 'transparent'; tabOrders.style.color = '#666'; }
+      if (tabPartner) { tabPartner.classList.add('active'); tabPartner.style.background = 'var(--primary)'; tabPartner.style.color = '#fff'; }
       if (labelId) labelId.innerHTML = '<i class="fas fa-id-badge" style="color:var(--primary);font-size:0.95rem;"></i> Partner Reference ID *';
       if (inputId) { inputId.placeholder = 'e.g. WB-PRT-58291'; }
       if (labelContact) labelContact.innerHTML = '<i class="fas fa-address-card" style="color:var(--primary);font-size:0.95rem;"></i> Business Email or Contact Number *';
@@ -364,8 +380,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-search"></i> Check Application Status';
     } else {
       if (modeInput) modeInput.value = 'order';
-      if (tabOrders) { tabOrders.style.background = 'var(--primary)'; tabOrders.style.color = '#fff'; }
-      if (tabPartner) { tabPartner.style.background = 'transparent'; tabPartner.style.color = '#666'; }
+      if (tabOrders) { tabOrders.classList.add('active'); tabOrders.style.background = 'var(--primary)'; tabOrders.style.color = '#fff'; }
+      if (tabPartner) { tabPartner.classList.remove('active'); tabPartner.style.background = 'transparent'; tabPartner.style.color = '#666'; }
       if (labelId) labelId.innerHTML = '<i class="fas fa-receipt" style="color:var(--primary);font-size:0.95rem;"></i> Order ID *';
       if (inputId) { inputId.placeholder = 'e.g. WB-84920'; }
       if (labelContact) labelContact.innerHTML = '<i class="fas fa-address-card" style="color:var(--primary);font-size:0.95rem;"></i> Email or Contact Number *';
