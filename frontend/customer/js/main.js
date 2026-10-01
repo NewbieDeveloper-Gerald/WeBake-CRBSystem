@@ -925,6 +925,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           localStorage.setItem('weBakeUsers', JSON.stringify(users));
           localStorage.setItem('weBakeSession', JSON.stringify({ name: customerInfo.name, email: customerInfo.email }));
+          if (window.updateNavState) window.updateNavState();
           showToast(`Account created! Welcome, ${customerInfo.name} 🎉`);
           setTimeout(() => {
             window.location.href = 'dashboard.html';

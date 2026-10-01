@@ -320,30 +320,57 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateNavState() {
     const s = store.getSession();
     const navLinks = document.getElementById('nav-links');
-    if (navLinks) {
-      if (!navLinks.querySelector('#nav-track-order')) {
-        const trackLink = document.createElement('a');
-        trackLink.href = '#';
-        trackLink.id = 'nav-track-order';
-        trackLink.innerHTML = '<i class="fas fa-search-dollar"></i> Track Transactions';
-        trackLink.setAttribute('data-track-order-open', 'true');
-        navLinks.appendChild(trackLink);
-      }
-      if (!navLinks.querySelector('.nav-auth-mobile')) {
+    const footerTrackLinks = document.querySelectorAll('footer [data-track-order-open]');
+
+    if (s) {
+      // LOGGED IN USER: Hide Track Transactions from Header & Footer
+      const trackNav = navLinks?.querySelector('#nav-track-order');
+      if (trackNav) trackNav.style.display = 'none';
+
+      footerTrackLinks.forEach(link => { link.style.display = 'none'; });
+
+      if (navLinks && !navLinks.querySelector('.nav-auth-mobile')) {
         navLinks.insertAdjacentHTML('beforeend', '<div class="nav-auth-divider"></div><div class="nav-auth-mobile"></div>');
       }
-    }
-    const db = document.querySelector('.auth-buttons');
-    const mb = document.querySelector('.nav-auth-mobile');
-    if (s) {
+
+      const db = document.querySelector('.auth-buttons');
+      const mb = document.querySelector('.nav-auth-mobile');
       const inner = `<a href="dashboard.html" class="btn btn-outline btn-sm"><i class="fas fa-user-circle"></i> Profile</a><a href="#" id="logout-btn" class="btn btn-danger-outline btn-sm"><i class="fas fa-sign-out-alt"></i> Log Out</a>`;
       if (db) db.innerHTML = inner;
       if (mb) mb.innerHTML = inner.replace('id="logout-btn"', 'id="logout-btn-mobile"');
     } else {
+      // GUEST USER: Show Track Transactions in Header & Footer
+      if (navLinks) {
+        let trackNav = navLinks.querySelector('#nav-track-order');
+        if (!trackNav) {
+          trackNav = document.createElement('a');
+          trackNav.href = 'javascript:void(0)';
+          trackNav.id = 'nav-track-order';
+          trackNav.innerHTML = '<i class="fas fa-search-dollar"></i> Track Transactions';
+          trackNav.setAttribute('data-track-order-open', 'true');
+          const mobileDivider = navLinks.querySelector('.nav-auth-divider');
+          if (mobileDivider) {
+            navLinks.insertBefore(trackNav, mobileDivider);
+          } else {
+            navLinks.appendChild(trackNav);
+          }
+        }
+        trackNav.style.display = '';
+
+        if (!navLinks.querySelector('.nav-auth-mobile')) {
+          navLinks.insertAdjacentHTML('beforeend', '<div class="nav-auth-divider"></div><div class="nav-auth-mobile"></div>');
+        }
+      }
+
+      footerTrackLinks.forEach(link => { link.style.display = ''; });
+
+      const db = document.querySelector('.auth-buttons');
+      const mb = document.querySelector('.nav-auth-mobile');
       if (db) db.innerHTML = `<a href="#" class="btn btn-outline btn-sm">Sign In</a><a href="#" class="btn btn-primary btn-sm">Register</a>`;
       if (mb) mb.innerHTML = `<a href="#" class="btn btn-outline btn-sm auth-mobile-btn">Sign In</a><a href="#" class="btn btn-primary btn-sm auth-mobile-btn">Register</a>`;
     }
   }
+  window.updateNavState = updateNavState;
 
   // ---------- Auto-fill Products page checkout form ----------
   function autoFillCheckoutForm() {
@@ -851,6 +878,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target.closest('#logout-btn, #logout-btn-mobile')) {
       e.preventDefault();
       store.clearSession();
+      updateNavState();
       showToast('You\'ve been signed out. See you again! 👋');
       setTimeout(() => { window.location.href = 'home.html'; }, 1500);
     }
