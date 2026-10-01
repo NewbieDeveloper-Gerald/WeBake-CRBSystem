@@ -10,6 +10,71 @@ document.addEventListener('DOMContentLoaded', () => {
   if (navToggle) {
     navToggle.addEventListener('click', e => { e.stopPropagation(); navLinks.classList.toggle('active'); });
     document.addEventListener('click', e => { if (!e.target.closest('.nav')) navLinks.classList.remove('active'); });
+    navLinks?.querySelectorAll('a').forEach(a => a.addEventListener('click', () => navLinks.classList.remove('active')));
+  }
+
+  /* --- HOME & ABOUT US ACTIVE NAV SCROLL SPY --- */
+  const aboutSection = document.getElementById('about');
+  if (aboutSection && navLinks) {
+    const homeLink = Array.from(navLinks.querySelectorAll('a')).find(a => 
+      a.getAttribute('href') === 'home.html' || a.getAttribute('href') === '#' || a.textContent.trim().toLowerCase() === 'home'
+    );
+    const aboutLink = navLinks.querySelector('a[href="#about"]');
+
+    function setActiveNav(target) {
+      if (homeLink) homeLink.classList.remove('active');
+      if (aboutLink) aboutLink.classList.remove('active');
+      if (target) target.classList.add('active');
+    }
+
+    // Check initial hash on page load
+    if (window.location.hash === '#about') {
+      setActiveNav(aboutLink);
+    } else {
+      setActiveNav(homeLink);
+    }
+
+    // Click on About Us link
+    aboutLink?.addEventListener('click', () => {
+      setActiveNav(aboutLink);
+    });
+
+    // Click on Home link
+    homeLink?.addEventListener('click', (e) => {
+      const isHomePage = window.location.pathname.endsWith('home.html') || 
+                         window.location.pathname.endsWith('/') || 
+                         !window.location.pathname.includes('.html');
+      if (isHomePage) {
+        e.preventDefault();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        history.replaceState(null, null, 'home.html');
+        setActiveNav(homeLink);
+      }
+    });
+
+    // Real-time Scroll Spy
+    let isTicking = false;
+    window.addEventListener('scroll', () => {
+      if (!isTicking) {
+        window.requestAnimationFrame(() => {
+          const headerH = 75;
+          const rect = aboutSection.getBoundingClientRect();
+          // Active when aboutSection enters view near header
+          if (rect.top <= headerH + 120 && rect.bottom >= headerH + 80) {
+            setActiveNav(aboutLink);
+          } else if (window.scrollY < 300) {
+            setActiveNav(homeLink);
+          }
+          isTicking = false;
+        });
+        isTicking = true;
+      }
+    }, { passive: true });
+
+    window.addEventListener('hashchange', () => {
+      if (window.location.hash === '#about') setActiveNav(aboutLink);
+      else setActiveNav(homeLink);
+    });
   }
 
   /* --- MOBILE AUTH BUTTONS (inside hamburger dropdown) --- */
