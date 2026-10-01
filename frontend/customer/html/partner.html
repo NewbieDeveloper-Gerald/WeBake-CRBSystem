@@ -157,12 +157,14 @@
             <h3 class="form-section-title"><i class="fas fa-address-book"></i> Contact Details</h3>
             <div class="form-row">
               <div class="form-group">
-                <label>Email Address *</label>
-                <input class="form-input" id="partner-email" type="email" placeholder="you@email.com" required>
+                <label>Email Address (Gmail) *</label>
+                <input class="form-input" id="partner-email" type="email" placeholder="you@gmail.com" pattern="[a-zA-Z0-9._%+\-]+@[gG][mM][aA][iI][lL]\.[cC][oO][mM]" title="Please enter a valid Gmail address ending in @gmail.com" required>
+                <div class="invalid-feedback">Please enter a valid Gmail address (must end with @gmail.com).</div>
               </div>
               <div class="form-group">
                 <label>Contact Number *</label>
-                <input class="form-input" id="partner-phone" type="tel" placeholder="09XX XXX XXXX" required>
+                <input class="form-input" id="partner-phone" type="tel" placeholder="09XXXXXXXXX" pattern="09[0-9]{9}" maxlength="11" inputmode="numeric" title="Must be an 11-digit mobile number starting with 09" required>
+                <div class="invalid-feedback">Contact number must be 11 digits starting with 09 (no letters or characters).</div>
               </div>
             </div>
             <div class="form-group">

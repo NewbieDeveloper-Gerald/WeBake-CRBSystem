@@ -64,8 +64,8 @@ document.addEventListener('DOMContentLoaded', () => {
         <p class="auth-modal-subtitle">Join us and enjoy freshly baked goods!</p>
         <form id="register-form">
           <div class="form-group"><label>Full Name</label><div class="auth-icon-input"><i class="fas fa-user"></i><input type="text" class="form-input" required placeholder="Juan Dela Cruz"></div></div>
-          <div class="form-group"><label>Email</label><div class="auth-icon-input"><i class="fas fa-envelope"></i><input type="email" class="form-input" required id="reg-email" placeholder="juan@example.com"></div></div>
-          <div class="form-group"><label>Contact Number</label><div class="auth-icon-input"><i class="fas fa-phone"></i><input type="tel" class="form-input" required id="reg-contact" placeholder="09XXXXXXXXX" pattern="09[0-9]{9}" maxlength="11" title="Must start with 09 and be 11 digits long"></div></div>
+          <div class="form-group"><label>Email</label><div class="auth-icon-input"><i class="fas fa-envelope"></i><input type="email" class="form-input" required id="reg-email" placeholder="juan@gmail.com" pattern="[a-zA-Z0-9._%+\-]+@[gG][mM][aA][iI][lL]\.[cC][oO][mM]" title="Must be a valid Gmail address (@gmail.com)"></div><div class="reg-email-error" style="display:none; color:var(--danger); font-size:0.75rem; margin-top:0.25rem;">Please enter a valid Gmail address (must end with @gmail.com)</div></div>
+          <div class="form-group"><label>Contact Number</label><div class="auth-icon-input"><i class="fas fa-phone"></i><input type="tel" class="form-input" required id="reg-contact" placeholder="09XXXXXXXXX" pattern="09[0-9]{9}" maxlength="11" inputmode="numeric" title="Must start with 09 and be 11 digits long"></div><div class="reg-contact-error" style="display:none; color:var(--danger); font-size:0.75rem; margin-top:0.25rem;">Contact number must be 11 digits starting with 09 (no letters/characters)</div></div>
           <div class="form-group"><label>Delivery Address</label><div class="auth-icon-input"><i class="fas fa-map-marker-alt"></i><input type="text" class="form-input" required id="reg-address" placeholder="123 Bakery St, City"></div></div>
           <div class="form-group">
             <label>Password</label>
@@ -248,6 +248,27 @@ document.addEventListener('DOMContentLoaded', () => {
   
   updatePwdUI('register-form', 'reg-pwd', 'reg-cpwd', 'reg-submit-btn');
   updatePwdUI('reset-form', 'reset-pwd', 'reset-cpwd', 'reset-submit-btn');
+
+  // Register Form Live Validation
+  const regEmailInput = document.getElementById('reg-email');
+  const regEmailErr = document.querySelector('.reg-email-error');
+  regEmailInput?.addEventListener('input', e => {
+    const val = e.target.value.trim();
+    const valid = /^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(val);
+    e.target.classList.toggle('is-valid', valid);
+    e.target.classList.toggle('is-invalid', !valid && val.length > 0);
+    if (regEmailErr) regEmailErr.style.display = (!valid && val.length > 0) ? 'block' : 'none';
+  });
+
+  const regContactInput = document.getElementById('reg-contact');
+  const regContactErr = document.querySelector('.reg-contact-error');
+  regContactInput?.addEventListener('input', e => {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 11);
+    const valid = e.target.value.length === 11 && e.target.value.startsWith('09');
+    e.target.classList.toggle('is-valid', valid);
+    e.target.classList.toggle('is-invalid', !valid && e.target.value.length > 0);
+    if (regContactErr) regContactErr.style.display = (!valid && e.target.value.length > 0) ? 'block' : 'none';
+  });
 
   // Ensure toast element exists on all pages
   if (!document.getElementById('toast')) {
@@ -839,6 +860,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const email = document.getElementById('reg-email').value.trim();
     const pwd = document.getElementById('reg-pwd').value;
     const cpwd = document.getElementById('reg-cpwd').value;
+    const contact = (document.getElementById('reg-contact')?.value || '').trim().replace(/\D/g, '');
+
+    if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email)) {
+      showToast('Please enter a valid Gmail address (must end with @gmail.com)');
+      document.getElementById('reg-email')?.focus();
+      return;
+    }
+    if (contact.length !== 11 || !contact.startsWith('09')) {
+      showToast('Contact number must be 11 digits starting with 09 (no letters or characters)');
+      document.getElementById('reg-contact')?.focus();
+      return;
+    }
     if (store.find(email)) { showToast('An account with this email already exists'); return; }
     if (pwd.length < 6) { showToast('Password must be at least 6 characters'); return; }
     if (pwd !== cpwd) { showToast('Passwords do not match'); return; }

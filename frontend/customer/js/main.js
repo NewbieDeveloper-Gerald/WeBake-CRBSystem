@@ -382,10 +382,30 @@ document.addEventListener('DOMContentLoaded', () => {
   /* Info → OTP (if guest) or Payment (if logged in) */
   document.getElementById('info-form')?.addEventListener('submit', e => {
     e.preventDefault();
+    const custContactEl = document.getElementById('cust-contact');
+    const custEmailEl = document.getElementById('cust-email');
+
+    const cleanContact = (custContactEl?.value || '').trim().replace(/\D/g, '');
+    const emailVal = (custEmailEl?.value || '').trim();
+
+    if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(emailVal)) {
+      showToast('Please enter a valid Gmail address (must end with @gmail.com)');
+      validateInput(custEmailEl, false);
+      custEmailEl?.focus();
+      return;
+    }
+
+    if (cleanContact.length !== 11 || !cleanContact.startsWith('09')) {
+      showToast('Contact number must be 11 digits starting with 09 (no letters/characters)');
+      validateInput(custContactEl, false);
+      custContactEl?.focus();
+      return;
+    }
+
     customerInfo = {
       name: document.getElementById('cust-name')?.value || '',
-      contact: document.getElementById('cust-contact')?.value || '',
-      email: document.getElementById('cust-email')?.value || '',
+      contact: cleanContact,
+      email: emailVal,
       address: document.getElementById('cust-address')?.value || ''
     };
     /* Build centered review details inside payment step */
@@ -498,6 +518,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function setPaymentMethod(method) {
     if (paymentMethodInput) paymentMethodInput.value = method;
+    const refFeedback = document.getElementById('ref-invalid-feedback');
     if (method === 'GCash') {
       btnMethodGcash?.classList.add('active-gcash');
       btnMethodMaya?.classList.remove('active-maya');
@@ -505,15 +526,35 @@ document.addEventListener('DOMContentLoaded', () => {
       if (qrBrandLabel) qrBrandLabel.textContent = 'GCash';
       if (qrNumDisplay) qrNumDisplay.textContent = '0912 221 7577';
       if (refFieldLabel) refFieldLabel.textContent = 'GCash';
-      if (gcashRefInput) gcashRefInput.placeholder = 'e.g. 1234 5678 9012 (GCash Ref)';
+      if (gcashRefInput) {
+        gcashRefInput.maxLength = 13;
+        gcashRefInput.placeholder = 'e.g. 1000123456789 (13 digits)';
+        gcashRefInput.value = gcashRefInput.value.replace(/\D/g, '').slice(0, 13);
+      }
+      if (refFeedback) {
+        refFeedback.textContent = 'Please enter a valid 13-digit GCash reference number (numbers only).';
+      }
     } else {
       btnMethodMaya?.classList.add('active-maya');
       btnMethodGcash?.classList.remove('active-gcash');
       if (paymentQrImg) { paymentQrImg.src = '../img/paymaya-qr.svg'; paymentQrImg.alt = 'Maya QR Code'; }
       if (qrBrandLabel) qrBrandLabel.textContent = 'Maya';
       if (qrNumDisplay) qrNumDisplay.textContent = '0912 221 7577';
-      if (refFieldLabel) refFieldLabel.textContent = 'Maya';
-      if (gcashRefInput) gcashRefInput.placeholder = 'e.g. 9876 5432 1098 (Maya Ref)';
+      if (refFieldLabel) refFieldLabel.textContent = 'PayMaya / Maya';
+      if (gcashRefInput) {
+        gcashRefInput.maxLength = 17;
+        gcashRefInput.placeholder = 'e.g. 10001234567890123 (max 17 digits)';
+        gcashRefInput.value = gcashRefInput.value.replace(/\D/g, '').slice(0, 17);
+      }
+      if (refFeedback) {
+        refFeedback.textContent = 'Please enter a valid PayMaya reference number (up to 17 digits, numbers only).';
+      }
+    }
+
+    if (gcashRefInput && gcashRefInput.value) {
+      const val = gcashRefInput.value;
+      const valid = method === 'GCash' ? (val.length === 13) : (val.length > 0 && val.length <= 17);
+      validateInput(gcashRefInput, valid);
     }
   }
 
@@ -548,15 +589,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const ref = document.getElementById('gcash-ref');
     const proof = document.getElementById('gcash-proof');
+    const refVal = ref ? ref.value.trim().replace(/\D/g, '') : '';
 
-    if (!ref || !ref.value.trim()) {
+    if (!refVal) {
       if (errBox) { 
-        errBox.textContent = `Please enter your ${method} reference number.`; 
+        errBox.textContent = `Please enter your ${method} reference number (numbers only).`; 
         errBox.style.display = 'block'; 
       }
+      validateInput(ref, false);
       ref?.focus();
       return;
     }
+
+    if (method === 'GCash' && refVal.length !== 13) {
+      if (errBox) { 
+        errBox.textContent = 'GCash reference number must be 13 digits (no letters or characters).'; 
+        errBox.style.display = 'block'; 
+      }
+      validateInput(ref, false);
+      ref?.focus();
+      return;
+    }
+
+    if (method === 'PayMaya' && (refVal.length === 0 || refVal.length > 17)) {
+      if (errBox) { 
+        errBox.textContent = 'PayMaya reference number must be up to 17 digits (no letters or characters).'; 
+        errBox.style.display = 'block'; 
+      }
+      validateInput(ref, false);
+      ref?.focus();
+      return;
+    }
+
+    if (ref) ref.value = refVal;
+    validateInput(ref, true);
 
     if (!proof || !proof.files.length) {
       if (errBox) { 
@@ -658,15 +724,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (!currentSession && guestConvertBox) {
         guestConvertBox.innerHTML = `
-          <div class="guest-convert-box">
+          <div class="guest-convert-box" id="guest-account-prompt-card">
             <div class="guest-convert-header">
               <i class="fas fa-user-plus"></i>
               <div>
-                <h4>Save Your Order & Create an Account</h4>
-                <p>We already have your name and contact details (<strong>${customerInfo.email}</strong>). Create a password to track this order, view receipts, and request refunds in your personal dashboard anytime!</p>
+                <h4>Would you like to create an account?</h4>
+                <p>Save your order details for <strong>${customerInfo.email}</strong> to easily track your delivery, view receipts, and request refunds in your personal dashboard anytime!</p>
               </div>
             </div>
-            <form id="guest-convert-form" style="margin-top:0.75rem;">
+
+            <!-- Ask First Choice -->
+            <div id="guest-ask-step" style="margin-top:0.85rem; display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+              <button type="button" class="btn btn-primary btn-sm" id="btn-ask-yes-pwd" style="padding:0.6rem 1.25rem; font-size:0.88rem;">
+                <i class="fas fa-key"></i> Yes, Create Password
+              </button>
+              <button type="button" class="btn btn-outline btn-sm" id="btn-ask-no-pwd" style="padding:0.6rem 1rem; font-size:0.88rem; color:#666; border-color:#ccc;">
+                <i class="fas fa-times"></i> No, Thanks
+              </button>
+            </div>
+
+            <!-- Create Password Form (Initially Hidden) -->
+            <form id="guest-convert-form" style="display:none; margin-top:1rem; border-top:1px dashed #d4a96a; padding-top:0.85rem;">
+              <div style="font-size:0.85rem; font-weight:600; color:var(--primary); margin-bottom:0.75rem;">
+                <i class="fas fa-shield-alt"></i> Set a password to save your account:
+              </div>
               <div class="guest-convert-fields">
                 <div class="form-group" style="margin-bottom:0.5rem; text-align:left;">
                   <label style="font-size:0.8rem; font-weight:600; display:flex; align-items:center; gap:0.35rem; margin-bottom:0.25rem;">
@@ -696,15 +777,50 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
               </div>
 
-              <button type="submit" class="btn btn-primary btn-block" id="btn-convert-submit" style="margin-top:0.75rem; padding:0.65rem 1rem; font-size:0.88rem;">
-                <i class="fas fa-check-circle"></i> Save Account & Open Dashboard
-              </button>
+              <div style="display:flex; gap:0.6rem; margin-top:0.75rem;">
+                <button type="button" class="btn btn-outline btn-sm" id="btn-cancel-convert" style="padding:0.65rem 1rem; font-size:0.85rem; color:#666;">
+                  Cancel
+                </button>
+                <button type="submit" class="btn btn-primary btn-block" id="btn-convert-submit" style="padding:0.65rem 1rem; font-size:0.88rem; flex:1;">
+                  <i class="fas fa-check-circle"></i> Save Account & Open Dashboard
+                </button>
+              </div>
             </form>
+
+            <!-- Dismissed acknowledgement -->
+            <div id="guest-declined-msg" style="display:none; margin-top:0.75rem; font-size:0.84rem; color:var(--gray); background:#f8f9fa; padding:0.6rem 0.85rem; border-radius:6px; border:1px solid #e9ecef;">
+              <i class="fas fa-info-circle" style="color:var(--primary);"></i> You can track this order anytime with your Order ID (<strong>${orderId}</strong>) via <strong>Track Transactions</strong>.
+            </div>
           </div>
         `;
         guestConvertBox.style.display = 'block';
 
+        const askStep = document.getElementById('guest-ask-step');
         const convertForm = document.getElementById('guest-convert-form');
+        const declinedMsg = document.getElementById('guest-declined-msg');
+        const btnAskYes = document.getElementById('btn-ask-yes-pwd');
+        const btnAskNo = document.getElementById('btn-ask-no-pwd');
+        const btnCancelConvert = document.getElementById('btn-cancel-convert');
+
+        btnAskYes?.addEventListener('click', () => {
+          if (askStep) askStep.style.display = 'none';
+          if (declinedMsg) declinedMsg.style.display = 'none';
+          if (convertForm) convertForm.style.display = 'block';
+          document.getElementById('guest-convert-pwd')?.focus();
+        });
+
+        btnAskNo?.addEventListener('click', () => {
+          if (askStep) askStep.style.display = 'none';
+          if (convertForm) convertForm.style.display = 'none';
+          if (declinedMsg) declinedMsg.style.display = 'block';
+        });
+
+        btnCancelConvert?.addEventListener('click', () => {
+          if (convertForm) convertForm.style.display = 'none';
+          if (askStep) askStep.style.display = 'flex';
+          if (declinedMsg) declinedMsg.style.display = 'none';
+        });
+
         const convertPwd = document.getElementById('guest-convert-pwd');
         const convertCpwd = document.getElementById('guest-convert-cpwd');
         const convertSubmitBtn = document.getElementById('btn-convert-submit');
@@ -896,6 +1012,26 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     details.products = Array.from(partnerForm.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
 
+    // Validate Gmail pattern
+    const partnerEmailEl = document.getElementById('partner-email');
+    if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(details.email)) {
+      showToast('Please enter a valid Gmail address (must end with @gmail.com)');
+      validateInput(partnerEmailEl, false);
+      partnerEmailEl?.focus();
+      return;
+    }
+
+    // Validate Contact number: 11 max length no letters or characters
+    const partnerPhoneEl = document.getElementById('partner-phone');
+    const cleanPhone = (details.phone || '').replace(/\D/g, '');
+    if (cleanPhone.length !== 11 || !cleanPhone.startsWith('09')) {
+      showToast('Contact number must be 11 digits starting with 09 (no letters or characters)');
+      validateInput(partnerPhoneEl, false);
+      partnerPhoneEl?.focus();
+      return;
+    }
+    details.phone = cleanPhone;
+
     // Save to global weBakePartnerApplications
     const allApps = JSON.parse(localStorage.getItem('weBakePartnerApplications') || '[]');
     let existingApp = allApps.find(a => 
@@ -1005,8 +1141,41 @@ document.addEventListener('DOMContentLoaded', () => {
     el.classList.toggle('is-valid', isValid);
     el.classList.toggle('is-invalid', !isValid && el.value.length > 0);
   }
-  document.getElementById('cust-contact')?.addEventListener('input', e => validateInput(e.target, e.target.value.replace(/\D/g, '').length === 11 && e.target.value.replace(/\D/g, '').startsWith('09')));
-  document.getElementById('gcash-ref')?.addEventListener('input', e => validateInput(e.target, e.target.value.trim().length >= 13));
+
+  // Product Page Checkout validations
+  document.getElementById('cust-contact')?.addEventListener('input', e => {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 11);
+    const valid = e.target.value.length === 11 && e.target.value.startsWith('09');
+    validateInput(e.target, valid);
+  });
+
+  document.getElementById('cust-email')?.addEventListener('input', e => {
+    const val = e.target.value.trim();
+    const valid = /^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(val);
+    validateInput(e.target, valid);
+  });
+
+  document.getElementById('gcash-ref')?.addEventListener('input', e => {
+    const method = paymentMethodInput?.value || 'GCash';
+    const maxLen = method === 'GCash' ? 13 : 17;
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, maxLen);
+    const val = e.target.value;
+    const isValid = method === 'GCash' ? (val.length === 13) : (val.length > 0 && val.length <= 17);
+    validateInput(e.target, isValid);
+  });
+
+  // Partner Page validations
+  document.getElementById('partner-email')?.addEventListener('input', e => {
+    const val = e.target.value.trim();
+    const valid = /^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(val);
+    validateInput(e.target, valid);
+  });
+
+  document.getElementById('partner-phone')?.addEventListener('input', e => {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 11);
+    const valid = e.target.value.length === 11 && e.target.value.startsWith('09');
+    validateInput(e.target, valid);
+  });
 
   /* Init */
   loadCartFromStore();
