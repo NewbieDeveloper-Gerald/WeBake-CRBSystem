@@ -372,6 +372,10 @@
   flex-grow: 1;
 }
 
+.home-product-card .product-desc:last-child {
+  margin-bottom: 0;
+}
+
 .home-product-card .product-meta {
   display: flex;
   justify-content: space-between;

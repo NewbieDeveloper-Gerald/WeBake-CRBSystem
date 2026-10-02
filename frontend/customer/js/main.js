@@ -482,6 +482,116 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  /* Real-time Guest Email Validation (Registered / Already Used Detection) */
+  function validateGuestEmailRealtime(isBlur = false) {
+    const custEmailEl = document.getElementById('cust-email');
+    const feedback = document.getElementById('cust-email-feedback');
+    if (!custEmailEl) return true;
+
+    // Skip guest duplicate check if user is already logged in
+    let session = null;
+    try { session = JSON.parse(localStorage.getItem('weBakeSession')); } catch(e){}
+    if (session && session.email) return true;
+
+    const rawVal = custEmailEl.value || '';
+    const cleanEmail = rawVal.trim().toLowerCase();
+
+    if (!cleanEmail) {
+      custEmailEl.classList.remove('is-invalid', 'is-valid');
+      if (feedback) {
+        feedback.style.display = 'none';
+        feedback.textContent = 'Please enter a valid Gmail address (must end with @gmail.com).';
+      }
+      return false;
+    }
+
+    const isFullGmail = /^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(cleanEmail);
+
+    if (isFullGmail) {
+      // 1. Check if email already has a registered account (Item 1)
+      const allUsers = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
+      const isRegistered = allUsers.some(u => (u.email || '').trim().toLowerCase() === cleanEmail);
+      if (isRegistered) {
+        validateInput(custEmailEl, false);
+        if (feedback) {
+          if (!feedback.querySelector('#checkout-inline-signin')) {
+            feedback.innerHTML = `This Gmail address is already registered. Please <a href="#" data-auth-open="signin-modal" id="checkout-inline-signin" class="inline-signin-trigger" style="color:var(--primary); font-weight:700; text-decoration:underline; cursor:pointer;">sign in</a> or use another email.`;
+          }
+          feedback.style.display = 'block';
+        }
+        return false;
+      }
+
+      // 2. REQUIREMENT: Guest Gmail address can only be used ONCE for an order
+      const allOrders = JSON.parse(localStorage.getItem('weBakeAllOrders') || '[]');
+      const hasGuestOrdered = allOrders.some(o => (o.customer?.email || '').trim().toLowerCase() === cleanEmail);
+      if (hasGuestOrdered) {
+        validateInput(custEmailEl, false);
+        if (feedback) {
+          if (!feedback.querySelector('#checkout-inline-signin2')) {
+            feedback.innerHTML = `This email has already been used for a guest order. Please <a href="#" data-auth-open="signin-modal" id="checkout-inline-signin2" class="inline-signin-trigger" style="color:var(--primary); font-weight:700; text-decoration:underline; cursor:pointer;">sign in</a> or create an account to order again.`;
+          }
+          feedback.style.display = 'block';
+        }
+        return false;
+      }
+
+      // Available valid Gmail
+      validateInput(custEmailEl, true);
+      if (feedback) {
+        feedback.style.display = 'none';
+        feedback.textContent = 'Please enter a valid Gmail address (must end with @gmail.com).';
+      }
+      return true;
+    } else {
+      const afterAt = cleanEmail.includes('@') ? cleanEmail.split('@')[1] : '';
+      const isTypingGmail = 'gmail.com'.startsWith(afterAt);
+      if (isBlur || (cleanEmail.includes('@') && !isTypingGmail)) {
+        validateInput(custEmailEl, false);
+        if (feedback) {
+          feedback.textContent = 'Please enter a valid Gmail address (must end with @gmail.com).';
+          feedback.style.display = 'block';
+        }
+        return false;
+      } else {
+        custEmailEl.classList.remove('is-invalid', 'is-valid');
+        if (feedback) feedback.style.display = 'none';
+        return false;
+      }
+    }
+  }
+
+  const custEmailInput = document.getElementById('cust-email');
+  custEmailInput?.addEventListener('input', () => validateGuestEmailRealtime(false));
+  custEmailInput?.addEventListener('blur', () => validateGuestEmailRealtime(true));
+
+  // Universal delegated handler for any inline "sign in" links across all pages
+  document.addEventListener('click', (e) => {
+    const inlineSignIn = e.target.closest('#checkout-inline-signin, #checkout-inline-signin2, #partner-inline-signin-link, #partner-inline-signin-link2, .inline-signin-trigger');
+    if (inlineSignIn) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof window.closeCheckout === 'function') {
+        window.closeCheckout();
+      }
+      if (typeof window.openAuthModal === 'function') {
+        window.openAuthModal('signin-modal');
+      } else {
+        const signinBtn = document.querySelector('[data-auth-open="signin-modal"]');
+        if (signinBtn && signinBtn !== inlineSignIn) {
+          signinBtn.click();
+        }
+      }
+    }
+  });
+
+  // Prevent mousedown on inline signin links from triggering blur on input fields
+  document.addEventListener('mousedown', (e) => {
+    if (e.target.closest('#checkout-inline-signin, #checkout-inline-signin2, #partner-inline-signin-link, #partner-inline-signin-link2, .inline-signin-trigger')) {
+      e.preventDefault();
+    }
+  });
+
   /* Back from Info → close checkout */
   document.getElementById('info-back-btn')?.addEventListener('click', closeCheckout);
 
@@ -494,9 +604,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const cleanContact = (custContactEl?.value || '').trim().replace(/\D/g, '');
     const emailVal = (custEmailEl?.value || '').trim();
 
-    if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(emailVal)) {
-      showToast('Please enter a valid Gmail address (must end with @gmail.com)');
-      validateInput(custEmailEl, false);
+    if (!validateGuestEmailRealtime(true)) {
+      showToast('Please check your Gmail address.');
       custEmailEl?.focus();
       return;
     }
@@ -522,48 +631,6 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch(err) {}
 
     if (!session) {
-      // Guest user validations
-      const cleanEmail = (customerInfo.email || '').trim().toLowerCase();
-
-      // 1. Check if email already has a registered account (Item 1)
-      const allUsers = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
-      const isRegistered = allUsers.some(u => (u.email || '').trim().toLowerCase() === cleanEmail);
-      if (isRegistered) {
-        showToast('This Gmail address is already registered. Please sign in or use another email.');
-        validateInput(custEmailEl, false);
-        const feedback = document.getElementById('cust-email-feedback');
-        if (feedback) {
-          feedback.innerHTML = `This Gmail address is already registered. Please <a href="#" id="checkout-inline-signin" style="color:var(--primary); font-weight:700; text-decoration:underline;">sign in</a> or use another email.`;
-          feedback.style.display = 'block';
-          document.getElementById('checkout-inline-signin')?.addEventListener('click', (ev) => {
-            ev.preventDefault();
-            closeCheckout();
-            if (window.openAuthModal) window.openAuthModal('signin-modal');
-          });
-        }
-        custEmailEl?.focus();
-        return;
-      }
-
-      // 2. REQUIREMENT: Guest Gmail address can only be used ONCE for an order
-      const allOrders = JSON.parse(localStorage.getItem('weBakeAllOrders') || '[]');
-      const hasGuestOrdered = allOrders.some(o => (o.customer?.email || '').trim().toLowerCase() === cleanEmail);
-      if (hasGuestOrdered) {
-        showToast('This email has already been used for a guest order. Guests may only order once—please sign in or create an account to order again.');
-        validateInput(custEmailEl, false);
-        const feedback = document.getElementById('cust-email-feedback');
-        if (feedback) {
-          feedback.innerHTML = `This email has already been used for a guest order. Please <a href="#" id="checkout-inline-signin2" style="color:var(--primary); font-weight:700; text-decoration:underline;">sign in</a> or create an account to order again.`;
-          feedback.style.display = 'block';
-          document.getElementById('checkout-inline-signin2')?.addEventListener('click', (ev) => {
-            ev.preventDefault();
-            closeCheckout();
-            if (window.openAuthModal) window.openAuthModal('signin-modal');
-          });
-        }
-        custEmailEl?.focus();
-        return;
-      }
 
       // Guest user -> require real OTP verification
       const proceedBtn = document.getElementById('info-proceed-btn');
@@ -1228,12 +1295,10 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast('This Gmail address is already registered. Please sign in or use another email.');
       validateInput(emailEl, false);
       if (feedback) {
-        feedback.innerHTML = `This Gmail address is already registered. Please <a href="#" id="partner-inline-signin-link" style="color:var(--primary); font-weight:700; text-decoration:underline;">sign in</a> or use another email.`;
+        if (!feedback.querySelector('#partner-inline-signin-link')) {
+          feedback.innerHTML = `This Gmail address is already registered. Please <a href="#" data-auth-open="signin-modal" id="partner-inline-signin-link" class="inline-signin-trigger" style="color:var(--primary); font-weight:700; text-decoration:underline; cursor:pointer;">sign in</a> or use another email.`;
+        }
         feedback.style.display = 'block';
-        document.getElementById('partner-inline-signin-link')?.addEventListener('click', ev => {
-          ev.preventDefault();
-          if (window.openAuthModal) window.openAuthModal('signin-modal');
-        });
       }
       emailEl?.focus();
       return;
@@ -1378,24 +1443,104 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Wire email input to react to changes
-  document.getElementById('partner-email')?.addEventListener('input', (e) => {
-    const curVal = (e.target.value || '').trim().toLowerCase();
+  // Real-time Guest Email Validation for Partner Page
+  function checkPartnerEmailRealtime(isBlur = false) {
+    const partnerEmailEl = document.getElementById('partner-email');
+    const feedback = document.getElementById('partner-email-feedback');
     const vBadge = document.getElementById('partner-email-verified-badge');
     const vBtn = document.getElementById('btn-partner-verify-email');
     const otpContainer = document.getElementById('partner-otp-container');
+    if (!partnerEmailEl) return true;
+
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem('weBakeSession')); } catch(e){}
+    if (s && s.email) return true;
+
+    const curVal = (partnerEmailEl.value || '').trim().toLowerCase();
 
     if (curVal && curVal === verifiedPartnerEmail) {
       partnerEmailVerified = true;
       if (vBadge) vBadge.style.display = 'inline-block';
       if (vBtn) vBtn.style.display = 'none';
       if (otpContainer) otpContainer.style.display = 'none';
+      validateInput(partnerEmailEl, true);
+      if (feedback) feedback.style.display = 'none';
+      return true;
     } else {
       partnerEmailVerified = false;
       if (vBadge) vBadge.style.display = 'none';
       if (vBtn) vBtn.style.display = 'inline-flex';
     }
-  });
+
+    if (!curVal) {
+      partnerEmailEl.classList.remove('is-invalid', 'is-valid');
+      if (feedback) {
+        feedback.style.display = 'none';
+        feedback.textContent = 'Please enter a valid Gmail address (must end with @gmail.com).';
+      }
+      return false;
+    }
+
+    const isFullGmail = /^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(curVal);
+    if (isFullGmail) {
+      const allUsers = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
+      const isRegistered = allUsers.some(u => (u.email || '').trim().toLowerCase() === curVal);
+      if (isRegistered) {
+        validateInput(partnerEmailEl, false);
+        if (feedback) {
+          if (!feedback.querySelector('#partner-inline-signin-link')) {
+            feedback.innerHTML = `This Gmail address is already registered. Please <a href="#" data-auth-open="signin-modal" id="partner-inline-signin-link" class="inline-signin-trigger" style="color:var(--primary); font-weight:700; text-decoration:underline; cursor:pointer;">sign in</a> or use another email.`;
+          }
+          feedback.style.display = 'block';
+        }
+        return false;
+      }
+
+      // Check active application
+      const editingAppId = sessionStorage.getItem('weBakeEditPartnerId');
+      const allApps = JSON.parse(localStorage.getItem('weBakePartnerApplications') || '[]');
+      const existingApp = allApps.find(a => 
+        a.status !== 'cancelled' &&
+        ((a.details?.email && (a.details.email || '').trim().toLowerCase() === curVal) ||
+         (a.email && (a.email || '').trim().toLowerCase() === curVal))
+      );
+      if (existingApp && (!editingAppId || existingApp.appId.toUpperCase() !== editingAppId.toUpperCase())) {
+        validateInput(partnerEmailEl, false);
+        if (feedback) {
+          feedback.textContent = `This Gmail address has an active application (ID: ${existingApp.appId}). Guests can only apply once. Track it via Track Transactions.`;
+          feedback.style.display = 'block';
+        }
+        return false;
+      }
+
+      // Valid & available
+      validateInput(partnerEmailEl, true);
+      if (feedback) {
+        feedback.style.display = 'none';
+        feedback.textContent = 'Please enter a valid Gmail address (must end with @gmail.com).';
+      }
+      return true;
+    } else {
+      const afterAt = curVal.includes('@') ? curVal.split('@')[1] : '';
+      const isTypingGmail = 'gmail.com'.startsWith(afterAt);
+      if (isBlur || (curVal.includes('@') && !isTypingGmail)) {
+        validateInput(partnerEmailEl, false);
+        if (feedback) {
+          feedback.textContent = 'Please enter a valid Gmail address (must end with @gmail.com).';
+          feedback.style.display = 'block';
+        }
+        return false;
+      } else {
+        partnerEmailEl.classList.remove('is-invalid', 'is-valid');
+        if (feedback) feedback.style.display = 'none';
+        return false;
+      }
+    }
+  }
+
+  const partnerEmailInput = document.getElementById('partner-email');
+  partnerEmailInput?.addEventListener('input', () => checkPartnerEmailRealtime(false));
+  partnerEmailInput?.addEventListener('blur', () => checkPartnerEmailRealtime(true));
 
   function syncPartnerFormState() {
     const partnerForm = document.getElementById('partner-form');
@@ -1647,12 +1792,10 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('This Gmail address is already registered. Please sign in or use another email.');
         validateInput(partnerEmailEl, false);
         if (feedback) {
-          feedback.innerHTML = `This Gmail address is already registered. Please <a href="#" id="partner-inline-signin-link2" style="color:var(--primary); font-weight:700; text-decoration:underline;">sign in</a> or use another email.`;
+          if (!feedback.querySelector('#partner-inline-signin-link2')) {
+            feedback.innerHTML = `This Gmail address is already registered. Please <a href="#" data-auth-open="signin-modal" id="partner-inline-signin-link2" class="inline-signin-trigger" style="color:var(--primary); font-weight:700; text-decoration:underline; cursor:pointer;">sign in</a> or use another email.`;
+          }
           feedback.style.display = 'block';
-          document.getElementById('partner-inline-signin-link2')?.addEventListener('click', ev => {
-            ev.preventDefault();
-            if (window.openAuthModal) window.openAuthModal('signin-modal');
-          });
         }
         partnerEmailEl?.focus();
         return;

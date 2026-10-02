@@ -433,6 +433,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  window.openAuthModal = openAuthModal;
+  window.closeAuthModals = closeAuthModals;
+
   // Escape key closes modals
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
