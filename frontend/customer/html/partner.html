@@ -129,47 +129,66 @@
                   <option>Bakery</option>
                   <option>Retail Store</option>
                   <option>Distributor</option>
-                  <option>Restaurant / Café</option>
-                  <option>Other</option>
                 </select>
               </div>
-              <div class="form-group">
+              <div class="form-group" id="partner-years-group">
                 <label>Years in Operation *</label>
-                <input class="form-input" id="partner-years" type="number" placeholder="e.g. 5" min="0" required>
+                <select class="form-select" id="partner-years" required>
+                  <option value="" disabled selected>Select years</option>
+                  <option value="Less than 1 year">Less than 1 year</option>
+                  <option value="1 year">1 year</option>
+                  <option value="2 years">2 years</option>
+                  <option value="3 years">3 years</option>
+                  <option value="4 years">4 years</option>
+                  <option value="5 years">5 years</option>
+                  <option value="more">More (Type exact years)</option>
+                </select>
+                <div id="partner-years-custom-wrap" style="display:none;">
+                  <div style="display:flex; gap:0.5rem; align-items:center;">
+                    <input class="form-input" id="partner-years-custom" type="text" inputmode="numeric" maxlength="2" placeholder="e.g. 10" style="flex:1;" title="Enter up to 2 digits (numbers only)">
+                    <button type="button" class="btn btn-outline" id="partner-years-back-btn" title="Back to dropdown options" style="padding:0.65rem 0.85rem; font-size:0.82rem; white-space:nowrap; display:inline-flex; align-items:center; gap:0.35rem;">
+                      <i class="fas fa-list"></i> Select List
+                    </button>
+                  </div>
+                  <div style="font-size:0.75rem; color:var(--gray); margin-top:0.3rem;">Numbers only (maximum 2 digits).</div>
+                </div>
               </div>
             </div>
             <div class="form-group">
               <label>Business Address *</label>
               <input class="form-input" id="partner-address" type="text" placeholder="Complete business address" required>
             </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>Number of Branches</label>
-                <input class="form-input" id="partner-branches" type="number" placeholder="e.g. 1" min="1">
-              </div>
-              <div class="form-group">
-                <label>Business Permit Number</label>
-                <input class="form-input" id="partner-permit" type="text" placeholder="If available">
+
+            <!-- Contact Details (Visible for guests, hidden for logged-in accounts) -->
+            <div id="partner-contact-section">
+              <h3 class="form-section-title"><i class="fas fa-address-book"></i> Contact Details</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Email Address (Gmail) *</label>
+                  <input class="form-input" id="partner-email" type="email" placeholder="you@gmail.com" pattern="[a-zA-Z0-9._%+\-]+@[gG][mM][aA][iI][lL]\.[cC][oO][mM]" title="Please enter a valid Gmail address ending in @gmail.com" required>
+                  <div class="invalid-feedback">Please enter a valid Gmail address (must end with @gmail.com).</div>
+                </div>
+                <div class="form-group">
+                  <label>Contact Number *</label>
+                  <input class="form-input" id="partner-phone" type="tel" placeholder="09XXXXXXXXX" pattern="09[0-9]{9}" maxlength="11" inputmode="numeric" title="Must be an 11-digit mobile number starting with 09" required>
+                  <div class="invalid-feedback">Contact number must be 11 digits starting with 09 (no letters or characters).</div>
+                </div>
               </div>
             </div>
 
-            <!-- Contact Details -->
-            <h3 class="form-section-title"><i class="fas fa-address-book"></i> Contact Details</h3>
-            <div class="form-row">
-              <div class="form-group">
-                <label>Email Address (Gmail) *</label>
-                <input class="form-input" id="partner-email" type="email" placeholder="you@gmail.com" pattern="[a-zA-Z0-9._%+\-]+@[gG][mM][aA][iI][lL]\.[cC][oO][mM]" title="Please enter a valid Gmail address ending in @gmail.com" required>
-                <div class="invalid-feedback">Please enter a valid Gmail address (must end with @gmail.com).</div>
+            <!-- Verified Account Badge (Visible only when logged in) -->
+            <div id="partner-logged-in-badge" style="display:none; background:#FAF6F0; border:1px solid #EBD9C8; border-radius:8px; padding:1.1rem 1.25rem; margin-top:1.5rem; margin-bottom:1rem;">
+              <div style="font-weight:700; color:var(--primary); margin-bottom:0.35rem; display:flex; align-items:center; gap:0.5rem; font-size:0.95rem;">
+                <i class="fas fa-id-card"></i> Contact Information (Linked to Your Account)
               </div>
-              <div class="form-group">
-                <label>Contact Number *</label>
-                <input class="form-input" id="partner-phone" type="tel" placeholder="09XXXXXXXXX" pattern="09[0-9]{9}" maxlength="11" inputmode="numeric" title="Must be an 11-digit mobile number starting with 09" required>
-                <div class="invalid-feedback">Contact number must be 11 digits starting with 09 (no letters or characters).</div>
+              <div style="font-size:0.88rem; color:#444; display:flex; flex-wrap:wrap; gap:1.25rem; margin-top:0.4rem;">
+                <span><i class="fas fa-user" style="color:var(--accent); margin-right:4px;"></i> Representative: <strong id="partner-badge-name"></strong></span>
+                <span><i class="fas fa-envelope" style="color:var(--accent); margin-right:4px;"></i> Email: <strong id="partner-badge-email"></strong></span>
+                <span><i class="fas fa-phone" style="color:var(--accent); margin-right:4px;"></i> Contact: <strong id="partner-badge-phone"></strong></span>
               </div>
-            </div>
-            <div class="form-group">
-              <label>TIN (Tax Identification Number)</label>
-              <input class="form-input" id="partner-tin" type="text" placeholder="If available">
+              <div style="font-size:0.75rem; color:#777; margin-top:0.5rem;">
+                <i class="fas fa-check-circle" style="color:var(--success);"></i> These verified account contact details will be automatically attached to your wholesale application.
+              </div>
             </div>
 
             <!-- Products of Interest -->
@@ -230,6 +249,7 @@
   </footer>
 
   <div class="toast" id="toast"></div>
+  <script src="../js/otp.js"></script>
   <script src="../js/main.js"></script>
   <script src="../js/auth.js"></script>
 </body>

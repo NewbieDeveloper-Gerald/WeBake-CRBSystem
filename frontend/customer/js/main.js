@@ -110,7 +110,8 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const s = JSON.parse(localStorage.getItem('weBakeSession')); if (!s) return;
       const all = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
-      const u = all.find(u => u.email === s.email);
+      const sEmail = (s.email || '').trim().toLowerCase();
+      const u = all.find(u => (u.email || '').trim().toLowerCase() === sEmail);
       if (u) { u.savedCart = cart; localStorage.setItem('weBakeUsers', JSON.stringify(all)); }
     } catch(e){}
   }
@@ -118,6 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const s = JSON.parse(localStorage.getItem('weBakeSession'));
       const all = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
+      const sEmail = s ? (s.email || '').trim().toLowerCase() : '';
       const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
       const downpayment = paymentDetails?.downpayment ?? Math.round(totalAmt * 0.5);
       const balance = paymentDetails?.balance ?? (totalAmt - downpayment);
@@ -137,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       if (s) {
-        const u = all.find(u => u.email === s.email);
+        const u = all.find(u => (u.email || '').trim().toLowerCase() === sEmail);
         if (u) {
           u.orderHistory = u.orderHistory || [];
           u.orderHistory.unshift(orderObj);
@@ -159,7 +161,8 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const s = JSON.parse(localStorage.getItem('weBakeSession')); if (!s) return;
       const all = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
-      const u = all.find(u => u.email === s.email);
+      const sEmail = (s.email || '').trim().toLowerCase();
+      const u = all.find(u => (u.email || '').trim().toLowerCase() === sEmail);
       if (u && u.savedCart) { cart = u.savedCart; }
     } catch(e){}
   }
@@ -355,30 +358,6 @@ document.addEventListener('DOMContentLoaded', () => {
   /* Back from Info → close checkout */
   document.getElementById('info-back-btn')?.addEventListener('click', closeCheckout);
 
-  let generatedOTP = null;
-  let checkoutOtpInterval = null;
-
-  function startCheckoutOtpTimer() {
-    clearInterval(checkoutOtpInterval);
-    let t = 30;
-    const wrap = document.getElementById('checkout-otp-timer-wrap');
-    const span = document.getElementById('checkout-otp-timer');
-    const btn = document.getElementById('checkout-otp-resend-btn');
-    if (wrap && span && btn) {
-      wrap.style.display = 'inline';
-      btn.style.display = 'none';
-      span.textContent = t;
-      checkoutOtpInterval = setInterval(() => {
-        span.textContent = --t;
-        if (t <= 0) {
-          clearInterval(checkoutOtpInterval);
-          wrap.style.display = 'none';
-          btn.style.display = 'inline';
-        }
-      }, 1000);
-    }
-  }
-
   /* Info → OTP (if guest) or Payment (if logged in) */
   document.getElementById('info-form')?.addEventListener('submit', e => {
     e.preventDefault();
@@ -460,21 +439,69 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch(err) {}
 
     if (!session) {
-      // Guest user -> require OTP
-      generatedOTP = Math.floor(100000 + Math.random() * 900000).toString();
-      // Simulate sending OTP via email by showing it in a toast
-      showToast(`OTP sent to ${customerInfo.email}: ${generatedOTP}`);
-      
-      const otpInputs = document.querySelectorAll('.otp-input');
+      // Guest user validations
+      const cleanEmail = (customerInfo.email || '').trim().toLowerCase();
+
+      // 1. Check if email already has a registered account
+      const allUsers = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
+      const isRegistered = allUsers.some(u => (u.email || '').trim().toLowerCase() === cleanEmail);
+      if (isRegistered) {
+        showToast('An account with this email already exists. Please sign in to place your order.');
+        closeCheckout();
+        if (window.openAuthModal) {
+          window.openAuthModal('signin-modal');
+        }
+        return;
+      }
+
+      // 2. REQUIREMENT: Guest Gmail address can only be used ONCE for an order
+      const allOrders = JSON.parse(localStorage.getItem('weBakeAllOrders') || '[]');
+      const hasGuestOrdered = allOrders.some(o => (o.customer?.email || '').trim().toLowerCase() === cleanEmail);
+      if (hasGuestOrdered) {
+        showToast('This email has already been used for a guest order. Guests may only order once—please sign in or create an account to order again.');
+        const emailInput = document.getElementById('cust-email');
+        if (emailInput) {
+          validateInput(emailInput, false);
+          emailInput.focus();
+        }
+        return;
+      }
+
+      // Guest user -> require real OTP verification
+      const proceedBtn = document.getElementById('info-proceed-btn');
+      const otpInputs = document.querySelectorAll('#step-otp .otp-input');
       const otpError = document.getElementById('otp-error');
-      otpInputs.forEach(i => i.value = '');
-      if (otpError) otpError.style.display = 'none';
-      
       const emailDisplay = document.getElementById('checkout-otp-email-display');
+      const timerSpan = document.getElementById('checkout-otp-timer');
+      const timerWrap = document.getElementById('checkout-otp-timer-wrap');
+      const resendBtn = document.getElementById('checkout-otp-resend-btn');
+
+      otpInputs.forEach(i => i.value = '');
+      if (otpError) {
+        otpError.style.display = 'none';
+        otpError.textContent = '';
+      }
       if (emailDisplay) emailDisplay.textContent = customerInfo.email;
-      
-      startCheckoutOtpTimer();
-      showStep('step-otp');
+
+      WeBakeOTP.send({
+        email: customerInfo.email,
+        purpose: 'checkout_verification',
+        buttonEl: proceedBtn,
+        loadingText: 'Sending code...',
+        onSuccess: () => {
+          showToast('Verification code sent to ' + customerInfo.email);
+          WeBakeOTP.startCountdown({
+            timerSpanEl: timerSpan,
+            timerWrapEl: timerWrap,
+            resendBtnEl: resendBtn,
+            duration: 60
+          });
+          showStep('step-otp');
+        },
+        onError: (errMsg) => {
+          showToast(errMsg);
+        }
+      });
     } else {
       // Logged in user -> skip OTP
       showStep('step-payment');
@@ -483,22 +510,69 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('checkout-otp-resend-btn')?.addEventListener('click', (e) => {
     e.preventDefault();
-    generatedOTP = Math.floor(100000 + Math.random() * 900000).toString();
-    showToast(`OTP resent to ${customerInfo.email}: ${generatedOTP}`);
-    startCheckoutOtpTimer();
+    const resendBtn = document.getElementById('checkout-otp-resend-btn');
+    const timerSpan = document.getElementById('checkout-otp-timer');
+    const timerWrap = document.getElementById('checkout-otp-timer-wrap');
+    const otpError = document.getElementById('otp-error');
+
+    WeBakeOTP.send({
+      email: customerInfo.email,
+      purpose: 'checkout_verification',
+      buttonEl: resendBtn,
+      errorEl: otpError,
+      loadingText: 'Resending...',
+      onSuccess: () => {
+        showToast('New verification code sent to ' + customerInfo.email);
+        WeBakeOTP.startCountdown({
+          timerSpanEl: timerSpan,
+          timerWrapEl: timerWrap,
+          resendBtnEl: resendBtn,
+          duration: 60
+        });
+      },
+      onError: (errMsg) => {
+        if (otpError) {
+          otpError.textContent = errMsg;
+          otpError.style.display = 'block';
+        }
+      }
+    });
   });
 
   /* OTP Handlers */
   document.getElementById('otp-back-btn')?.addEventListener('click', () => showStep('step-info'));
   document.getElementById('otp-verify-btn')?.addEventListener('click', () => {
-    const entered = Array.from(document.querySelectorAll('.otp-input')).map(i => i.value).join('');
+    const entered = Array.from(document.querySelectorAll('#step-otp .otp-input')).map(i => i.value).join('');
     const otpError = document.getElementById('otp-error');
-    if (entered === generatedOTP) {
-      if (otpError) otpError.style.display = 'none';
-      showStep('step-payment');
-    } else {
-      if (otpError) otpError.style.display = 'block';
+    const verifyBtn = document.getElementById('otp-verify-btn');
+
+    if (entered.length !== 6) {
+      if (otpError) {
+        otpError.textContent = 'Please enter the complete 6-digit verification code.';
+        otpError.style.display = 'block';
+      }
+      return;
     }
+
+    WeBakeOTP.verify({
+      email: customerInfo.email,
+      code: entered,
+      purpose: 'checkout_verification',
+      buttonEl: verifyBtn,
+      errorEl: otpError,
+      loadingText: 'Verifying...',
+      onSuccess: () => {
+        if (otpError) otpError.style.display = 'none';
+        showToast('Email verified successfully!');
+        showStep('step-payment');
+      },
+      onError: (errMsg) => {
+        if (otpError) {
+          otpError.textContent = errMsg;
+          otpError.style.display = 'block';
+        }
+      }
+    });
   });
 
   /* Payment → back to Info */
@@ -970,12 +1044,95 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* --- PARTNER FORM --- */
   const partnerForm = document.getElementById('partner-form');
-  if (partnerForm) {
+  const yearsSelect = document.getElementById('partner-years');
+  const yearsCustomWrap = document.getElementById('partner-years-custom-wrap');
+  const yearsCustomInput = document.getElementById('partner-years-custom');
+  const yearsBackBtn = document.getElementById('partner-years-back-btn');
+
+  // Restrict custom input to numbers only and maximum 2 digits
+  yearsCustomInput?.addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 2);
+  });
+
+  // Dropdown toggle: when "more" is clicked, replace dropdown with text input
+  yearsSelect?.addEventListener('change', () => {
+    if (yearsSelect.value === 'more') {
+      yearsSelect.style.display = 'none';
+      yearsSelect.removeAttribute('required');
+      if (yearsCustomWrap) yearsCustomWrap.style.display = 'block';
+      if (yearsCustomInput) {
+        yearsCustomInput.setAttribute('required', '');
+        yearsCustomInput.value = '';
+        yearsCustomInput.focus();
+      }
+    }
+  });
+
+  // Back button: switch back from custom text input to dropdown list
+  yearsBackBtn?.addEventListener('click', () => {
+    if (yearsCustomWrap) yearsCustomWrap.style.display = 'none';
+    if (yearsCustomInput) {
+      yearsCustomInput.removeAttribute('required');
+      yearsCustomInput.value = '';
+    }
+    if (yearsSelect) {
+      yearsSelect.style.display = 'block';
+      yearsSelect.setAttribute('required', '');
+      yearsSelect.value = '';
+      yearsSelect.focus();
+    }
+  });
+
+  // Form reset: restore dropdown view
+  partnerForm?.addEventListener('reset', () => {
+    setTimeout(() => {
+      if (yearsCustomWrap) yearsCustomWrap.style.display = 'none';
+      if (yearsCustomInput) {
+        yearsCustomInput.removeAttribute('required');
+        yearsCustomInput.value = '';
+      }
+      if (yearsSelect) {
+        yearsSelect.style.display = 'block';
+        yearsSelect.setAttribute('required', '');
+      }
+    }, 50);
+  });
+
+  function syncPartnerFormState() {
+    if (!partnerForm) return;
     try {
       const s = JSON.parse(localStorage.getItem('weBakeSession'));
+      const contactSection = document.getElementById('partner-contact-section');
+      const loggedInBadge = document.getElementById('partner-logged-in-badge');
+      const partnerEmailEl = document.getElementById('partner-email');
+      const partnerPhoneEl = document.getElementById('partner-phone');
+      const partnerOwnerEl = document.getElementById('partner-owner-name');
+
       if (s) {
         const all = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
-        const u = all.find(u => u.email === s.email);
+        const sEmail = (s.email || '').trim().toLowerCase();
+        const u = all.find(u => (u.email || '').trim().toLowerCase() === sEmail);
+
+        // Option 2: Hide contact input section and show verified account badge
+        if (contactSection) contactSection.style.display = 'none';
+        if (partnerEmailEl) partnerEmailEl.removeAttribute('required');
+        if (partnerPhoneEl) partnerPhoneEl.removeAttribute('required');
+
+        if (loggedInBadge) {
+          loggedInBadge.style.display = 'block';
+          const badgeName = document.getElementById('partner-badge-name');
+          const badgeEmail = document.getElementById('partner-badge-email');
+          const badgePhone = document.getElementById('partner-badge-phone');
+          if (badgeName) badgeName.textContent = (u && u.name) || s.name || 'Account Holder';
+          if (badgeEmail) badgeEmail.textContent = (u && u.email) || s.email || '';
+          if (badgePhone) badgePhone.textContent = (u && u.contact) || 'Not provided in profile';
+        }
+
+        // Auto-fill representative name if empty
+        if (partnerOwnerEl && !partnerOwnerEl.value && ((u && u.name) || s.name)) {
+          partnerOwnerEl.value = (u && u.name) || s.name;
+        }
+
         if (u && (u.partnerStatus === 'pending' || u.partnerStatus === 'active')) {
           const intro = document.querySelector('.partner-intro');
           if (intro) intro.innerHTML = `<div style="background:#e3f2fd; color:#0c5460; padding:1rem; border-radius:8px; margin-bottom:1rem; font-weight:bold;"><i class="fas fa-info-circle"></i> You have already submitted an application. You can update your existing details below.</div>`;
@@ -984,10 +1141,37 @@ document.addEventListener('DOMContentLoaded', () => {
           
           // Pre-populate fields
           if (u.partnerDetails) {
-            ['bakery-name', 'owner-name', 'type', 'years', 'address', 'branches', 'permit', 'tin', 'email', 'phone', 'notes'].forEach(key => {
+            ['bakery-name', 'owner-name', 'type', 'address', 'notes'].forEach(key => {
               const el = document.getElementById(`partner-${key}`);
               if (el && u.partnerDetails[key]) el.value = u.partnerDetails[key];
             });
+
+            // Pre-populate years dropdown or custom input if applicable
+            if (u.partnerDetails.years) {
+              const standardYears = ['Less than 1 year', '1 year', '2 years', '3 years', '4 years', '5 years'];
+              if (standardYears.includes(u.partnerDetails.years)) {
+                if (yearsSelect) {
+                  yearsSelect.style.display = 'block';
+                  yearsSelect.setAttribute('required', '');
+                  yearsSelect.value = u.partnerDetails.years;
+                }
+                if (yearsCustomWrap) yearsCustomWrap.style.display = 'none';
+                if (yearsCustomInput) yearsCustomInput.removeAttribute('required');
+              } else {
+                if (yearsSelect) {
+                  yearsSelect.style.display = 'none';
+                  yearsSelect.removeAttribute('required');
+                  yearsSelect.value = 'more';
+                }
+                if (yearsCustomWrap) yearsCustomWrap.style.display = 'block';
+                if (yearsCustomInput) {
+                  yearsCustomInput.setAttribute('required', '');
+                  const numStr = (u.partnerDetails.years.match(/\d{1,2}/) || [''])[0];
+                  yearsCustomInput.value = numStr;
+                }
+              }
+            }
+
             // Handle checkboxes
             if (u.partnerDetails.products) {
               const checkboxes = partnerForm.querySelectorAll('input[type="checkbox"]');
@@ -997,47 +1181,119 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
         }
+      } else {
+        // Guest mode: ensure contact inputs are displayed and required
+        if (contactSection) contactSection.style.display = 'block';
+        if (loggedInBadge) loggedInBadge.style.display = 'none';
+        if (partnerEmailEl) partnerEmailEl.setAttribute('required', '');
+        if (partnerPhoneEl) partnerPhoneEl.setAttribute('required', '');
       }
     } catch(e) {}
   }
+
+  // Initial sync on load
+  syncPartnerFormState();
+
+  // Expose globally and listen for live auth changes
+  window.syncPartnerFormState = syncPartnerFormState;
+  window.addEventListener('weBakeAuthChange', syncPartnerFormState);
 
   partnerForm?.addEventListener('submit', e => {
     e.preventDefault();
     let isUpdate = false;
     
+    // Check if user is logged in
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem('weBakeSession')); } catch(err){}
+    const allUsers = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
+    const sEmail = s ? (s.email || '').trim().toLowerCase() : '';
+    const currentUser = s ? allUsers.find(u => (u.email || '').trim().toLowerCase() === sEmail) : null;
+
     // Gather details from form
     const details = {};
-    ['bakery-name', 'owner-name', 'type', 'years', 'address', 'branches', 'permit', 'tin', 'email', 'phone', 'notes'].forEach(key => {
+    ['bakery-name', 'owner-name', 'type', 'address', 'notes'].forEach(key => {
       const el = document.getElementById(`partner-${key}`);
       if (el) details[key] = el.value.trim();
     });
+
+    // Handle years of operation (dropdown or replaced custom 2-digit input)
+    const yearsSelect = document.getElementById('partner-years');
+    const yearsCustomWrap = document.getElementById('partner-years-custom-wrap');
+    const yearsCustomInput = document.getElementById('partner-years-custom');
+    if (yearsCustomWrap && yearsCustomWrap.style.display !== 'none') {
+      const customVal = yearsCustomInput?.value.replace(/\D/g, '').slice(0, 2);
+      if (!customVal) {
+        showToast('Please enter the number of years in operation (numbers only, max 2 digits)');
+        yearsCustomInput?.focus();
+        return;
+      }
+      details.years = `${customVal} years`;
+    } else if (yearsSelect) {
+      details.years = yearsSelect.value;
+    }
+
     details.products = Array.from(partnerForm.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
 
-    // Validate Gmail pattern
-    const partnerEmailEl = document.getElementById('partner-email');
-    if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(details.email)) {
-      showToast('Please enter a valid Gmail address (must end with @gmail.com)');
-      validateInput(partnerEmailEl, false);
-      partnerEmailEl?.focus();
-      return;
-    }
+    if (currentUser) {
+      // Logged in: auto-attach user account details
+      details.email = currentUser.email || s.email;
+      details.phone = (currentUser.contact || '').replace(/\D/g, '');
+      if (!details['owner-name'] && (currentUser.name || s.name)) {
+        details['owner-name'] = currentUser.name || s.name;
+      }
+    } else {
+      // Guest mode: validate input fields
+      const partnerEmailEl = document.getElementById('partner-email');
+      const emailVal = (partnerEmailEl?.value || '').trim().toLowerCase();
+      if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(emailVal)) {
+        showToast('Please enter a valid Gmail address (must end with @gmail.com)');
+        validateInput(partnerEmailEl, false);
+        partnerEmailEl?.focus();
+        return;
+      }
+      details.email = emailVal;
 
-    // Validate Contact number: 11 max length no letters or characters
-    const partnerPhoneEl = document.getElementById('partner-phone');
-    const cleanPhone = (details.phone || '').replace(/\D/g, '');
-    if (cleanPhone.length !== 11 || !cleanPhone.startsWith('09')) {
-      showToast('Contact number must be 11 digits starting with 09 (no letters or characters)');
-      validateInput(partnerPhoneEl, false);
-      partnerPhoneEl?.focus();
-      return;
+      const partnerPhoneEl = document.getElementById('partner-phone');
+      const cleanPhone = (partnerPhoneEl?.value || '').replace(/\D/g, '');
+      if (cleanPhone.length !== 11 || !cleanPhone.startsWith('09')) {
+        showToast('Contact number must be 11 digits starting with 09 (no letters or characters)');
+        validateInput(partnerPhoneEl, false);
+        partnerPhoneEl?.focus();
+        return;
+      }
+      details.phone = cleanPhone;
+
+      // 1. If email belongs to registered user, prompt to sign in
+      const isRegistered = allUsers.some(u => (u.email || '').trim().toLowerCase() === emailVal);
+      if (isRegistered) {
+        showToast('An account with this email already exists. Please sign in to apply or manage your partnership.');
+        if (window.openAuthModal) {
+          window.openAuthModal('signin-modal');
+        }
+        return;
+      }
+
+      // 2. REQUIREMENT: Guest Gmail address or phone can only apply ONCE
+      const allApps = JSON.parse(localStorage.getItem('weBakePartnerApplications') || '[]');
+      const existingApp = allApps.find(a => 
+        (a.details?.email && (a.details.email || '').trim().toLowerCase() === emailVal) || 
+        (a.details?.phone && (a.details.phone || '').replace(/\D/g, '') === cleanPhone)
+      );
+      if (existingApp) {
+        showToast(`This Gmail address or phone has already submitted an application (ID: ${existingApp.appId}). Guests can only apply once. Track it via Track Transactions.`);
+        if (partnerEmailEl) {
+          validateInput(partnerEmailEl, false);
+          partnerEmailEl.focus();
+        }
+        return;
+      }
     }
-    details.phone = cleanPhone;
 
     // Save to global weBakePartnerApplications
     const allApps = JSON.parse(localStorage.getItem('weBakePartnerApplications') || '[]');
     let existingApp = allApps.find(a => 
-      (a.details?.email && a.details.email.toLowerCase() === details.email.toLowerCase()) || 
-      (a.details?.phone && a.details.phone.replace(/\D/g, '') === details.phone.replace(/\D/g, ''))
+      (a.details?.email && (a.details.email || '').trim().toLowerCase() === (details.email || '').trim().toLowerCase()) || 
+      (a.details?.phone && (a.details.phone || '').replace(/\D/g, '') === (details.phone || '').replace(/\D/g, ''))
     );
 
     let appId = existingApp ? existingApp.appId : ('WB-PRT-' + Math.floor(10000 + Math.random() * 90000));
@@ -1057,25 +1313,16 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('weBakePartnerApplications', JSON.stringify(allApps));
 
     // Also link to logged-in user if session exists
-    let hasSession = false;
-    try {
-      const s = JSON.parse(localStorage.getItem('weBakeSession'));
-      if (s) {
-        hasSession = true;
-        const allUsers = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
-        const u = allUsers.find(u => u.email === s.email);
-        if (u) {
-          u.partnerStatus = u.partnerStatus === 'active' ? 'active' : 'pending';
-          u.partnerDetails = details;
-          u.partnerAppId = appId;
-          localStorage.setItem('weBakeUsers', JSON.stringify(allUsers));
-        }
-      }
-    } catch(err) {}
+    if (currentUser) {
+      currentUser.partnerStatus = currentUser.partnerStatus === 'active' ? 'active' : 'pending';
+      currentUser.partnerDetails = details;
+      currentUser.partnerAppId = appId;
+      localStorage.setItem('weBakeUsers', JSON.stringify(allUsers));
+    }
 
     showToast(isUpdate ? 'Partnership application updated successfully!' : 'Partnership application submitted successfully!');
 
-    if (hasSession) {
+    if (currentUser) {
       setTimeout(() => { window.location.href = 'dashboard.html'; }, 1500);
     } else {
       // Guest applicant: Render a confirmation card with Reference ID & direct Track link

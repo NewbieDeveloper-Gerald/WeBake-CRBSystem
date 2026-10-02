@@ -20,9 +20,12 @@ document.addEventListener('DOMContentLoaded', () => {
   
   const session = JSON.parse(sessionString);
   const USERS_KEY = 'weBakeUsers';
+  function sameEmail(a, b) {
+    return (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
+  }
   const getUsers = () => JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
   const users = getUsers();
-  const currentUser = users.find(u => u.email === session.email);
+  const currentUser = users.find(u => sameEmail(u.email, session.email));
 
   if (!currentUser) {
     localStorage.removeItem('weBakeSession');
@@ -53,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Update in local storage
       const allUsers = getUsers();
-      const userIndex = allUsers.findIndex(u => u.email === currentUser.email);
+      const userIndex = allUsers.findIndex(u => sameEmail(u.email, currentUser.email));
       if (userIndex !== -1) {
         allUsers[userIndex].name = newName;
         allUsers[userIndex].contact = newContact;
@@ -185,7 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateCartItem(index, newQty) {
     const allUsers = getUsers();
-    const userIndex = allUsers.findIndex(u => u.email === currentUser.email);
+    const userIndex = allUsers.findIndex(u => sameEmail(u.email, currentUser.email));
     if (userIndex !== -1 && allUsers[userIndex].savedCart) {
       allUsers[userIndex].savedCart[index].qty = newQty;
       localStorage.setItem(USERS_KEY, JSON.stringify(allUsers));
@@ -197,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function removeCartItem(index) {
     const allUsers = getUsers();
-    const userIndex = allUsers.findIndex(u => u.email === currentUser.email);
+    const userIndex = allUsers.findIndex(u => sameEmail(u.email, currentUser.email));
     if (userIndex !== -1 && allUsers[userIndex].savedCart) {
       allUsers[userIndex].savedCart.splice(index, 1);
       localStorage.setItem(USERS_KEY, JSON.stringify(allUsers));
@@ -214,7 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderOrders() {
     if (!ordersContainer) return;
     const freshUsers = getUsers();
-    const freshUser = freshUsers.find(u => u.email === session.email);
+    const freshUser = freshUsers.find(u => sameEmail(u.email, session.email));
     const orders = (freshUser && freshUser.orderHistory) || [];
     if (orders.length === 0) {
       ordersContainer.innerHTML = '<p class="empty-state">You haven\'t placed any orders yet.</p>';
@@ -332,7 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Modal for Requesting Order Cancellation & Downpayment Refund ---
   function openCancelOrderModal(orderId) {
     const freshUsers = getUsers();
-    const freshUser = freshUsers.find(u => u.email === session.email);
+    const freshUser = freshUsers.find(u => sameEmail(u.email, session.email));
     const order = (freshUser && freshUser.orderHistory || []).find(o => o.orderId === orderId);
     if (!order) return;
 
@@ -497,7 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (updated) {
         localStorage.setItem(USERS_KEY, JSON.stringify(allUsers));
-        currentUser.orderHistory = (allUsers.find(u => u.email === session.email) || {}).orderHistory || [];
+        currentUser.orderHistory = (allUsers.find(u => sameEmail(u.email, session.email)) || {}).orderHistory || [];
       }
 
       closeModal();
@@ -529,7 +532,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!partnerBadge || !partnerCta || !partnerActions) return;
 
     const allUsers = getUsers();
-    const freshUser = allUsers.find(u => u.email === session.email);
+    const freshUser = allUsers.find(u => sameEmail(u.email, session.email));
     const status = freshUser ? (freshUser.partnerStatus || 'none') : 'none';
 
     partnerActions.innerHTML = '';
@@ -582,7 +585,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('cancel-modal-yes').addEventListener('click', () => {
           document.getElementById('cancel-partner-modal').remove();
           const freshAll = getUsers();
-          const target = freshAll.find(u => u.email === session.email);
+          const target = freshAll.find(u => sameEmail(u.email, session.email));
           if (target) {
             target.partnerStatus = 'none';
             target.partnerDetails = null; // Clear their saved info when they cancel

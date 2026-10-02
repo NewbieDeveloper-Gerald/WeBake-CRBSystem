@@ -12,22 +12,85 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── Data Store (replace with MongoDB API calls later) ── */
   const USERS_KEY = 'weBakeUsers';
+
+  function normalizeEmail(email) {
+    return (email || '').trim().toLowerCase();
+  }
+
+  // One-time cleanup: automatically purge all legacy test accounts created prior to real Email OTP integration
+  const MIGRATION_KEY = 'weBake_clean_reset_pre_emailer_v1';
+  (function cleanAllLegacyAccounts() {
+    try {
+      if (!localStorage.getItem(MIGRATION_KEY)) {
+        localStorage.removeItem(USERS_KEY);
+        localStorage.removeItem('weBakeSession');
+        localStorage.removeItem('weBakeAllOrders');
+        localStorage.removeItem('weBakePartnerApplications');
+        localStorage.setItem(MIGRATION_KEY, 'true');
+      }
+    } catch(e) {}
+  })();
+
+  // Helper function to manually clear all local accounts anytime: window.weBakeResetAccounts()
+  window.weBakeResetAccounts = function() {
+    localStorage.removeItem(USERS_KEY);
+    localStorage.removeItem('weBakeSession');
+    localStorage.removeItem('weBakeAllOrders');
+    localStorage.removeItem('weBakePartnerApplications');
+    window.location.reload();
+  };
+
   const store = {
     getAll: () => JSON.parse(localStorage.getItem(USERS_KEY) || '[]'),
     save: arr => localStorage.setItem(USERS_KEY, JSON.stringify(arr)),
-    find: email => store.getAll().find(u => u.email === email),
-    add: user => { const all = store.getAll(); all.push(user); store.save(all); },
+    find: email => {
+      const target = normalizeEmail(email);
+      if (!target) return null;
+      return store.getAll().find(u => normalizeEmail(u.email) === target) || null;
+    },
+    add: user => {
+      const all = store.getAll();
+      const cleanEmail = normalizeEmail(user.email);
+      user.email = cleanEmail;
+      const existingIdx = all.findIndex(u => normalizeEmail(u.email) === cleanEmail);
+      if (existingIdx >= 0) {
+        all[existingIdx] = Object.assign(all[existingIdx], user);
+      } else {
+        all.push(user);
+      }
+      store.save(all);
+    },
     updatePassword: (email, pwd) => {
-      const all = store.getAll(); const i = all.findIndex(u => u.email === email);
-      if (i >= 0) { all[i].password = pwd; store.save(all); return true; } return false;
+      const target = normalizeEmail(email);
+      const all = store.getAll();
+      const i = all.findIndex(u => normalizeEmail(u.email) === target);
+      if (i >= 0) {
+        all[i].password = pwd;
+        store.save(all);
+        return true;
+      }
+      return false;
     },
     updateProfile: (email, data) => {
-      const all = store.getAll(); const i = all.findIndex(u => u.email === email);
-      if (i >= 0) { Object.assign(all[i], data); store.save(all); return true; } return false;
+      const target = normalizeEmail(email);
+      const all = store.getAll();
+      const i = all.findIndex(u => normalizeEmail(u.email) === target);
+      if (i >= 0) {
+        Object.assign(all[i], data);
+        store.save(all);
+        return true;
+      }
+      return false;
     },
-    setSession: user => localStorage.setItem('weBakeSession', JSON.stringify({ name: user.name, email: user.email })),
+    setSession: user => {
+      localStorage.setItem('weBakeSession', JSON.stringify({ name: user.name, email: normalizeEmail(user.email) }));
+      try { window.dispatchEvent(new CustomEvent('weBakeAuthChange')); } catch(e){}
+    },
     getSession: () => JSON.parse(localStorage.getItem('weBakeSession') || 'null'),
-    clearSession: () => localStorage.removeItem('weBakeSession')
+    clearSession: () => {
+      localStorage.removeItem('weBakeSession');
+      try { window.dispatchEvent(new CustomEvent('weBakeAuthChange')); } catch(e){}
+    }
   };
   /* ── End Data Store ── */
 
@@ -104,7 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="modal-close" data-auth-close>&times;</button>
         <h3 class="auth-modal-title">Reset Password</h3>
         <p class="auth-modal-subtitle">Enter your email to receive an OTP.</p>
-        <form id="forgot-form"><div class="form-group"><label>Email</label><div class="auth-icon-input"><i class="fas fa-envelope"></i><input type="email" class="form-input" required placeholder="Enter your registered email"></div></div><button type="submit" class="btn btn-primary btn-block"><i class="fas fa-paper-plane"></i> Send OTP</button></form>
+        <form id="forgot-form"><div class="form-group"><label>Email</label><div class="auth-icon-input"><i class="fas fa-envelope"></i><input type="email" class="form-input" id="forgot-email" required placeholder="Enter your registered email"></div><div id="forgot-email-error" style="display:none; color:var(--danger); font-size:0.75rem; margin-top:0.25rem;"></div></div><button type="submit" class="btn btn-primary btn-block"><i class="fas fa-paper-plane"></i> Send OTP</button></form>
         <p style="text-align:center;margin-top:1.5rem;font-size:.9rem">Remember your password? <a href="#" data-auth-open="signin-modal" class="auth-link">Return to Sign In</a></p>
       </div>
 
@@ -123,9 +186,10 @@ document.addEventListener('DOMContentLoaded', () => {
             <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
             <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
           </div>
+          <div class="invalid-feedback" id="otp-error-modal" style="display:none; color:var(--danger); background:rgba(220,53,69,0.1); padding:0.6rem 0.85rem; border-radius:var(--radius); margin-bottom:1rem; text-align:center; font-size:0.85rem; font-weight:500;"></div>
           <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-check-circle"></i> Verify</button>
         </form>
-        <p style="text-align:center;margin-top:1.5rem;font-size:.9rem;color:var(--gray)"><span id="otp-timer-wrap">Resend code in <strong id="otp-timer">30</strong>s</span> <a href="#" id="otp-resend-btn" class="auth-link" style="display:none"><i class="fas fa-redo-alt"></i> Resend OTP</a></p>
+        <p style="text-align:center;margin-top:1.5rem;font-size:.9rem;color:var(--gray)"><span id="otp-timer-wrap">Resend code in <strong id="otp-timer">60</strong>s</span> <a href="#" id="otp-resend-btn" class="auth-link" style="display:none"><i class="fas fa-redo-alt"></i> Resend OTP</a></p>
       </div>
 
       <!-- RESET PASSWORD -->
@@ -271,9 +335,30 @@ document.addEventListener('DOMContentLoaded', () => {
   regEmailInput?.addEventListener('input', e => {
     const val = e.target.value.trim();
     const valid = /^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(val);
-    e.target.classList.toggle('is-valid', valid);
-    e.target.classList.toggle('is-invalid', !valid && val.length > 0);
-    if (regEmailErr) regEmailErr.style.display = (!valid && val.length > 0) ? 'block' : 'none';
+    const exists = valid && !!store.find(val);
+    e.target.classList.toggle('is-valid', valid && !exists);
+    e.target.classList.toggle('is-invalid', (!valid && val.length > 0) || exists);
+    if (regEmailErr) {
+      if (exists) {
+        regEmailErr.textContent = 'An account with this email is already registered. Please sign in instead.';
+        regEmailErr.style.display = 'block';
+      } else if (!valid && val.length > 0) {
+        regEmailErr.textContent = 'Please enter a valid Gmail address (must end with @gmail.com)';
+        regEmailErr.style.display = 'block';
+      } else {
+        regEmailErr.style.display = 'none';
+      }
+    }
+  });
+
+  const forgotEmailInput = document.getElementById('forgot-email');
+  const forgotEmailErr = document.getElementById('forgot-email-error');
+  forgotEmailInput?.addEventListener('input', e => {
+    const val = e.target.value.trim();
+    if (!val && forgotEmailErr) {
+      forgotEmailErr.style.display = 'none';
+      e.target.classList.remove('is-invalid');
+    }
   });
 
   const regContactInput = document.getElementById('reg-contact');
@@ -368,6 +453,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const mb = document.querySelector('.nav-auth-mobile');
       if (db) db.innerHTML = `<a href="#" class="btn btn-outline btn-sm">Sign In</a><a href="#" class="btn btn-primary btn-sm">Register</a>`;
       if (mb) mb.innerHTML = `<a href="#" class="btn btn-outline btn-sm auth-mobile-btn">Sign In</a><a href="#" class="btn btn-primary btn-sm auth-mobile-btn">Register</a>`;
+    }
+    if (typeof window.syncPartnerFormState === 'function') {
+      try { window.syncPartnerFormState(); } catch(e){}
     }
   }
   window.updateNavState = updateNavState;
@@ -816,7 +904,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div style="background:#faf6f0; border:1px solid #ebd9c8; border-radius:6px; padding:0.85rem; font-size:0.83rem; margin-bottom:0.85rem; line-height:1.6;">
           <div><strong>Bakery / Business Name:</strong> ${details['bakery-name'] || 'N/A'}</div>
           <div><strong>Representative:</strong> ${details['owner-name'] || 'N/A'}</div>
-          <div><strong>Business Type:</strong> ${details.type || 'Bakery'} (${details.years || '0'} years in operation)</div>
+          <div><strong>Business Type:</strong> ${details.type || 'Bakery'} (${details.years ? (String(details.years).toLowerCase().includes('year') ? `${details.years} in operation` : `${details.years} years in operation`) : '1+ years in operation'})</div>
           <div><strong>Business Address:</strong> ${details.address || 'N/A'}</div>
           <div><strong>Contact Info:</strong> ${details.phone || 'N/A'} · ${details.email || 'N/A'}</div>
           <div><strong>Products of Interest:</strong> ${productsList}</div>
@@ -866,8 +954,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target.closest('[data-auth-open]')) { e.preventDefault(); openAuthModal(e.target.closest('[data-auth-open]').getAttribute('data-auth-open')); }
     // Close modal
     if (e.target.matches('[data-auth-close]') || e.target.id === 'auth-overlay') closeAuthModals();
-    // OTP resend
-    if (e.target.closest('#otp-resend-btn')) { e.preventDefault(); generateOtp(pendingEmail); startOtpTimer(); }
     // Sign In / Register buttons (desktop + mobile)
     const authBtn = e.target.closest('.auth-buttons a, .auth-mobile-btn');
     if (authBtn && (authBtn.textContent.includes('Sign In') || authBtn.textContent.includes('Register'))) {
@@ -888,25 +974,38 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('signin-form')?.addEventListener('submit', e => {
     e.preventDefault();
     const inputs = e.target.querySelectorAll('input');
-    const email = inputs[0].value.trim();
-    const pwd = inputs[1].value;
+    const email = (inputs[0]?.value || '').trim().toLowerCase();
+    const pwd = inputs[1]?.value || '';
     const user = store.find(email);
-    if (!user) { showToast('No account found for this email'); return; }
-    if (user.password !== pwd) { showToast('Incorrect password'); return; }
+    if (!user) {
+      showToast('No account found for this email. Please check your spelling or register.');
+      if (inputs[0]) inputs[0].focus();
+      return;
+    }
+    if (user.password !== pwd) {
+      showToast('Incorrect password. Please try again.');
+      if (inputs[1]) inputs[1].focus();
+      return;
+    }
     store.setSession(user);
     showToast(`Welcome back, ${user.name}! 🎉`);
     closeAuthModals(); updateNavState(); autoFillCheckoutForm();
   });
 
+  let pendingRegistration = null;
+
   // ---------- Register ----------
   document.getElementById('register-form')?.addEventListener('submit', e => {
     e.preventDefault();
-    const email = document.getElementById('reg-email').value.trim();
-    const pwd = document.getElementById('reg-pwd').value;
-    const cpwd = document.getElementById('reg-cpwd').value;
+    const email = (document.getElementById('reg-email')?.value || '').trim().toLowerCase();
+    const pwd = document.getElementById('reg-pwd')?.value || '';
+    const cpwd = document.getElementById('reg-cpwd')?.value || '';
     const contact = (document.getElementById('reg-contact')?.value || '').trim().replace(/\D/g, '');
+    const name = (document.querySelector('#register-form input[placeholder="Juan Dela Cruz"]')?.value || '').trim();
+    const address = (document.getElementById('reg-address')?.value || '').trim();
+    const submitBtn = document.getElementById('reg-submit-btn');
 
-    if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email)) {
+    if (!WeBakeOTP.isValidEmail(email)) {
       showToast('Please enter a valid Gmail address (must end with @gmail.com)');
       document.getElementById('reg-email')?.focus();
       return;
@@ -916,37 +1015,189 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('reg-contact')?.focus();
       return;
     }
-    if (store.find(email)) { showToast('An account with this email already exists'); return; }
-    if (pwd.length < 6) { showToast('Password must be at least 6 characters'); return; }
-    if (pwd !== cpwd) { showToast('Passwords do not match'); return; }
-    pendingEmail = email; flowMode = 'register';
-    generateOtp(email); openAuthModal('otp-modal'); startOtpTimer();
+
+    // REQUIREMENT 1: System MUST verify FIRST if account is already registered!
+    if (store.find(email)) {
+      showToast('An account with this email is already registered. Please sign in instead.');
+      const regEmailErr = document.querySelector('.reg-email-error');
+      if (regEmailErr) {
+        regEmailErr.textContent = 'An account with this email is already registered. Please sign in instead.';
+        regEmailErr.style.display = 'block';
+      }
+      document.getElementById('reg-email')?.focus();
+      return; // STOP: Do not send OTP
+    }
+
+    if (pwd.length < 6) {
+      showToast('Password must be at least 6 characters');
+      return;
+    }
+    if (pwd !== cpwd) {
+      showToast('Passwords do not match');
+      return;
+    }
+
+    pendingEmail = email;
+    flowMode = 'register';
+    pendingRegistration = { name, email, password: pwd, contact, address, savedCart: [], orderHistory: [], partnerStatus: 'none' };
+
+    // Reset OTP modal inputs and messages
+    document.querySelectorAll('#otp-modal .otp-input').forEach(i => i.value = '');
+    const otpError = document.getElementById('otp-error-modal');
+    if (otpError) otpError.style.display = 'none';
+
+    // Send real OTP via WeBakeOTP module
+    WeBakeOTP.send({
+      email: pendingEmail,
+      purpose: 'register',
+      buttonEl: submitBtn,
+      loadingText: 'Sending verification code...',
+      onSuccess: () => {
+        showToast('Verification code sent to your email!');
+        openAuthModal('otp-modal');
+        document.getElementById('otp-email-display').textContent = pendingEmail;
+        WeBakeOTP.startCountdown({
+          timerSpanEl: document.getElementById('otp-timer'),
+          timerWrapEl: document.getElementById('otp-timer-wrap'),
+          resendBtnEl: document.getElementById('otp-resend-btn'),
+          duration: 60
+        });
+      },
+      onError: (msg) => {
+        showToast(msg);
+      }
+    });
   });
 
   // ---------- Forgot Password ----------
   document.getElementById('forgot-form')?.addEventListener('submit', e => {
     e.preventDefault();
-    const email = e.target.querySelector('input[type="email"]').value.trim();
-    if (!email) { showToast('Please enter your email address'); return; }
-    if (!store.find(email)) { showToast('No account found for this email'); return; }
-    pendingEmail = email; flowMode = 'forgot';
-    generateOtp(email); openAuthModal('otp-modal'); startOtpTimer();
+    const emailInput = document.getElementById('forgot-email') || e.target.querySelector('input[type="email"]');
+    const email = (emailInput?.value || '').trim().toLowerCase();
+    const forgotSubmitBtn = e.target.querySelector('button[type="submit"]');
+    const forgotEmailErr = document.getElementById('forgot-email-error');
+
+    if (forgotEmailErr) forgotEmailErr.style.display = 'none';
+
+    if (!WeBakeOTP.isValidEmail(email)) {
+      showToast('Please enter a valid Gmail address');
+      if (emailInput) emailInput.focus();
+      return;
+    }
+
+    // REQUIREMENT 2: Verify account actually exists before sending OTP!
+    const existingUser = store.find(email);
+    if (!existingUser) {
+      const notFoundMsg = 'No account found with this email. Please check your spelling or register.';
+      showToast(notFoundMsg);
+      if (forgotEmailErr) {
+        forgotEmailErr.textContent = notFoundMsg;
+        forgotEmailErr.style.display = 'block';
+      }
+      if (emailInput) {
+        emailInput.classList.add('is-invalid');
+        emailInput.focus();
+      }
+      return; // STOP: Do not send OTP to non-existent accounts
+    }
+
+    pendingEmail = email;
+    flowMode = 'forgot';
+
+    document.querySelectorAll('#otp-modal .otp-input').forEach(i => i.value = '');
+    const otpError = document.getElementById('otp-error-modal');
+    if (otpError) otpError.style.display = 'none';
+
+    WeBakeOTP.send({
+      email: pendingEmail,
+      purpose: 'forgot',
+      buttonEl: forgotSubmitBtn,
+      loadingText: 'Sending code...',
+      onSuccess: () => {
+        showToast('6-digit verification code sent to your email!');
+        openAuthModal('otp-modal');
+        document.getElementById('otp-email-display').textContent = pendingEmail;
+        WeBakeOTP.startCountdown({
+          timerSpanEl: document.getElementById('otp-timer'),
+          timerWrapEl: document.getElementById('otp-timer-wrap'),
+          resendBtnEl: document.getElementById('otp-resend-btn'),
+          duration: 60
+        });
+      },
+      onError: (msg) => {
+        showToast(msg);
+      }
+    });
   });
 
-  // ---------- OTP ----------
+  // ---------- OTP Verification ----------
   document.getElementById('otp-form')?.addEventListener('submit', e => {
     e.preventDefault();
     const entered = Array.from(e.target.querySelectorAll('.otp-input')).map(i => i.value).join('');
-    if (entered !== sessionStorage.getItem('tmpOtp')) { showToast('Invalid OTP code'); return; }
-    clearInterval(otpInterval); sessionStorage.removeItem('tmpOtp');
-    if (flowMode === 'register') {
-      const name = document.querySelector('#register-form input[placeholder="Juan Dela Cruz"]').value.trim();
-      const pwd = document.getElementById('reg-pwd').value;
-      const contact = document.getElementById('reg-contact').value.trim();
-      const address = document.getElementById('reg-address').value.trim();
-      store.add({ name, email: pendingEmail, password: pwd, contact: contact, address: address, savedCart: [], orderHistory: [], partnerStatus: 'none' });
-      showToast('Account created successfully!'); closeAuthModals(); openAuthModal('signin-modal');
-    } else if (flowMode === 'forgot') { openAuthModal('reset-modal'); }
+    const verifyBtn = e.target.querySelector('button[type="submit"]');
+    const otpError = document.getElementById('otp-error-modal');
+
+    WeBakeOTP.verify({
+      email: pendingEmail,
+      code: entered,
+      purpose: flowMode,
+      buttonEl: verifyBtn,
+      errorEl: otpError,
+      loadingText: 'Verifying...',
+      onSuccess: () => {
+        if (flowMode === 'register' && pendingRegistration) {
+          const registeredUser = { ...pendingRegistration };
+          store.add(registeredUser);
+          store.setSession(registeredUser);
+          pendingRegistration = null;
+          showToast(`Account created successfully! Welcome, ${registeredUser.name}! 🎉`);
+          closeAuthModals();
+          updateNavState();
+          autoFillCheckoutForm();
+        } else if (flowMode === 'forgot') {
+          closeAuthModals();
+          openAuthModal('reset-modal');
+        }
+      },
+      onError: (msg) => {
+        if (otpError) {
+          otpError.textContent = msg;
+          otpError.style.display = 'block';
+        }
+        showToast(msg);
+      }
+    });
+  });
+
+  // ---------- Resend OTP Button Handler ----------
+  document.getElementById('otp-resend-btn')?.addEventListener('click', e => {
+    e.preventDefault();
+    if (!pendingEmail) return;
+
+    const resendBtn = document.getElementById('otp-resend-btn');
+    const otpError = document.getElementById('otp-error-modal');
+    if (otpError) otpError.style.display = 'none';
+
+    document.querySelectorAll('#otp-modal .otp-input').forEach(i => i.value = '');
+
+    WeBakeOTP.send({
+      email: pendingEmail,
+      purpose: flowMode,
+      buttonEl: resendBtn,
+      loadingText: 'Resending...',
+      onSuccess: () => {
+        showToast('A new verification code has been sent to your email!');
+        WeBakeOTP.startCountdown({
+          timerSpanEl: document.getElementById('otp-timer'),
+          timerWrapEl: document.getElementById('otp-timer-wrap'),
+          resendBtnEl: document.getElementById('otp-resend-btn'),
+          duration: 60
+        });
+      },
+      onError: (msg) => {
+        showToast(msg);
+      }
+    });
   });
 
   // ---------- Reset Password ----------
@@ -959,20 +1210,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (store.updatePassword(pendingEmail, pwd)) { showToast('Password updated successfully!'); closeAuthModals(); openAuthModal('signin-modal'); }
     else { showToast('Unexpected error'); }
   });
-
-  function generateOtp(email) {
-    const otp = '123456'; // Temporary placeholder for testing
-    sessionStorage.setItem('tmpOtp', otp);
-    showToast(`Your OTP code is: ${otp}`);
-    document.getElementById('otp-email-display').textContent = email;
-  }
-
-  function startOtpTimer() {
-    clearInterval(otpInterval); let t = 30;
-    const wrap = document.getElementById('otp-timer-wrap'), span = document.getElementById('otp-timer'), btn = document.getElementById('otp-resend-btn');
-    wrap.style.display = 'inline'; btn.style.display = 'none'; span.textContent = t;
-    otpInterval = setInterval(() => { span.textContent = --t; if (t <= 0) { clearInterval(otpInterval); wrap.style.display = 'none'; btn.style.display = 'inline'; } }, 1000);
-  }
 
   // ---------- OTP Auto-Focus Logic ----------
   document.body.addEventListener('input', e => {
