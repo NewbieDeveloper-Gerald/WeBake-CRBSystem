@@ -395,11 +395,53 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function closeAuthModals() {
-    document.querySelectorAll('#signin-modal,#register-modal,#forgot-modal,#otp-modal,#reset-modal,#track-order-modal')
-      .forEach(m => m.classList.remove('active'));
+    const modals = document.querySelectorAll('#signin-modal,#register-modal,#forgot-modal,#otp-modal,#reset-modal,#track-order-modal');
+    modals.forEach(m => {
+      m.classList.remove('active');
+
+      // 1. Reset all forms
+      m.querySelectorAll('form').forEach(f => f.reset());
+
+      // 2. Remove validation classes from all inputs
+      m.querySelectorAll('.is-invalid, .is-valid').forEach(el => el.classList.remove('is-invalid', 'is-valid'));
+
+      // 3. Hide all error, invalid-feedback, and match-error containers
+      m.querySelectorAll('.error-msg, .invalid-feedback, .cpwd-error').forEach(el => {
+        el.style.display = 'none';
+        el.textContent = '';
+      });
+
+      // 4. Reset password strength bars & indicators
+      m.querySelectorAll('.pwd-strength-bar').forEach(b => { b.style.width = '0%'; b.style.background = ''; });
+      m.querySelectorAll('.pwd-strength, .pwd-strength-text').forEach(t => { t.style.display = 'none'; t.textContent = ''; });
+
+      // 5. Clear OTP inputs
+      m.querySelectorAll('.otp-input').forEach(i => i.value = '');
+    });
+
+    // 6. Reset Track Transactions container
+    const trackRes = document.getElementById('track-result-container');
+    if (trackRes) { trackRes.style.display = 'none'; trackRes.innerHTML = ''; }
+    const trackErr = document.getElementById('track-error-msg');
+    if (trackErr) { trackErr.style.display = 'none'; trackErr.textContent = ''; }
+    setTrackTab('order');
+
     authOverlay.classList.remove('active');
     clearInterval(otpInterval);
+    if (window.WeBakeOTP && typeof window.WeBakeOTP.clearCountdown === 'function') {
+      window.WeBakeOTP.clearCountdown();
+    }
   }
+
+  // Escape key closes modals
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      closeAuthModals();
+      if (typeof window.closeCheckout === 'function') {
+        window.closeCheckout();
+      }
+    }
+  });
 
   // ---------- Nav State (logged in / logged out) ----------
   function updateNavState() {
@@ -578,8 +620,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (foundApp) {
-      const appEmail = (foundApp.details?.email || '').toLowerCase();
-      const appPhone = (foundApp.details?.phone || '').replace(/\D/g, '');
+      const appEmail = (foundApp.details?.email || foundApp.email || '').toLowerCase();
+      const appPhone = (foundApp.details?.phone || foundApp.phone || '').replace(/\D/g, '');
       const cleanEnteredContact = enteredContact.replace(/\D/g, '');
       const emailMatch = appEmail && (appEmail === enteredContact);
       const phoneMatch = cleanEnteredContact.length >= 7 && appPhone.includes(cleanEnteredContact);
@@ -883,10 +925,37 @@ document.addEventListener('DOMContentLoaded', () => {
       statusBg = '#f8d7da';
       statusColor = '#721c24';
       statusIcon = 'fa-times-circle';
+    } else if (app.status === 'cancelled') {
+      statusText = 'Application Cancelled';
+      statusBg = '#f8d7da';
+      statusColor = '#721c24';
+      statusIcon = 'fa-ban';
     }
 
     const details = app.details || {};
     const productsList = (details.products && details.products.length) ? details.products.join(', ') : 'All Products';
+    const isApproved = (app.status === 'approved' || app.status === 'active');
+    const canModify = (app.status !== 'cancelled' && app.status !== 'rejected' && app.status !== 'declined');
+
+    let nextStepsText = 'Our bakery management team is reviewing your business profile and location. We will contact you directly within 24–48 hours to finalize supply terms.';
+    if (isApproved) {
+      nextStepsText = 'Congratulations! Your wholesale partnership is active. You may now place orders with your partner privileges and bulk terms.';
+    } else if (app.status === 'cancelled') {
+      nextStepsText = 'This partnership application has been cancelled. If you wish to apply again, you may submit a new application through the Partner page.';
+    } else if (app.status === 'rejected' || app.status === 'declined') {
+      nextStepsText = 'Thank you for your interest. Unfortunately, this application could not be approved at this time.';
+    }
+
+    const actionsHtml = canModify ? `
+      <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1rem; flex-wrap:wrap; border-top:1px solid #f0e7dc; padding-top:0.85rem;">
+        <button type="button" id="track-edit-partner-btn" class="btn btn-outline" style="padding:0.45rem 1rem; font-size:0.85rem; display:inline-flex; align-items:center; gap:0.4rem;">
+          <i class="fas fa-edit"></i> ${isApproved ? 'Update Details' : 'Edit Application'}
+        </button>
+        <button type="button" id="track-cancel-partner-btn" class="btn btn-primary" style="padding:0.45rem 1rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545; display:inline-flex; align-items:center; gap:0.4rem;">
+          <i class="fas fa-ban"></i> ${isApproved ? 'Cancel Partnership' : 'Cancel Request'}
+        </button>
+      </div>
+    ` : '';
 
     resBox.innerHTML = `
       <div style="border:1px solid var(--border); border-radius:8px; padding:1.25rem; background:#fff; margin-top:0.75rem;">
@@ -906,22 +975,103 @@ document.addEventListener('DOMContentLoaded', () => {
           <div><strong>Representative:</strong> ${details['owner-name'] || 'N/A'}</div>
           <div><strong>Business Type:</strong> ${details.type || 'Bakery'} (${details.years ? (String(details.years).toLowerCase().includes('year') ? `${details.years} in operation` : `${details.years} years in operation`) : '1+ years in operation'})</div>
           <div><strong>Business Address:</strong> ${details.address || 'N/A'}</div>
-          <div><strong>Contact Info:</strong> ${details.phone || 'N/A'} · ${details.email || 'N/A'}</div>
+          <div><strong>Contact Info:</strong> ${details.phone || app.phone || 'N/A'} · ${details.email || app.email || 'N/A'}</div>
           <div><strong>Products of Interest:</strong> ${productsList}</div>
           ${details.permit ? `<div><strong>Business Permit:</strong> ${details.permit}</div>` : ''}
           ${details.tin ? `<div><strong>TIN:</strong> ${details.tin}</div>` : ''}
+          ${details.notes ? `<div><strong>Notes:</strong> ${details.notes}</div>` : ''}
         </div>
 
         <div style="font-size:0.82rem; color:#555; background:#f9f9f9; border-left:3px solid var(--primary); padding:0.65rem 0.85rem; border-radius:0 4px 4px 0; line-height:1.5;">
           <strong><i class="fas fa-info-circle" style="color:var(--primary);"></i> Next Steps:</strong><br>
-          ${app.status === 'approved' || app.status === 'active' 
-            ? 'Congratulations! Your wholesale partnership is active. You may now place orders with your partner privileges and bulk terms.' 
-            : 'Our bakery management team is reviewing your business profile and location. We will contact you directly within 24–48 hours to finalize supply terms.'}
+          ${nextStepsText}
         </div>
+
+        ${actionsHtml}
       </div>
     `;
 
     resBox.style.display = 'block';
+
+    const editBtn = resBox.querySelector('#track-edit-partner-btn');
+    if (editBtn) {
+      editBtn.addEventListener('click', () => {
+        sessionStorage.setItem('weBakeEditPartnerId', app.appId);
+        const trackModal = document.getElementById('track-order-modal');
+        if (trackModal) trackModal.classList.remove('active');
+        if (window.location.pathname.includes('partner.html')) {
+          if (typeof window.syncPartnerFormState === 'function') {
+            window.syncPartnerFormState();
+          }
+          const formSec = document.querySelector('.partner-form-section');
+          if (formSec) {
+            window.scrollTo({ top: formSec.offsetTop - 50, behavior: 'smooth' });
+          }
+        } else {
+          window.location.href = 'partner.html';
+        }
+      });
+    }
+
+    const cancelBtn = resBox.querySelector('#track-cancel-partner-btn');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => {
+        document.getElementById('cancel-partner-modal')?.remove();
+
+        const modalHtml = `
+          <div id="cancel-partner-modal" class="overlay active" style="z-index:999999;">
+            <div class="modal active" style="max-width:400px; text-align:center; padding: 2rem; background:#fff; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
+              <h3 style="color:#dc3545; margin-bottom:1rem;"><i class="fas fa-exclamation-triangle"></i> Cancel Application</h3>
+              <p style="margin-bottom:1.5rem; color:#555; font-size:0.9rem; line-height:1.5;">Are you sure you want to cancel your partnership request? This action cannot be undone.</p>
+              <div style="display:flex; justify-content:center; gap:1rem;">
+                <button id="cancel-modal-no" class="btn btn-outline" type="button">No, Keep It</button>
+                <button id="cancel-modal-yes" class="btn btn-primary" type="button" style="background:#dc3545; border-color:#dc3545;">Yes, Cancel Request</button>
+              </div>
+            </div>
+          </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        document.getElementById('cancel-modal-no')?.addEventListener('click', () => {
+          document.getElementById('cancel-partner-modal')?.remove();
+        });
+
+        document.getElementById('cancel-modal-yes')?.addEventListener('click', () => {
+          document.getElementById('cancel-partner-modal')?.remove();
+
+          // 1. Update in weBakePartnerApplications
+          const allApps = JSON.parse(localStorage.getItem('weBakePartnerApplications') || '[]');
+          const targetIndex = allApps.findIndex(a => a.appId && a.appId.toUpperCase() === app.appId.toUpperCase());
+          if (targetIndex !== -1) {
+            allApps[targetIndex].status = 'cancelled';
+            allApps[targetIndex].cancelledAt = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+            localStorage.setItem('weBakePartnerApplications', JSON.stringify(allApps));
+          }
+
+          // 2. Also clear in weBakeUsers if linked to an account
+          const allUsers = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
+          let usersChanged = false;
+          allUsers.forEach(u => {
+            if ((u.partnerAppId && u.partnerAppId.toUpperCase() === app.appId.toUpperCase()) ||
+                (u.email && app.details?.email && u.email.trim().toLowerCase() === (app.details.email || '').trim().toLowerCase())) {
+              u.partnerStatus = 'none';
+              u.partnerDetails = null;
+              usersChanged = true;
+            }
+          });
+          if (usersChanged) {
+            localStorage.setItem('weBakeUsers', JSON.stringify(allUsers));
+          }
+
+          app.status = 'cancelled';
+          showToast('Partnership request cancelled.');
+          renderTrackPartnerResult(app, resBox);
+
+          window.dispatchEvent(new Event('storage'));
+          window.dispatchEvent(new CustomEvent('weBakePartnerChange'));
+        });
+      });
+    }
   }
 
   // ---------- Global Click Handler ----------

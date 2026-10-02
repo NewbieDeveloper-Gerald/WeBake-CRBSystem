@@ -347,54 +347,55 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   function closeCheckout() {
-    document.getElementById('checkout-overlay')?.classList.remove('active');
-  }
-  function startCheckout() {
-    document.getElementById('checkout-overlay')?.classList.add('active');
-    showStep('step-stock');
-    setTimeout(() => showStep('step-info'), 1500);
-  }
+    const overlay = document.getElementById('checkout-overlay');
+    if (!overlay) return;
+    overlay.classList.remove('active');
 
-  /* Back from Info → close checkout */
-  document.getElementById('info-back-btn')?.addEventListener('click', closeCheckout);
+    // Reset step to step-info
+    showStep('step-info');
 
-  /* Info → OTP (if guest) or Payment (if logged in) */
-  document.getElementById('info-form')?.addEventListener('submit', e => {
-    e.preventDefault();
-    const custContactEl = document.getElementById('cust-contact');
-    const custEmailEl = document.getElementById('cust-email');
+    // Clear OTP inputs and errors
+    document.querySelectorAll('#step-otp .otp-input').forEach(i => i.value = '');
+    const otpError = document.getElementById('otp-error');
+    if (otpError) { otpError.style.display = 'none'; otpError.textContent = ''; }
 
-    const cleanContact = (custContactEl?.value || '').trim().replace(/\D/g, '');
-    const emailVal = (custEmailEl?.value || '').trim();
+    // Clear payment inputs & errors
+    const payError = document.getElementById('pay-error');
+    if (payError) { payError.style.display = 'none'; payError.textContent = ''; }
+    const refInput = document.getElementById('gcash-ref');
+    if (refInput) refInput.value = '';
+    const proofInput = document.getElementById('pay-proof');
+    if (proofInput) proofInput.value = '';
 
-    if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(emailVal)) {
-      showToast('Please enter a valid Gmail address (must end with @gmail.com)');
-      validateInput(custEmailEl, false);
-      custEmailEl?.focus();
-      return;
+    // Clear validation borders and feedback
+    overlay.querySelectorAll('.is-invalid, .is-valid').forEach(el => el.classList.remove('is-invalid', 'is-valid'));
+    const emailFeedback = document.getElementById('cust-email-feedback');
+    if (emailFeedback) {
+      emailFeedback.style.display = '';
+      emailFeedback.textContent = 'Please enter a valid Gmail address (must end with @gmail.com).';
     }
 
-    if (cleanContact.length !== 11 || !cleanContact.startsWith('09')) {
-      showToast('Contact number must be 11 digits starting with 09 (no letters/characters)');
-      validateInput(custContactEl, false);
-      custContactEl?.focus();
-      return;
+    const orderIdCard = document.getElementById('success-order-id-card');
+    if (orderIdCard) {
+      orderIdCard.innerHTML = '';
+      orderIdCard.style.display = 'none';
     }
 
-    customerInfo = {
-      name: document.getElementById('cust-name')?.value || '',
-      contact: cleanContact,
-      email: emailVal,
-      address: document.getElementById('cust-address')?.value || ''
-    };
-    /* Build centered review details inside payment step */
+    if (window.WeBakeOTP && typeof window.WeBakeOTP.clearCountdown === 'function') {
+      window.WeBakeOTP.clearCountdown();
+    }
+  }
+  window.closeCheckout = closeCheckout;
+
+  /* Build centered review details inside payment step */
+  function buildReviewDetails() {
     const total = checkoutItems.reduce((s, i) => s + i.price * i.qty, 0);
     const downpayment = Math.round(total * 0.5);
     const balance = total - downpayment;
 
     let html = `<div class="confirmation-details-section"><h4><i class="fas fa-user"></i> Customer Information</h4>`;
-    html += `<p><span>Name:</span> ${customerInfo.name}</p><p><span>Contact:</span> ${customerInfo.contact}</p>`;
-    html += `<p><span>Email:</span> ${customerInfo.email}</p><p><span>Address:</span> ${customerInfo.address}</p></div>`;
+    html += `<p><span>Name:</span> ${customerInfo.name || 'N/A'}</p><p><span>Contact:</span> ${customerInfo.contact || 'N/A'}</p>`;
+    html += `<p><span>Email:</span> ${customerInfo.email || 'N/A'}</p><p><span>Address:</span> ${customerInfo.address || 'N/A'}</p></div>`;
     html += `<div class="confirmation-details-section"><h4><i class="fas fa-box"></i> Items Ordered</h4>`;
     html += `
       <div style="font-size:0.8rem; font-weight:bold; padding: 4px 0; display:flex; justify-content:space-between; color:#666; border-bottom: 1px solid #ddd; margin-bottom: 4px;">
@@ -431,7 +432,89 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       </div>
     `;
-    document.getElementById('review-details').innerHTML = html;
+    const reviewEl = document.getElementById('review-details');
+    if (reviewEl) reviewEl.innerHTML = html;
+  }
+
+  function startCheckout() {
+    document.getElementById('checkout-overlay')?.classList.add('active');
+    showStep('step-stock');
+
+    let session = null;
+    try {
+      session = JSON.parse(localStorage.getItem('weBakeSession'));
+    } catch(err) {}
+
+    let loggedInUser = null;
+    if (session && session.email) {
+      const allUsers = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
+      const sEmail = (session.email || '').trim().toLowerCase();
+      loggedInUser = allUsers.find(u => (u.email || '').trim().toLowerCase() === sEmail);
+    }
+
+    if (loggedInUser) {
+      // CUSTOMER WITH ACCOUNT: Pre-populate customerInfo directly from account
+      customerInfo = {
+        name: loggedInUser.name || session.name || '',
+        contact: (loggedInUser.contact || '').replace(/\D/g, ''),
+        email: loggedInUser.email || session.email || '',
+        address: loggedInUser.address || ''
+      };
+
+      // Also pre-fill form in step-info so they can view/edit if they click "Back"
+      const f = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+      f('cust-name', customerInfo.name);
+      f('cust-contact', customerInfo.contact);
+      f('cust-email', customerInfo.email);
+      f('cust-address', customerInfo.address);
+
+      buildReviewDetails();
+
+      // If address and valid contact are present, DIRECTLY navigate to step-payment so no time is wasted!
+      if (customerInfo.address && customerInfo.contact && customerInfo.contact.length === 11) {
+        setTimeout(() => showStep('step-payment'), 1500);
+      } else {
+        setTimeout(() => showStep('step-info'), 1500);
+      }
+    } else {
+      // Guest customer -> navigate to step-info
+      setTimeout(() => showStep('step-info'), 1500);
+    }
+  }
+
+  /* Back from Info → close checkout */
+  document.getElementById('info-back-btn')?.addEventListener('click', closeCheckout);
+
+  /* Info → OTP (if guest) or Payment (if logged in) */
+  document.getElementById('info-form')?.addEventListener('submit', e => {
+    e.preventDefault();
+    const custContactEl = document.getElementById('cust-contact');
+    const custEmailEl = document.getElementById('cust-email');
+
+    const cleanContact = (custContactEl?.value || '').trim().replace(/\D/g, '');
+    const emailVal = (custEmailEl?.value || '').trim();
+
+    if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(emailVal)) {
+      showToast('Please enter a valid Gmail address (must end with @gmail.com)');
+      validateInput(custEmailEl, false);
+      custEmailEl?.focus();
+      return;
+    }
+
+    if (cleanContact.length !== 11 || !cleanContact.startsWith('09')) {
+      showToast('Contact number must be 11 digits starting with 09 (no letters/characters)');
+      validateInput(custContactEl, false);
+      custContactEl?.focus();
+      return;
+    }
+
+    customerInfo = {
+      name: document.getElementById('cust-name')?.value || '',
+      contact: cleanContact,
+      email: emailVal,
+      address: document.getElementById('cust-address')?.value || ''
+    };
+    buildReviewDetails();
     
     let session = null;
     try {
@@ -442,15 +525,23 @@ document.addEventListener('DOMContentLoaded', () => {
       // Guest user validations
       const cleanEmail = (customerInfo.email || '').trim().toLowerCase();
 
-      // 1. Check if email already has a registered account
+      // 1. Check if email already has a registered account (Item 1)
       const allUsers = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
       const isRegistered = allUsers.some(u => (u.email || '').trim().toLowerCase() === cleanEmail);
       if (isRegistered) {
-        showToast('An account with this email already exists. Please sign in to place your order.');
-        closeCheckout();
-        if (window.openAuthModal) {
-          window.openAuthModal('signin-modal');
+        showToast('This Gmail address is already registered. Please sign in or use another email.');
+        validateInput(custEmailEl, false);
+        const feedback = document.getElementById('cust-email-feedback');
+        if (feedback) {
+          feedback.innerHTML = `This Gmail address is already registered. Please <a href="#" id="checkout-inline-signin" style="color:var(--primary); font-weight:700; text-decoration:underline;">sign in</a> or use another email.`;
+          feedback.style.display = 'block';
+          document.getElementById('checkout-inline-signin')?.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            closeCheckout();
+            if (window.openAuthModal) window.openAuthModal('signin-modal');
+          });
         }
+        custEmailEl?.focus();
         return;
       }
 
@@ -459,11 +550,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const hasGuestOrdered = allOrders.some(o => (o.customer?.email || '').trim().toLowerCase() === cleanEmail);
       if (hasGuestOrdered) {
         showToast('This email has already been used for a guest order. Guests may only order once—please sign in or create an account to order again.');
-        const emailInput = document.getElementById('cust-email');
-        if (emailInput) {
-          validateInput(emailInput, false);
-          emailInput.focus();
+        validateInput(custEmailEl, false);
+        const feedback = document.getElementById('cust-email-feedback');
+        if (feedback) {
+          feedback.innerHTML = `This email has already been used for a guest order. Please <a href="#" id="checkout-inline-signin2" style="color:var(--primary); font-weight:700; text-decoration:underline;">sign in</a> or create an account to order again.`;
+          feedback.style.display = 'block';
+          document.getElementById('checkout-inline-signin2')?.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            closeCheckout();
+            if (window.openAuthModal) window.openAuthModal('signin-modal');
+          });
         }
+        custEmailEl?.focus();
         return;
       }
 
@@ -723,44 +821,53 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const orderId = placedOrder?.orderId || ('WB-' + Math.floor(10000 + Math.random() * 90000));
       
-      // Populate Order ID Card
+      let currentSession = null;
+      try { currentSession = JSON.parse(localStorage.getItem('weBakeSession')); } catch(e){}
+
+      // Populate Order ID Card (Guests only - removed for customers with account who track via dashboard)
       const orderIdCard = document.getElementById('success-order-id-card');
       if (orderIdCard) {
-        orderIdCard.innerHTML = `
-          <div class="order-id-badge-box">
-            <div>
-              <span class="oid-label">Your Order Tracking ID</span>
-              <span class="oid-val">${orderId}</span>
+        if (currentSession && currentSession.email) {
+          orderIdCard.innerHTML = '';
+          orderIdCard.style.display = 'none';
+        } else {
+          orderIdCard.style.display = 'block';
+          orderIdCard.innerHTML = `
+            <div class="order-id-badge-box">
+              <div>
+                <span class="oid-label">Your Order Tracking ID</span>
+                <span class="oid-val">${orderId}</span>
+              </div>
+              <div style="display:flex; gap:0.5rem; align-items:center;">
+                <button type="button" class="btn-copy-num" id="copy-order-id-btn">
+                  <i class="far fa-copy"></i> <span id="copy-order-id-text">Copy ID</span>
+                </button>
+                <button type="button" class="btn btn-outline btn-sm" id="quick-track-btn" style="padding:0.35rem 0.75rem; font-size:0.75rem;">
+                  <i class="fas fa-search"></i> Track / Refund
+                </button>
+              </div>
             </div>
-            <div style="display:flex; gap:0.5rem; align-items:center;">
-              <button type="button" class="btn-copy-num" id="copy-order-id-btn">
-                <i class="far fa-copy"></i> <span id="copy-order-id-text">Copy ID</span>
-              </button>
-              <button type="button" class="btn btn-outline btn-sm" id="quick-track-btn" style="padding:0.35rem 0.75rem; font-size:0.75rem;">
-                <i class="fas fa-search"></i> Track / Refund
-              </button>
-            </div>
-          </div>
-        `;
+          `;
 
-        document.getElementById('copy-order-id-btn')?.addEventListener('click', () => {
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(orderId).then(() => {
-              const txt = document.getElementById('copy-order-id-text');
-              if (txt) txt.textContent = 'Copied!';
-              showToast('Order ID copied: ' + orderId);
-              setTimeout(() => { if (txt) txt.textContent = 'Copy ID'; }, 2000);
-            });
-          } else {
-            showToast('Order ID: ' + orderId);
-          }
-        });
+          document.getElementById('copy-order-id-btn')?.addEventListener('click', () => {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(orderId).then(() => {
+                const txt = document.getElementById('copy-order-id-text');
+                if (txt) txt.textContent = 'Copied!';
+                showToast('Order ID copied: ' + orderId);
+                setTimeout(() => { if (txt) txt.textContent = 'Copy ID'; }, 2000);
+              });
+            } else {
+              showToast('Order ID: ' + orderId);
+            }
+          });
 
-        document.getElementById('quick-track-btn')?.addEventListener('click', () => {
-          if (window.openTrackOrderModal) {
-            window.openTrackOrderModal(orderId, customerInfo.email || customerInfo.contact || '');
-          }
-        });
+          document.getElementById('quick-track-btn')?.addEventListener('click', () => {
+            if (window.openTrackOrderModal) {
+              window.openTrackOrderModal(orderId, customerInfo.email || customerInfo.contact || '');
+            }
+          });
+        }
       }
 
       // Populate success breakdown
@@ -793,9 +900,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // 1-Click Convert to Account for Guests
       const guestConvertBox = document.getElementById('success-guest-convert-box');
-      let currentSession = null;
-      try { currentSession = JSON.parse(localStorage.getItem('weBakeSession')); } catch(e){}
-
       if (!currentSession && guestConvertBox) {
         guestConvertBox.innerHTML = `
           <div class="guest-convert-box" id="guest-account-prompt-card">
@@ -1098,7 +1202,203 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 50);
   });
 
+  let partnerEmailVerified = false;
+  let verifiedPartnerEmail = '';
+
+  function triggerPartnerEmailOtp() {
+    const emailEl = document.getElementById('partner-email');
+    const emailVal = (emailEl?.value || '').trim().toLowerCase();
+    const feedback = document.getElementById('partner-email-feedback');
+    const allUsers = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
+
+    if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(emailVal)) {
+      showToast('Please enter a valid Gmail address (must end with @gmail.com)');
+      validateInput(emailEl, false);
+      if (feedback) {
+        feedback.textContent = 'Please enter a valid Gmail address (must end with @gmail.com).';
+        feedback.style.display = 'block';
+      }
+      emailEl?.focus();
+      return;
+    }
+
+    // 1. Check if email belongs to registered user (Item 1)
+    const isRegistered = allUsers.some(u => (u.email || '').trim().toLowerCase() === emailVal);
+    if (isRegistered) {
+      showToast('This Gmail address is already registered. Please sign in or use another email.');
+      validateInput(emailEl, false);
+      if (feedback) {
+        feedback.innerHTML = `This Gmail address is already registered. Please <a href="#" id="partner-inline-signin-link" style="color:var(--primary); font-weight:700; text-decoration:underline;">sign in</a> or use another email.`;
+        feedback.style.display = 'block';
+        document.getElementById('partner-inline-signin-link')?.addEventListener('click', ev => {
+          ev.preventDefault();
+          if (window.openAuthModal) window.openAuthModal('signin-modal');
+        });
+      }
+      emailEl?.focus();
+      return;
+    }
+
+    // 2. Check if email already has active application (guest rule)
+    const editingAppId = sessionStorage.getItem('weBakeEditPartnerId');
+    const allApps = JSON.parse(localStorage.getItem('weBakePartnerApplications') || '[]');
+    const existingApp = allApps.find(a => 
+      a.status !== 'cancelled' &&
+      ((a.details?.email && (a.details.email || '').trim().toLowerCase() === emailVal) ||
+       (a.email && (a.email || '').trim().toLowerCase() === emailVal))
+    );
+    if (existingApp && (!editingAppId || existingApp.appId.toUpperCase() !== editingAppId.toUpperCase())) {
+      showToast(`This Gmail address has an active application (ID: ${existingApp.appId}). Guests can only apply once.`);
+      validateInput(emailEl, false);
+      if (feedback) {
+        feedback.textContent = `This Gmail address has an active application (ID: ${existingApp.appId}). Guests can only apply once. Track it via Track Transactions.`;
+        feedback.style.display = 'block';
+      }
+      emailEl?.focus();
+      return;
+    }
+
+    validateInput(emailEl, true);
+    if (feedback) feedback.style.display = 'none';
+
+    const vBtn = document.getElementById('btn-partner-verify-email');
+    const otpContainer = document.getElementById('partner-otp-container');
+    const emailDisplay = document.getElementById('partner-otp-email-display');
+    const otpError = document.getElementById('partner-otp-error');
+    const timerSpan = document.getElementById('partner-otp-timer');
+    const timerWrap = document.getElementById('partner-otp-timer-wrap');
+    const resendBtn = document.getElementById('partner-otp-resend-btn');
+
+    document.querySelectorAll('#partner-otp-inputs .otp-input').forEach(i => i.value = '');
+    if (otpError) { otpError.style.display = 'none'; otpError.textContent = ''; }
+    if (emailDisplay) emailDisplay.textContent = emailVal;
+
+    WeBakeOTP.send({
+      email: emailVal,
+      purpose: 'partner_verification',
+      buttonEl: vBtn,
+      loadingText: 'Sending...',
+      onSuccess: () => {
+        showToast('Verification code sent to ' + emailVal);
+        if (otpContainer) otpContainer.style.display = 'block';
+        WeBakeOTP.startCountdown({
+          timerSpanEl: timerSpan,
+          timerWrapEl: timerWrap,
+          resendBtnEl: resendBtn,
+          duration: 60
+        });
+        const firstInput = document.querySelector('#partner-otp-inputs .otp-input');
+        if (firstInput) firstInput.focus();
+      },
+      onError: (errMsg) => {
+        showToast(errMsg);
+        if (otpError) { otpError.textContent = errMsg; otpError.style.display = 'block'; }
+      }
+    });
+  }
+
+  // Wire Verify button
+  document.getElementById('btn-partner-verify-email')?.addEventListener('click', triggerPartnerEmailOtp);
+
+  // Wire Resend button
+  document.getElementById('partner-otp-resend-btn')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    const emailEl = document.getElementById('partner-email');
+    const emailVal = (emailEl?.value || '').trim().toLowerCase();
+    const resendBtn = document.getElementById('partner-otp-resend-btn');
+    const timerSpan = document.getElementById('partner-otp-timer');
+    const timerWrap = document.getElementById('partner-otp-timer-wrap');
+    const otpError = document.getElementById('partner-otp-error');
+
+    WeBakeOTP.send({
+      email: emailVal,
+      purpose: 'partner_verification',
+      buttonEl: resendBtn,
+      errorEl: otpError,
+      loadingText: 'Resending...',
+      onSuccess: () => {
+        showToast('New verification code sent to ' + emailVal);
+        WeBakeOTP.startCountdown({
+          timerSpanEl: timerSpan,
+          timerWrapEl: timerWrap,
+          resendBtnEl: resendBtn,
+          duration: 60
+        });
+      },
+      onError: (errMsg) => {
+        if (otpError) {
+          otpError.textContent = errMsg;
+          otpError.style.display = 'block';
+        }
+      }
+    });
+  });
+
+  // Wire Confirm Code button
+  document.getElementById('btn-partner-submit-otp')?.addEventListener('click', () => {
+    const emailEl = document.getElementById('partner-email');
+    const emailVal = (emailEl?.value || '').trim().toLowerCase();
+    const entered = Array.from(document.querySelectorAll('#partner-otp-inputs .otp-input')).map(i => i.value).join('');
+    const otpError = document.getElementById('partner-otp-error');
+    const submitBtn = document.getElementById('btn-partner-submit-otp');
+
+    if (entered.length !== 6) {
+      if (otpError) {
+        otpError.textContent = 'Please enter the complete 6-digit verification code.';
+        otpError.style.display = 'block';
+      }
+      return;
+    }
+
+    WeBakeOTP.verify({
+      email: emailVal,
+      code: entered,
+      purpose: 'partner_verification',
+      buttonEl: submitBtn,
+      errorEl: otpError,
+      loadingText: 'Verifying...',
+      onSuccess: () => {
+        partnerEmailVerified = true;
+        verifiedPartnerEmail = emailVal;
+        if (otpError) otpError.style.display = 'none';
+        showToast('Email verified successfully!');
+        const otpContainer = document.getElementById('partner-otp-container');
+        if (otpContainer) otpContainer.style.display = 'none';
+        const vBadge = document.getElementById('partner-email-verified-badge');
+        if (vBadge) vBadge.style.display = 'inline-block';
+        const vBtn = document.getElementById('btn-partner-verify-email');
+        if (vBtn) vBtn.style.display = 'none';
+      },
+      onError: (errMsg) => {
+        if (otpError) {
+          otpError.textContent = errMsg;
+          otpError.style.display = 'block';
+        }
+      }
+    });
+  });
+
+  // Wire email input to react to changes
+  document.getElementById('partner-email')?.addEventListener('input', (e) => {
+    const curVal = (e.target.value || '').trim().toLowerCase();
+    const vBadge = document.getElementById('partner-email-verified-badge');
+    const vBtn = document.getElementById('btn-partner-verify-email');
+    const otpContainer = document.getElementById('partner-otp-container');
+
+    if (curVal && curVal === verifiedPartnerEmail) {
+      partnerEmailVerified = true;
+      if (vBadge) vBadge.style.display = 'inline-block';
+      if (vBtn) vBtn.style.display = 'none';
+      if (otpContainer) otpContainer.style.display = 'none';
+    } else {
+      partnerEmailVerified = false;
+      if (vBadge) vBadge.style.display = 'none';
+      if (vBtn) vBtn.style.display = 'inline-flex';
+    }
+  });
+
   function syncPartnerFormState() {
+    const partnerForm = document.getElementById('partner-form');
     if (!partnerForm) return;
     try {
       const s = JSON.parse(localStorage.getItem('weBakeSession'));
@@ -1107,13 +1407,80 @@ document.addEventListener('DOMContentLoaded', () => {
       const partnerEmailEl = document.getElementById('partner-email');
       const partnerPhoneEl = document.getElementById('partner-phone');
       const partnerOwnerEl = document.getElementById('partner-owner-name');
+      const yearsSelect = document.getElementById('partner-years');
+      const yearsCustomWrap = document.getElementById('partner-years-custom-wrap');
+      const yearsCustomInput = document.getElementById('partner-years-custom');
+      const editBanner = document.getElementById('partner-edit-banner');
+      const editIdText = document.getElementById('partner-edit-id-text');
+      const cancelEditBtn = document.getElementById('partner-cancel-edit-btn');
+      const submitBtn = partnerForm.querySelector('button[type="submit"]');
+
+      function populatePartnerFields(data, rootApp) {
+        if (!data) return;
+        ['bakery-name', 'owner-name', 'type', 'address', 'notes'].forEach(key => {
+          const el = document.getElementById(`partner-${key}`);
+          if (el && data[key] !== undefined) el.value = data[key];
+        });
+
+        // Ensure email & phone are read from data or rootApp (fixing Item 4)
+        const savedEmail = (data.email || (rootApp && rootApp.email) || '').trim();
+        const savedPhone = (data.phone || (rootApp && rootApp.phone) || '').trim();
+        if (partnerEmailEl && savedEmail) {
+          partnerEmailEl.value = savedEmail;
+          partnerEmailVerified = true;
+          verifiedPartnerEmail = savedEmail.toLowerCase();
+          const vBadge = document.getElementById('partner-email-verified-badge');
+          if (vBadge) vBadge.style.display = 'inline-block';
+          const vBtn = document.getElementById('btn-partner-verify-email');
+          if (vBtn) vBtn.style.display = 'none';
+        }
+        if (partnerPhoneEl && savedPhone) {
+          partnerPhoneEl.value = savedPhone;
+        }
+
+        if (data.years) {
+          const standardYears = ['Less than 1 year', '1 year', '2 years', '3 years', '4 years', '5 years'];
+          if (standardYears.includes(data.years)) {
+            if (yearsSelect) {
+              yearsSelect.style.display = 'block';
+              yearsSelect.setAttribute('required', '');
+              yearsSelect.value = data.years;
+            }
+            if (yearsCustomWrap) yearsCustomWrap.style.display = 'none';
+            if (yearsCustomInput) yearsCustomInput.removeAttribute('required');
+          } else {
+            if (yearsSelect) {
+              yearsSelect.style.display = 'none';
+              yearsSelect.removeAttribute('required');
+              yearsSelect.value = 'more';
+            }
+            if (yearsCustomWrap) yearsCustomWrap.style.display = 'block';
+            if (yearsCustomInput) {
+              yearsCustomInput.setAttribute('required', '');
+              const numStr = (data.years.match(/\d{1,2}/) || [''])[0];
+              yearsCustomInput.value = numStr;
+            }
+          }
+        }
+
+        if (data.products && Array.isArray(data.products)) {
+          const checkboxes = partnerForm.querySelectorAll('input[type="checkbox"]');
+          checkboxes.forEach(cb => {
+            cb.checked = data.products.includes(cb.value);
+          });
+        }
+      }
 
       if (s) {
         const all = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
         const sEmail = (s.email || '').trim().toLowerCase();
         const u = all.find(u => (u.email || '').trim().toLowerCase() === sEmail);
 
-        // Option 2: Hide contact input section and show verified account badge
+        // Account is logged in -> email is inherently verified
+        partnerEmailVerified = true;
+        verifiedPartnerEmail = ((u && u.email) || s.email || '').trim().toLowerCase();
+
+        // Hide contact input section and show verified account badge
         if (contactSection) contactSection.style.display = 'none';
         if (partnerEmailEl) partnerEmailEl.removeAttribute('required');
         if (partnerPhoneEl) partnerPhoneEl.removeAttribute('required');
@@ -1136,50 +1503,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (u && (u.partnerStatus === 'pending' || u.partnerStatus === 'active')) {
           const intro = document.querySelector('.partner-intro');
           if (intro) intro.innerHTML = `<div style="background:#e3f2fd; color:#0c5460; padding:1rem; border-radius:8px; margin-bottom:1rem; font-weight:bold;"><i class="fas fa-info-circle"></i> You have already submitted an application. You can update your existing details below.</div>`;
-          const submitBtn = partnerForm.querySelector('button[type="submit"]');
           if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-save"></i> Update Application';
-          
-          // Pre-populate fields
-          if (u.partnerDetails) {
-            ['bakery-name', 'owner-name', 'type', 'address', 'notes'].forEach(key => {
-              const el = document.getElementById(`partner-${key}`);
-              if (el && u.partnerDetails[key]) el.value = u.partnerDetails[key];
-            });
-
-            // Pre-populate years dropdown or custom input if applicable
-            if (u.partnerDetails.years) {
-              const standardYears = ['Less than 1 year', '1 year', '2 years', '3 years', '4 years', '5 years'];
-              if (standardYears.includes(u.partnerDetails.years)) {
-                if (yearsSelect) {
-                  yearsSelect.style.display = 'block';
-                  yearsSelect.setAttribute('required', '');
-                  yearsSelect.value = u.partnerDetails.years;
-                }
-                if (yearsCustomWrap) yearsCustomWrap.style.display = 'none';
-                if (yearsCustomInput) yearsCustomInput.removeAttribute('required');
-              } else {
-                if (yearsSelect) {
-                  yearsSelect.style.display = 'none';
-                  yearsSelect.removeAttribute('required');
-                  yearsSelect.value = 'more';
-                }
-                if (yearsCustomWrap) yearsCustomWrap.style.display = 'block';
-                if (yearsCustomInput) {
-                  yearsCustomInput.setAttribute('required', '');
-                  const numStr = (u.partnerDetails.years.match(/\d{1,2}/) || [''])[0];
-                  yearsCustomInput.value = numStr;
-                }
-              }
-            }
-
-            // Handle checkboxes
-            if (u.partnerDetails.products) {
-              const checkboxes = partnerForm.querySelectorAll('input[type="checkbox"]');
-              checkboxes.forEach(cb => {
-                if (u.partnerDetails.products.includes(cb.value)) cb.checked = true;
-              });
-            }
-          }
+          if (u.partnerDetails) populatePartnerFields(u.partnerDetails, u);
         }
       } else {
         // Guest mode: ensure contact inputs are displayed and required
@@ -1187,6 +1512,52 @@ document.addEventListener('DOMContentLoaded', () => {
         if (loggedInBadge) loggedInBadge.style.display = 'none';
         if (partnerEmailEl) partnerEmailEl.setAttribute('required', '');
         if (partnerPhoneEl) partnerPhoneEl.setAttribute('required', '');
+      }
+
+      // Check if user is editing a specific application (e.g. from Track Transaction modal)
+      const editPartnerId = sessionStorage.getItem('weBakeEditPartnerId');
+      if (editPartnerId) {
+        const allApps = JSON.parse(localStorage.getItem('weBakePartnerApplications') || '[]');
+        const editApp = allApps.find(a => a.appId && a.appId.toUpperCase() === editPartnerId.toUpperCase());
+        if (editApp && editApp.status !== 'cancelled') {
+          populatePartnerFields(editApp.details || {}, editApp);
+
+          if (editBanner) {
+            editBanner.style.display = 'flex';
+            if (editIdText) editIdText.textContent = editApp.appId;
+          }
+
+          if (submitBtn) {
+            submitBtn.innerHTML = '<i class="fas fa-save"></i> Save Application Changes';
+          }
+
+          if (cancelEditBtn) {
+            cancelEditBtn.onclick = function() {
+              sessionStorage.removeItem('weBakeEditPartnerId');
+              if (editBanner) editBanner.style.display = 'none';
+              partnerForm.reset();
+              partnerEmailVerified = false;
+              verifiedPartnerEmail = '';
+              const vBadge = document.getElementById('partner-email-verified-badge');
+              if (vBadge) vBadge.style.display = 'none';
+              const vBtn = document.getElementById('btn-partner-verify-email');
+              if (vBtn) vBtn.style.display = 'inline-flex';
+              const otpContainer = document.getElementById('partner-otp-container');
+              if (otpContainer) otpContainer.style.display = 'none';
+              if (window.WeBakeOTP && typeof window.WeBakeOTP.clearCountdown === 'function') {
+                window.WeBakeOTP.clearCountdown();
+              }
+              if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Application';
+              syncPartnerFormState();
+              showToast('Edit mode cancelled.');
+            };
+          }
+        } else {
+          sessionStorage.removeItem('weBakeEditPartnerId');
+          if (editBanner) editBanner.style.display = 'none';
+        }
+      } else {
+        if (editBanner) editBanner.style.display = 'none';
       }
     } catch(e) {}
   }
@@ -1201,6 +1572,7 @@ document.addEventListener('DOMContentLoaded', () => {
   partnerForm?.addEventListener('submit', e => {
     e.preventDefault();
     let isUpdate = false;
+    const editingAppId = sessionStorage.getItem('weBakeEditPartnerId');
     
     // Check if user is logged in
     let s = null;
@@ -1245,9 +1617,15 @@ document.addEventListener('DOMContentLoaded', () => {
       // Guest mode: validate input fields
       const partnerEmailEl = document.getElementById('partner-email');
       const emailVal = (partnerEmailEl?.value || '').trim().toLowerCase();
+      const feedback = document.getElementById('partner-email-feedback');
+
       if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(emailVal)) {
         showToast('Please enter a valid Gmail address (must end with @gmail.com)');
         validateInput(partnerEmailEl, false);
+        if (feedback) {
+          feedback.textContent = 'Please enter a valid Gmail address (must end with @gmail.com).';
+          feedback.style.display = 'block';
+        }
         partnerEmailEl?.focus();
         return;
       }
@@ -1263,54 +1641,93 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       details.phone = cleanPhone;
 
-      // 1. If email belongs to registered user, prompt to sign in
+      // 1. If email belongs to registered user, prompt inline (Item 1)
       const isRegistered = allUsers.some(u => (u.email || '').trim().toLowerCase() === emailVal);
       if (isRegistered) {
-        showToast('An account with this email already exists. Please sign in to apply or manage your partnership.');
-        if (window.openAuthModal) {
-          window.openAuthModal('signin-modal');
+        showToast('This Gmail address is already registered. Please sign in or use another email.');
+        validateInput(partnerEmailEl, false);
+        if (feedback) {
+          feedback.innerHTML = `This Gmail address is already registered. Please <a href="#" id="partner-inline-signin-link2" style="color:var(--primary); font-weight:700; text-decoration:underline;">sign in</a> or use another email.`;
+          feedback.style.display = 'block';
+          document.getElementById('partner-inline-signin-link2')?.addEventListener('click', ev => {
+            ev.preventDefault();
+            if (window.openAuthModal) window.openAuthModal('signin-modal');
+          });
+        }
+        partnerEmailEl?.focus();
+        return;
+      }
+
+      // 2. REQUIREMENT: Guest Gmail address or phone can only apply ONCE (active/pending)
+      const allApps = JSON.parse(localStorage.getItem('weBakePartnerApplications') || '[]');
+      const existingApp = allApps.find(a => 
+        (a.status !== 'cancelled') &&
+        ((a.details?.email && (a.details.email || '').trim().toLowerCase() === emailVal) || 
+         (a.email && (a.email || '').trim().toLowerCase() === emailVal) ||
+         (a.details?.phone && (a.details.phone || '').replace(/\D/g, '') === cleanPhone) ||
+         (a.phone && (a.phone || '').replace(/\D/g, '') === cleanPhone))
+      );
+      if (existingApp && (!editingAppId || existingApp.appId.toUpperCase() !== editingAppId.toUpperCase())) {
+        showToast(`This Gmail address or phone has an active application (ID: ${existingApp.appId}). Guests can only apply once.`);
+        if (partnerEmailEl) {
+          validateInput(partnerEmailEl, false);
+          if (feedback) {
+            feedback.textContent = `This Gmail address has an active application (${existingApp.appId}). Guests can only apply once. Track it via Track Transactions.`;
+            feedback.style.display = 'block';
+          }
+          partnerEmailEl.focus();
         }
         return;
       }
 
-      // 2. REQUIREMENT: Guest Gmail address or phone can only apply ONCE
-      const allApps = JSON.parse(localStorage.getItem('weBakePartnerApplications') || '[]');
-      const existingApp = allApps.find(a => 
-        (a.details?.email && (a.details.email || '').trim().toLowerCase() === emailVal) || 
-        (a.details?.phone && (a.details.phone || '').replace(/\D/g, '') === cleanPhone)
-      );
-      if (existingApp) {
-        showToast(`This Gmail address or phone has already submitted an application (ID: ${existingApp.appId}). Guests can only apply once. Track it via Track Transactions.`);
-        if (partnerEmailEl) {
-          validateInput(partnerEmailEl, false);
-          partnerEmailEl.focus();
-        }
+      // 3. REQUIREMENT: Guest must verify Gmail via OTP (Item 3)
+      if (!partnerEmailVerified || emailVal !== verifiedPartnerEmail) {
+        showToast('Please verify your Gmail address with the OTP code before submitting.');
+        triggerPartnerEmailOtp();
         return;
       }
     }
 
     // Save to global weBakePartnerApplications
     const allApps = JSON.parse(localStorage.getItem('weBakePartnerApplications') || '[]');
-    let existingApp = allApps.find(a => 
-      (a.details?.email && (a.details.email || '').trim().toLowerCase() === (details.email || '').trim().toLowerCase()) || 
-      (a.details?.phone && (a.details.phone || '').replace(/\D/g, '') === (details.phone || '').replace(/\D/g, ''))
-    );
+    let targetApp = null;
+    if (editingAppId) {
+      targetApp = allApps.find(a => a.appId && a.appId.toUpperCase() === editingAppId.toUpperCase());
+    }
+    if (!targetApp) {
+      targetApp = allApps.find(a => 
+        (a.status !== 'cancelled') &&
+        ((a.details?.email && (a.details.email || '').trim().toLowerCase() === (details.email || '').trim().toLowerCase()) || 
+         (a.email && (a.email || '').trim().toLowerCase() === (details.email || '').trim().toLowerCase()) ||
+         (a.details?.phone && (a.details.phone || '').replace(/\D/g, '') === (details.phone || '').replace(/\D/g, '')) ||
+         (a.phone && (a.phone || '').replace(/\D/g, '') === (details.phone || '').replace(/\D/g, '')))
+      );
+    }
 
-    let appId = existingApp ? existingApp.appId : ('WB-PRT-' + Math.floor(10000 + Math.random() * 90000));
+    let appId = targetApp ? targetApp.appId : ('WB-PRT-' + Math.floor(10000 + Math.random() * 90000));
 
-    if (existingApp) {
+    // Fully synchronize root and details properties (fixing Item 4)
+    if (targetApp) {
       isUpdate = true;
-      existingApp.details = details;
-      existingApp.updatedAt = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+      targetApp.email = details.email;
+      targetApp.phone = details.phone;
+      targetApp.details = { ...(targetApp.details || {}), ...details, email: details.email, phone: details.phone };
+      targetApp.updatedAt = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
     } else {
       allApps.unshift({
         appId: appId,
+        email: details.email,
+        phone: details.phone,
         date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
         status: 'pending',
-        details: details
+        details: { ...details, email: details.email, phone: details.phone }
       });
     }
     localStorage.setItem('weBakePartnerApplications', JSON.stringify(allApps));
+
+    if (editingAppId) {
+      sessionStorage.removeItem('weBakeEditPartnerId');
+    }
 
     // Also link to logged-in user if session exists
     if (currentUser) {
@@ -1331,9 +1748,9 @@ document.addEventListener('DOMContentLoaded', () => {
         formContainer.innerHTML = `
           <div style="text-align:center; padding:1.5rem 0; animation: fadeIn 0.4s ease;">
             <div style="font-size:3.5rem; color:#28a745; margin-bottom:1rem;"><i class="fas fa-check-circle"></i></div>
-            <h3 style="color:var(--primary); font-size:1.6rem; font-weight:700; margin-bottom:0.5rem;">Partnership Application Submitted!</h3>
+            <h3 style="color:var(--primary); font-size:1.6rem; font-weight:700; margin-bottom:0.5rem;">${isUpdate ? 'Partnership Application Updated!' : 'Partnership Application Submitted!'}</h3>
             <p style="color:var(--gray); font-size:0.95rem; max-width:540px; margin:0 auto 1.75rem; line-height:1.6;">
-              Thank you for applying to be an authorized wholesale partner with Crumbs N' Rolls Bakery. Our wholesale team reviews business applications within 24–48 hours.
+              ${isUpdate ? 'Your wholesale partner details have been successfully updated in our system. You can review and track your application anytime.' : "Thank you for applying to be an authorized wholesale partner with Crumbs N' Rolls Bakery. Our wholesale team reviews business applications within 24–48 hours."}
             </p>
 
             <div style="background:#FAF6F0; border:1px dashed #ebd9c8; border-radius:10px; padding:1.25rem 1.5rem; max-width:440px; margin:0 auto 1.5rem;">
@@ -1345,7 +1762,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
 
             <div style="background:#e8f4fd; border:1px solid #b8daff; border-radius:8px; padding:0.85rem 1rem; max-width:480px; margin:0 auto 1.75rem; font-size:0.85rem; color:#004085;">
-              <i class="fas fa-info-circle"></i> Keep this Reference ID safe. You can track your application review status and notes anytime via <strong>Track Transactions</strong>.
+              <i class="fas fa-info-circle"></i> Keep this Reference ID safe. You can track your application review status, edit details, or cancel anytime via <strong>Track Transactions</strong>.
             </div>
 
             <div style="display:flex; justify-content:center; gap:0.75rem; flex-wrap:wrap;">
@@ -1380,6 +1797,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         window.scrollTo({ top: formContainer.offsetTop - 100, behavior: 'smooth' });
       }
+    }
+  });
+
+  document.getElementById('partner-clear-btn')?.addEventListener('click', () => {
+    partnerEmailVerified = false;
+    verifiedPartnerEmail = '';
+    const vBadge = document.getElementById('partner-email-verified-badge');
+    if (vBadge) vBadge.style.display = 'none';
+    const vBtn = document.getElementById('btn-partner-verify-email');
+    if (vBtn) vBtn.style.display = 'inline-flex';
+    const otpContainer = document.getElementById('partner-otp-container');
+    if (otpContainer) otpContainer.style.display = 'none';
+    if (window.WeBakeOTP && typeof window.WeBakeOTP.clearCountdown === 'function') {
+      window.WeBakeOTP.clearCountdown();
+    }
+    if (sessionStorage.getItem('weBakeEditPartnerId')) {
+      sessionStorage.removeItem('weBakeEditPartnerId');
+      const editBanner = document.getElementById('partner-edit-banner');
+      if (editBanner) editBanner.style.display = 'none';
+      const submitBtn = partnerForm?.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Application';
+      showToast('Form cleared. Edit mode cancelled.');
     }
   });
 

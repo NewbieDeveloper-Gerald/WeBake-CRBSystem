@@ -108,6 +108,19 @@
             Interested in partnering with Crumbs N' Rolls Bakery? Fill out the form below
             and we'll get in touch with you to discuss wholesale supply arrangements.
           </p>
+          <div id="partner-edit-banner" style="display:none; background:#e8f4fd; border:1px solid #b8daff; border-radius:8px; padding:1rem 1.25rem; margin-bottom:1.5rem; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
+            <div>
+              <div style="font-weight:700; color:#004085; font-size:1rem; display:flex; align-items:center; gap:0.5rem;">
+                <i class="fas fa-edit" style="color:#0056b3;"></i> Editing Application: <span id="partner-edit-id-text">WB-PRT-XXXXX</span>
+              </div>
+              <div style="font-size:0.82rem; color:#495057; margin-top:0.25rem;">
+                You are currently editing your existing partnership details. Save your changes below when done.
+              </div>
+            </div>
+            <button type="button" id="partner-cancel-edit-btn" class="btn btn-outline" style="padding:0.35rem 0.85rem; font-size:0.82rem; background:#fff; border-color:#b8daff; color:#004085;">
+              <i class="fas fa-times"></i> Cancel Edit
+            </button>
+          </div>
           <form id="partner-form">
             <!-- Business Information -->
             <h3 class="form-section-title"><i class="fas fa-store"></i> Business Information</h3>
@@ -163,15 +176,48 @@
             <div id="partner-contact-section">
               <h3 class="form-section-title"><i class="fas fa-address-book"></i> Contact Details</h3>
               <div class="form-row">
-                <div class="form-group">
-                  <label>Email Address (Gmail) *</label>
-                  <input class="form-input" id="partner-email" type="email" placeholder="you@gmail.com" pattern="[a-zA-Z0-9._%+\-]+@[gG][mM][aA][iI][lL]\.[cC][oO][mM]" title="Please enter a valid Gmail address ending in @gmail.com" required>
-                  <div class="invalid-feedback">Please enter a valid Gmail address (must end with @gmail.com).</div>
+                <div class="form-group" style="position:relative;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
+                    <label style="margin:0;">Email Address (Gmail) *</label>
+                    <span id="partner-email-verified-badge" style="display:none; color:#28a745; font-size:0.8rem; font-weight:700; background:#e8f5e9; padding:0.15rem 0.55rem; border-radius:12px; border:1px solid #c8e6c9;">
+                      <i class="fas fa-check-circle"></i> Verified
+                    </span>
+                  </div>
+                  <div style="display:flex; gap:0.5rem; align-items:center;">
+                    <input class="form-input" id="partner-email" type="email" placeholder="you@gmail.com" pattern="[a-zA-Z0-9._%+\-]+@[gG][mM][aA][iI][lL]\.[cC][oO][mM]" title="Please enter a valid Gmail address ending in @gmail.com" required style="flex:1;">
+                    <button type="button" class="btn btn-outline" id="btn-partner-verify-email" style="padding:0.65rem 0.85rem; font-size:0.82rem; white-space:nowrap; display:inline-flex; align-items:center; gap:0.35rem;">
+                      <i class="fas fa-shield-alt"></i> Verify
+                    </button>
+                  </div>
+                  <div class="invalid-feedback" id="partner-email-feedback">Please enter a valid Gmail address (must end with @gmail.com).</div>
+
+                  <!-- Inline OTP Verification Box -->
+                  <div id="partner-otp-container" style="display:none; background:#faf6f0; border:1px solid #ebd9c8; border-radius:8px; padding:1rem; margin-top:0.75rem;">
+                    <div style="font-size:0.83rem; color:#555; margin-bottom:0.5rem; text-align:center;">
+                      Enter the 6-digit code sent to <strong id="partner-otp-email-display" style="color:var(--dark);"></strong>
+                    </div>
+                    <div class="otp-inputs" id="partner-otp-inputs" style="display:flex; gap:0.4rem; justify-content:center; margin-bottom:0.6rem;">
+                      <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:2.5rem;height:3rem;text-align:center;font-size:1.25rem;font-weight:700;padding:0;">
+                      <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:2.5rem;height:3rem;text-align:center;font-size:1.25rem;font-weight:700;padding:0;">
+                      <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:2.5rem;height:3rem;text-align:center;font-size:1.25rem;font-weight:700;padding:0;">
+                      <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:2.5rem;height:3rem;text-align:center;font-size:1.25rem;font-weight:700;padding:0;">
+                      <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:2.5rem;height:3rem;text-align:center;font-size:1.25rem;font-weight:700;padding:0;">
+                      <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:2.5rem;height:3rem;text-align:center;font-size:1.25rem;font-weight:700;padding:0;">
+                    </div>
+                    <div id="partner-otp-error" class="error-msg" style="display:none; text-align:center; color:#dc3545; font-size:0.82rem; margin-bottom:0.5rem;"></div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+                      <div id="partner-otp-timer-wrap" style="font-size:0.8rem; color:#888;">
+                        Resend code in <strong id="partner-otp-timer">60</strong>s
+                      </div>
+                      <a href="#" id="partner-otp-resend-btn" style="display:none; font-size:0.82rem; color:var(--primary); font-weight:700; text-decoration:none;">Resend Code</a>
+                      <button type="button" id="btn-partner-submit-otp" class="btn btn-sm btn-primary" style="padding:0.4rem 1rem; font-size:0.82rem;">Confirm Code</button>
+                    </div>
+                  </div>
                 </div>
                 <div class="form-group">
                   <label>Contact Number *</label>
                   <input class="form-input" id="partner-phone" type="tel" placeholder="09XXXXXXXXX" pattern="09[0-9]{9}" maxlength="11" inputmode="numeric" title="Must be an 11-digit mobile number starting with 09" required>
-                  <div class="invalid-feedback">Contact number must be 11 digits starting with 09 (no letters or characters).</div>
+                  <div class="invalid-feedback" id="partner-phone-feedback">Contact number must be 11 digits starting with 09 (no letters or characters).</div>
                 </div>
               </div>
             </div>
@@ -208,11 +254,11 @@
             </div>
 
             <div class="partner-form-actions">
-              <button type="reset" class="btn btn-outline partner-btn-clear">
+              <button type="reset" class="btn btn-outline partner-btn-clear" id="partner-clear-btn">
                 <i class="fas fa-eraser"></i> Clear Form
               </button>
-              <button type="submit" class="btn btn-primary partner-btn-submit">
-                <i class="fas fa-paper-plane"></i> Submit Application
+              <button type="submit" class="btn btn-primary partner-btn-submit" id="partner-submit-btn">
+                <i class="fas fa-paper-plane" id="partner-submit-icon"></i> <span id="partner-submit-text">Submit Application</span>
               </button>
             </div>
           </form>

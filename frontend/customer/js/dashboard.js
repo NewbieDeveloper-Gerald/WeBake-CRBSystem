@@ -245,7 +245,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const balance = order.balance !== undefined ? order.balance : (order.total - downpayment);
         const method = order.paymentMethod || 'GCash';
         const refNo = order.referenceNumber ? `(Ref: ${order.referenceNumber})` : '';
-        const orderIdDisplay = order.orderId ? `<span style="font-weight:700; color:var(--primary);">${order.orderId}</span> · ` : '';
         
         let itemsHtml = `
           <div style="font-size:0.8rem; font-weight:bold; padding: 4px 0; display:flex; justify-content:space-between; color:#666; border-bottom: 1px solid #ddd;">
@@ -302,7 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
         html += `
           <div class="order-item" style="display:flex; flex-direction:column; gap:0.5rem; align-items:flex-start; padding: 1rem; border: 1px solid #eee; border-radius: 8px; margin-bottom: 1rem;">
             <div style="display:flex; justify-content:space-between; width:100%; align-items:center; flex-wrap:wrap; gap:0.5rem;">
-              <strong><i class="fas fa-receipt"></i> ${orderIdDisplay}<span style="color:#777; font-weight:500;"><i class="far fa-calendar-alt"></i> ${order.date}</span></strong>
+              <strong style="display:inline-flex; align-items:center; gap:0.4rem; color:#333;"><i class="far fa-calendar-alt" style="color:var(--primary);"></i> <span>Order Placed: ${order.date}</span></strong>
               <div class="order-status ${statusClass}">${statusText}</div>
             </div>
             <div style="width:100%; border-top: 1px solid #eee; padding-top: 0.5rem; margin-top: 0.5rem;">
@@ -360,8 +359,8 @@ document.addEventListener('DOMContentLoaded', () => {
           <!-- Order Summary Details -->
           <div style="background:#faf6f3; border:1px dashed #ebd9c8; border-radius:8px; padding:0.75rem 0.9rem; margin-bottom:1rem; font-size:0.85rem;">
             <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-              <span style="color:#666;">Order ID:</span>
-              <strong style="color:var(--primary);">${order.orderId}</strong>
+              <span style="color:#666;">Order Placed:</span>
+              <strong style="color:var(--primary);">${order.date}</strong>
             </div>
             <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
               <span style="color:#666;">Total Order Value:</span>
@@ -463,7 +462,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      if (!confirm(`Are you sure you want to request cancellation for order ${order.orderId}?\n\nDownpayment of \u20B1${downpayment.toLocaleString()} will be refunded to your ${wallet} account (${accNum}).`)) {
+      if (!confirm(`Are you sure you want to request cancellation for this order placed on ${order.date}?\n\nDownpayment of \u20B1${downpayment.toLocaleString()} will be refunded to your ${wallet} account (${accNum}).`)) {
         return;
       }
 
@@ -521,7 +520,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   renderOrders();
   window.addEventListener('storage', (e) => {
-    if (e.key === USERS_KEY) renderOrders();
+    if (e.key === USERS_KEY || e.key === 'weBakePartnerApplications') {
+      renderOrders();
+      renderPartnership();
+    }
+  });
+  window.addEventListener('weBakePartnerChange', () => {
+    renderPartnership();
   });
 
   // --- Render Partnership Status ---
@@ -587,11 +592,28 @@ document.addEventListener('DOMContentLoaded', () => {
           const freshAll = getUsers();
           const target = freshAll.find(u => sameEmail(u.email, session.email));
           if (target) {
+            const savedAppId = target.partnerAppId;
             target.partnerStatus = 'none';
             target.partnerDetails = null; // Clear their saved info when they cancel
             localStorage.setItem(USERS_KEY, JSON.stringify(freshAll));
+
+            const allApps = JSON.parse(localStorage.getItem('weBakePartnerApplications') || '[]');
+            let appChanged = false;
+            allApps.forEach(a => {
+              if ((savedAppId && a.appId && a.appId.toUpperCase() === savedAppId.toUpperCase()) ||
+                  (a.details?.email && sameEmail(a.details.email, session.email))) {
+                a.status = 'cancelled';
+                a.cancelledAt = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                appChanged = true;
+              }
+            });
+            if (appChanged) {
+              localStorage.setItem('weBakePartnerApplications', JSON.stringify(allApps));
+            }
+
             renderPartnership();
             showToast('Partnership cancelled.');
+            window.dispatchEvent(new CustomEvent('weBakePartnerChange'));
           }
         });
       });

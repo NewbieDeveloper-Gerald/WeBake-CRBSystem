@@ -225,6 +225,16 @@
       }, 1000);
 
       return window[OTP_TIMER_KEY];
+    },
+
+    /**
+     * Clears any active countdown timer immediately
+     */
+    clearCountdown: function () {
+      if (window[OTP_TIMER_KEY]) {
+        clearInterval(window[OTP_TIMER_KEY]);
+        window[OTP_TIMER_KEY] = null;
+      }
     }
   };
 
