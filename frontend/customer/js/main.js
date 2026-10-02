@@ -937,6 +937,81 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
+      // Dispatch real digital receipt email via backend API
+      const apiBase = window.WEBAKE_API_BASE || (
+        window.location.protocol === 'file:' ||
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1'
+          ? 'http://localhost:5000/api'
+          : '/api'
+      );
+
+      const targetEmail = ((placedOrder && placedOrder.customer?.email) || customerInfo?.email || '').trim().toLowerCase();
+      const finalOrder = {
+        ...(placedOrder || {}),
+        orderId: orderId,
+        date: placedOrder?.date || new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+        items: placedOrder?.items?.length ? placedOrder.items : [...checkoutItems],
+        total: totalAmt,
+        downpayment: downpayment,
+        balance: balance,
+        paymentMethod: method,
+        referenceNumber: ref.value.trim(),
+        customer: {
+          name: customerInfo?.name || placedOrder?.customer?.name || 'Valued Customer',
+          contact: customerInfo?.contact || placedOrder?.customer?.contact || '',
+          email: targetEmail,
+          address: customerInfo?.address || placedOrder?.customer?.address || ''
+        }
+      };
+
+      function dispatchReceipt(isResend = false, btnEl = null, msgEl = null) {
+        if (!targetEmail) return;
+        if (btnEl) {
+          btnEl.disabled = true;
+          btnEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resending...';
+        }
+        fetch(`${apiBase}/orders/receipt`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order: finalOrder,
+            hasAccount: !!(currentSession && currentSession.email)
+          })
+        })
+        .then(res => res.json())
+        .then(result => {
+          if (btnEl) {
+            btnEl.disabled = false;
+            btnEl.innerHTML = '<i class="fas fa-redo"></i> Resend Receipt';
+          }
+          if (result.success) {
+            showToast(isResend ? `Receipt resent to ${targetEmail} 📧` : `Digital receipt sent to ${targetEmail} 📧`);
+            if (msgEl) {
+              msgEl.textContent = 'Sent! Check Inbox/Spam.';
+              msgEl.style.display = 'inline';
+              setTimeout(() => { if (msgEl) msgEl.style.display = 'none'; }, 4000);
+            }
+          } else {
+            console.warn('[Receipt Notice]:', result.message);
+            if (msgEl) {
+              msgEl.textContent = 'Could not send. Please try again.';
+              msgEl.style.color = '#dc3545';
+              msgEl.style.display = 'inline';
+            }
+          }
+        })
+        .catch(err => {
+          if (btnEl) {
+            btnEl.disabled = false;
+            btnEl.innerHTML = '<i class="fas fa-redo"></i> Resend Receipt';
+          }
+          console.warn('[Receipt Network Notice]:', err.message);
+        });
+      }
+
+      dispatchReceipt(false);
+
       // Populate success breakdown
       const successSummary = document.getElementById('success-downpayment-summary');
       if (successSummary) {
@@ -959,10 +1034,30 @@ document.addEventListener('DOMContentLoaded', () => {
               <strong style="font-size:1.05rem; color:var(--primary);">\u20B1${balance.toLocaleString()}</strong>
             </div>
           </div>
-          <div style="background:#fff3cd; color:#856404; padding:0.75rem 1rem; border-radius:var(--radius); font-size:0.82rem; text-align:left; border:1px solid #ffeeba;">
+          <div style="background:#e8f4fd; color:#0c5460; padding:0.75rem 1rem; border-radius:8px; font-size:0.83rem; text-align:left; border:1px solid #bee5eb; margin-top:0.65rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.3rem;">
+              <i class="fas fa-paper-plane" style="color:#17a2b8; font-size:1rem;"></i>
+              <span>A digital receipt has been sent to <strong>${targetEmail || customerInfo.email}</strong>.</span>
+            </div>
+            <div style="font-size:0.78rem; color:#6c757d; line-height:1.45;">
+              📬 <em>Can't find it in your Inbox? Please check your <strong>Spam</strong>, <strong>Junk</strong>, or <strong>Promotions</strong> folder and mark as "Not Spam".</em>
+            </div>
+            <div style="margin-top:0.5rem; display:flex; align-items:center; gap:0.6rem;">
+              <button type="button" class="btn btn-outline btn-sm" id="resend-receipt-btn" style="padding:0.25rem 0.65rem; font-size:0.76rem; border-color:#bee5eb; background:#fff; color:#0c5460;">
+                <i class="fas fa-redo"></i> Resend Receipt
+              </button>
+              <span id="resend-receipt-msg" style="font-size:0.75rem; color:#28a745; display:none;"></span>
+            </div>
+          </div>
+          <div style="background:#fff3cd; color:#856404; padding:0.75rem 1rem; border-radius:var(--radius); font-size:0.82rem; text-align:left; border:1px solid #ffeeba; margin-top:0.6rem;">
             <i class="fas fa-info-circle"></i> <strong>Reminder:</strong> Please prepare <strong>\u20B1${balance.toLocaleString()}</strong> upon delivery. You may pay in cash to the delivery rider or scan their ${method} QR upon handover.
           </div>
         `;
+
+        document.getElementById('resend-receipt-btn')?.addEventListener('click', function() {
+          const msgEl = document.getElementById('resend-receipt-msg');
+          dispatchReceipt(true, this, msgEl);
+        });
       }
 
       // 1-Click Convert to Account for Guests

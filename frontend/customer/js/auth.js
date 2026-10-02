@@ -847,11 +847,52 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         </div>
 
+        ${order.customer?.email ? `
+          <div style="margin-top:0.75rem; display:flex; justify-content:space-between; align-items:center; background:#e8f4fd; border:1px solid #bee5eb; border-radius:6px; padding:0.6rem 0.85rem; font-size:0.8rem; color:#0c5460; flex-wrap:wrap; gap:0.5rem;">
+            <div>
+              <i class="fas fa-envelope" style="color:#17a2b8;"></i> Receipt: <strong>${order.customer.email}</strong>
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" id="btn-track-resend-receipt" style="padding:0.25rem 0.65rem; font-size:0.75rem; border-color:#bee5eb; background:#fff; color:#0c5460;">
+              <i class="fas fa-redo"></i> Resend Receipt
+            </button>
+          </div>
+        ` : ''}
+
         ${refundSectionHtml}
       </div>
     `;
 
     resBox.style.display = 'block';
+
+    document.getElementById('btn-track-resend-receipt')?.addEventListener('click', function() {
+      const btn = this;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+      const apiBase = window.WEBAKE_API_BASE || (
+        window.location.protocol === 'file:' ||
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1'
+          ? 'http://localhost:5000/api'
+          : '/api'
+      );
+      fetch(`${apiBase}/orders/receipt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order, hasAccount: false })
+      })
+      .then(r => r.json())
+      .then(res => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check"></i> Sent!';
+        showToast(res.success ? `Receipt sent to ${order.customer.email} 📧` : res.message);
+        setTimeout(() => { btn.innerHTML = '<i class="fas fa-redo"></i> Resend Receipt'; }, 3000);
+      })
+      .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-redo"></i> Resend Receipt';
+        showToast('Failed to connect to email server.');
+      });
+    });
 
     document.getElementById('btn-toggle-refund-form')?.addEventListener('click', () => {
       const card = document.getElementById('refund-form-card');
