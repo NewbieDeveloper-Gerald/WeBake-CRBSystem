@@ -788,6 +788,31 @@
       PartnerStore.saveUsers(allUsers);
     }
 
+    // Asynchronously dispatch application to Supabase backend API
+    const apiBase = window.WEBAKE_API_BASE || (
+      window.location.protocol === 'file:' ||
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:5000/api'
+        : '/api'
+    );
+    fetch(`${apiBase}/partner/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fullName: details['owner-name'] || (currentUser && currentUser.name) || '',
+        email: details.email,
+        phone: details.phone,
+        businessName: details['business-name'] || '',
+        businessType: details['business-type'] || 'sari_sari',
+        yearsInOperation: details.years || '1-2 years',
+        weeklyVolume: details.volume || '50-100 bundles',
+        address: details.address || '',
+        products: details.products || [],
+        notes: details.notes || ''
+      })
+    }).catch(e => console.warn('[Partner API Sync]:', e.message));
+
     toast(isUpdate ? 'Partnership application updated successfully!' : 'Partnership application submitted successfully!');
 
     if (currentUser) {

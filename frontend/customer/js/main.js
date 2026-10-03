@@ -1062,7 +1062,8 @@ document.addEventListener('DOMContentLoaded', () => {
           btnEl.disabled = true;
           btnEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resending...';
         }
-        fetch(`${apiBase}/orders/receipt`, {
+        const endpoint = isResend ? `${apiBase}/orders/receipt` : `${apiBase}/orders`;
+        fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
