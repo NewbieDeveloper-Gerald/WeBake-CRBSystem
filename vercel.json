@@ -2,6 +2,14 @@
   "cleanUrls": true,
   "rewrites": [
     {
+      "source": "/api/otp/:path*",
+      "destination": "/api/otp/:path*"
+    },
+    {
+      "source": "/api/orders/receipt",
+      "destination": "/api/orders/receipt"
+    },
+    {
       "source": "/api/:path*",
       "destination": "https://webake-crbsystem-backend.onrender.com/api/:path*"
     },

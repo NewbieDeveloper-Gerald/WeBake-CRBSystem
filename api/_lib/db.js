@@ -1,0 +1,21 @@
+const { Pool } = require('pg');
+
+let pool = null;
+
+function getPool() {
+  if (!pool) {
+    pool = new Pool({
+      user: process.env.DB_USER || 'postgres.tzntlmafvenbqcmjmkay',
+      password: process.env.DB_PASSWORD || 'qsGEAd3s$xY@vCG',
+      host: process.env.DB_HOST || 'aws-0-ap-southeast-1.pooler.supabase.com',
+      port: parseInt(process.env.DB_PORT || '6543', 10),
+      database: process.env.DB_NAME || 'postgres',
+      ssl: { rejectUnauthorized: false },
+      max: 3,
+      connectionTimeoutMillis: 6000
+    });
+  }
+  return pool;
+}
+
+module.exports = { getPool };

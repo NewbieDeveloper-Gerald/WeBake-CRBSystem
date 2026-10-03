@@ -1,0 +1,10 @@
+{
+  "name": "webake-crbsystem-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WeBake Customer Frontend and Vercel Serverless Functions",
+  "dependencies": {
+    "nodemailer": "^6.9.13",
+    "pg": "^8.23.1"
+  }
+}
