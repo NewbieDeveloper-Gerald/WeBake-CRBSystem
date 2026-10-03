@@ -1,8 +1,8 @@
 const nodemailer = require('nodemailer');
 
 function createTransporter() {
-  const user = process.env.GMAIL_USER || 'crbwebake@gmail.com';
-  const pass = (process.env.GMAIL_APP_PASS || 'uctp zpdw hhio sdmu').replace(/\s+/g, '');
+  const user = process.env.GMAIL_USER || '';
+  const pass = (process.env.GMAIL_APP_PASS || '').replace(/\s+/g, '');
 
   return nodemailer.createTransport({
     host: 'smtp.gmail.com',
