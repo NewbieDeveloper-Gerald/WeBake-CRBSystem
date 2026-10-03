@@ -2,6 +2,27 @@
   "cleanUrls": true,
   "headers": [
     {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https:;"
+        }
+      ]
+    },
+    {
       "source": "/frontend/customer/js/(.*)",
       "headers": [
         {
@@ -32,18 +53,6 @@
     {
       "source": "/api/orders/:action",
       "destination": "/api/orders?action=:action"
-    },
-    {
-      "source": "/api/products",
-      "destination": "https://webake-crbsystem-backend.onrender.com/api/products"
-    },
-    {
-      "source": "/api/products/:path*",
-      "destination": "https://webake-crbsystem-backend.onrender.com/api/products/:path*"
-    },
-    {
-      "source": "/api/health",
-      "destination": "https://webake-crbsystem-backend.onrender.com/api/health"
     },
     {
       "source": "/",

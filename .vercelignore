@@ -1,0 +1,20 @@
+# Ignore standalone backend server (Serverless API runs from /api)
+backend/
+
+# Ignore scratch scripts, tests, and temporary data
+scratch/
+tests/
+test/
+
+# Ignore documentation, planning files, and logs
+*.md
+*.log
+
+# Ignore local secret files
+.env*
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
