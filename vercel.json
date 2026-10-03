@@ -22,6 +22,18 @@
   ],
   "rewrites": [
     {
+      "source": "/api/otp/:action",
+      "destination": "/api/otp?action=:action"
+    },
+    {
+      "source": "/api/partner/:action",
+      "destination": "/api/partner?action=:action"
+    },
+    {
+      "source": "/api/orders/:action",
+      "destination": "/api/orders?action=:action"
+    },
+    {
       "source": "/api/products",
       "destination": "https://webake-crbsystem-backend.onrender.com/api/products"
     },

@@ -10,23 +10,8 @@ function normalizeBusinessType(type) {
   return 'other';
 }
 
-module.exports = async function handler(req, res) {
-  // CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, message: 'Method not allowed' });
-  }
-
-  const pool = getPool();
+async function handleApply(req, res, pool) {
   const client = await pool.connect();
-
   try {
     const data = req.body || {};
 
@@ -70,41 +55,37 @@ module.exports = async function handler(req, res) {
     let finalStatus = 'pending';
 
     if (existingAppRes.rows.length > 0) {
-      // Update existing application
       const existing = existingAppRes.rows[0];
       finalAppCode = existing.application_code;
-      finalStatus = existing.status;
+      finalStatus = existing.status || 'pending';
 
       await client.query(`
         UPDATE partner_applications
         SET applicant_name = $1, business_name = $2, business_type = $3,
-            years_in_operation = $4, estimated_weekly_volume = $5, delivery_address = $6,
-            products_of_interest = $7, additional_notes = $8, updated_at = NOW()
+            years_in_operation = $4, estimated_weekly_volume = $5,
+            delivery_address = $6, products_of_interest = $7,
+            additional_notes = $8, updated_at = NOW()
         WHERE id = $9;
       `, [applicantName, businessName, businessType, yearsInOp, weeklyVol, deliveryAddress, products, notes, existing.id]);
     } else {
-      // Insert new application
-      const insertSql = `
+      await client.query(`
         INSERT INTO partner_applications (
           application_code, user_id, applicant_name, applicant_email, applicant_phone,
           business_name, business_type, years_in_operation, estimated_weekly_volume,
-          delivery_address, products_of_interest, additional_notes, agreed_to_terms, status,
-          submitted_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, true, 'pending', NOW(), NOW())
-        RETURNING id, application_code, status, submitted_at;
-      `;
-      const insertRes = await client.query(insertSql, [
+          delivery_address, products_of_interest, additional_notes, status
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'pending'
+        );
+      `, [
         applicationCode, userId, applicantName, applicantEmail, applicantPhone,
-        businessName, businessType, yearsInOp, weeklyVol, deliveryAddress,
-        products, notes
+        businessName, businessType, yearsInOp, weeklyVol,
+        deliveryAddress, products, notes
       ]);
-      finalAppCode = insertRes.rows[0].application_code;
-      finalStatus = insertRes.rows[0].status;
     }
 
-    // 3. Update users.partner_status
+    // 3. Update user partner_status to pending in users table
     if (userId) {
-      await client.query(`UPDATE users SET partner_status = $1, updated_at = NOW() WHERE id = $2;`, [finalStatus, userId]);
+      await client.query(`UPDATE users SET partner_status = 'pending' WHERE id = $1;`, [userId]);
     }
 
     await client.query('COMMIT');
@@ -115,15 +96,90 @@ module.exports = async function handler(req, res) {
       applicationCode: finalAppCode,
       status: finalStatus
     });
-
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('[Vercel Partner Apply Error]:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to submit partner application: ' + error.message
-    });
+    throw error;
   } finally {
     client.release();
+  }
+}
+
+async function handleCancel(req, res, pool) {
+  const { email, appId } = req.body || {};
+  const cleanEmail = (email || '').trim().toLowerCase();
+
+  if (!cleanEmail && !appId) {
+    return res.status(400).json({ success: false, message: 'Email or Application ID is required.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    let userId = null;
+    if (cleanEmail) {
+      const uRes = await client.query(
+        'UPDATE users SET partner_status = $1 WHERE LOWER(email_address) = $2 RETURNING id;',
+        ['none', cleanEmail]
+      );
+      if (uRes.rows.length > 0) {
+        userId = uRes.rows[0].id;
+      }
+    }
+
+    if (appId) {
+      await client.query(
+        'UPDATE partner_applications SET status = $1 WHERE application_code = $2;',
+        ['cancelled', appId]
+      );
+    } else if (userId || cleanEmail) {
+      await client.query(
+        'UPDATE partner_applications SET status = $1 WHERE user_id = $2 OR LOWER(applicant_email) = $3;',
+        ['cancelled', userId, cleanEmail]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    return res.status(200).json({
+      success: true,
+      message: 'Wholesale partnership application cancelled successfully.'
+    });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, message: 'Method not allowed' });
+  }
+
+  const action = req.query?.action || (req.url.split('?')[0].split('/').filter(Boolean).pop());
+  const pool = getPool();
+
+  try {
+    if (action === 'cancel') {
+      return await handleCancel(req, res, pool);
+    } else {
+      return await handleApply(req, res, pool);
+    }
+  } catch (error) {
+    console.error('[Partner Router Error]:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Partner operation failed: ' + error.message
+    });
   }
 };
