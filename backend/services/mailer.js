@@ -7,20 +7,28 @@
 
 const nodemailer = require('nodemailer');
 
-function createTransporter() {
-  const user = process.env.GMAIL_USER || 'crbwebake@gmail.com';
-  const pass = (process.env.GMAIL_APP_PASS || '').replace(/\s+/g, '');
+let cachedTransporter = null;
 
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: user,
-      pass: pass
-    },
-    tls: {
-      rejectUnauthorized: false
-    }
-  });
+function getTransporter() {
+  if (!cachedTransporter) {
+    const user = process.env.GMAIL_USER || 'crbwebake@gmail.com';
+    const pass = (process.env.GMAIL_APP_PASS || '').replace(/\s+/g, '');
+
+    cachedTransporter = nodemailer.createTransport({
+      service: 'gmail',
+      pool: true,
+      maxConnections: 5,
+      maxMessages: 100,
+      auth: {
+        user: user,
+        pass: pass
+      },
+      tls: {
+        rejectUnauthorized: false
+      }
+    });
+  }
+  return cachedTransporter;
 }
 
 /**
@@ -142,7 +150,7 @@ async function sendOtpEmail({ email, otp, purpose }) {
     );
   }
 
-  const transporter = createTransporter();
+  const transporter = getTransporter();
 
   const info = await transporter.sendMail({
     from: `"WeBake — Crumbs N' Rolls Bakery" <${fromAddress}>`,
@@ -419,7 +427,7 @@ async function sendOrderReceiptEmail({ order, hasAccount = false }) {
     throw new Error('Customer email is required to send digital receipt.');
   }
 
-  const transporter = createTransporter();
+  const transporter = getTransporter();
   const orderId = order.orderId || 'WB-ORD';
 
   const info = await transporter.sendMail({

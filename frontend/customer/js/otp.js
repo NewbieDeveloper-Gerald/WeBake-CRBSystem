@@ -77,9 +77,16 @@
         return false;
       }
 
-      // UI Loading state
+      // UI Loading state with progressive cold-start feedback
       if (typeof onStart === 'function') onStart();
       this.setButtonState(buttonEl, true, loadingText);
+
+      let wakeTimer = null;
+      if (buttonEl) {
+        wakeTimer = setTimeout(() => {
+          this.setButtonState(buttonEl, true, 'Waking up server...');
+        }, 3500);
+      }
 
       try {
         const response = await fetch(`${API_BASE}/otp/send`, {
@@ -88,6 +95,7 @@
           body: JSON.stringify({ email: email.trim().toLowerCase(), purpose })
         });
 
+        if (wakeTimer) clearTimeout(wakeTimer);
         const data = await response.json().catch(() => ({}));
 
         this.setButtonState(buttonEl, false);
@@ -111,6 +119,7 @@
         return true;
 
       } catch (err) {
+        if (wakeTimer) clearTimeout(wakeTimer);
         this.setButtonState(buttonEl, false);
         console.error('[WeBakeOTP] Network error sending OTP:', err);
         const networkErrorMsg = 'Cannot reach verification server. Please make sure the backend is running.';
