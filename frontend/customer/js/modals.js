@@ -45,6 +45,7 @@
     <!-- SIGN IN MODAL -->
     <div class="modal" id="signin-modal" style="z-index:3001;padding:2.5rem">
       <button class="modal-close" data-auth-close>&times;</button>
+      <div style="text-align:center;margin-bottom:0.75rem;"><img src="../img/webake-logo.png" alt="WeBake" style="height:38px;width:auto;object-fit:contain;"></div>
       <h3 class="auth-modal-title">Welcome Back</h3>
       <p class="auth-modal-subtitle">Sign in to your WeBake account</p>
       <form id="signin-form">
@@ -67,6 +68,7 @@
     <!-- REGISTER MODAL -->
     <div class="modal" id="register-modal" style="z-index:3001;padding:2.5rem">
       <button class="modal-close" data-auth-close>&times;</button>
+      <div style="text-align:center;margin-bottom:0.75rem;"><img src="../img/webake-logo.png" alt="WeBake" style="height:38px;width:auto;object-fit:contain;"></div>
       <h3 class="auth-modal-title">Create Account</h3>
       <p class="auth-modal-subtitle">Join us and enjoy freshly baked goods!</p>
       <form id="register-form">
@@ -107,6 +109,7 @@
     <!-- FORGOT PASSWORD MODAL -->
     <div class="modal" id="forgot-modal" style="z-index:3001;padding:2.5rem">
       <button class="modal-close" data-auth-close>&times;</button>
+      <div style="text-align:center;margin-bottom:0.75rem;"><img src="../img/webake-logo.png" alt="WeBake" style="height:38px;width:auto;object-fit:contain;"></div>
       <h3 class="auth-modal-title">Reset Password</h3>
       <p class="auth-modal-subtitle">Enter your email to receive an OTP.</p>
       <form id="forgot-form">
@@ -123,7 +126,7 @@
     <!-- OTP VERIFICATION MODAL -->
     <div class="modal" id="otp-modal" style="z-index:3001;padding:2.5rem">
       <button class="modal-close" data-auth-close>&times;</button>
-      <div style="text-align:center;font-size:2.5rem;color:var(--accent);margin-bottom:1rem"><i class="fas fa-envelope-open-text"></i></div>
+      <div style="text-align:center;margin-bottom:0.75rem;"><img src="../img/webake-logo.png" alt="WeBake" style="height:38px;width:auto;object-fit:contain;"></div>
       <h3 class="auth-modal-title" style="margin-bottom:.25rem">Verify Email</h3>
       <p class="auth-modal-subtitle">Enter the 6‑digit code sent to <br><strong id="otp-email-display" style="color:var(--dark)"></strong></p>
       <form id="otp-form">
@@ -144,6 +147,7 @@
     <!-- RESET PASSWORD MODAL -->
     <div class="modal" id="reset-modal" style="z-index:3001;padding:2.5rem">
       <button class="modal-close" data-auth-close>&times;</button>
+      <div style="text-align:center;margin-bottom:0.75rem;"><img src="../img/webake-logo.png" alt="WeBake" style="height:38px;width:auto;object-fit:contain;"></div>
       <h3 class="auth-modal-title">Set New Password</h3>
       <p class="auth-modal-subtitle">Enter and confirm your new password.</p>
       <form id="reset-form">
@@ -165,6 +169,7 @@
     <!-- TRACK TRANSACTIONS MODAL -->
     <div class="modal" id="track-order-modal" style="z-index:3001;padding:2rem;max-width:560px;width:92%;max-height:90vh;overflow-y:auto;">
       <button class="modal-close" data-auth-close>&times;</button>
+      <div style="text-align:center;margin-bottom:0.75rem;"><img src="../img/webake-logo.png" alt="WeBake" style="height:36px;width:auto;object-fit:contain;"></div>
       <h3 class="auth-modal-title" style="margin-bottom:0.25rem;"><i class="fas fa-search-dollar"></i> Track Transactions</h3>
       <p class="auth-modal-subtitle" style="margin-bottom:1.25rem;">Look up bread delivery orders, 50% downpayments, refunds, or wholesale partnership applications in real-time.</p>
       

@@ -1,4 +1,8 @@
-# WeBake - Crumbs N' Rolls Bakery Management & Ordering System (CRBSystem)
+<div align="center">
+  <img src="frontend/customer/img/webake-logo.png" alt="WeBake — Crumbs N' Rolls Bakery" width="340">
+  
+  # WeBake — Crumbs N' Rolls Bakery Management & Ordering System
+</div>
 
 ![Vercel Deployment](https://img.shields.io/badge/Vercel-Serverless%20Functions-black?style=flat&logo=vercel)
 ![Supabase](https://img.shields.io/badge/Database-Supabase%20PostgreSQL-3ECF8E?style=flat&logo=supabase)
