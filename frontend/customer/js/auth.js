@@ -45,16 +45,18 @@
   // ====================================================================
   const USERS_KEY = 'weBakeUsers';
   const SESSION_KEY = 'weBakeSession';
-  const MIGRATION_KEY = 'weBake_clean_reset_pre_emailer_v1';
+  const MIGRATION_KEY = 'weBake_clean_slate_2026_10_03_v1';
 
-  // One-time cleanup for legacy test accounts
-  (function cleanAllLegacyAccounts() {
+  // Automatic clean slate reset for all devices (laptop, phone, etc.)
+  (function cleanAllAccounts() {
     try {
       if (!localStorage.getItem(MIGRATION_KEY)) {
         localStorage.removeItem(USERS_KEY);
         localStorage.removeItem(SESSION_KEY);
         localStorage.removeItem('weBakeAllOrders');
         localStorage.removeItem('weBakePartnerApplications');
+        localStorage.removeItem('_weBakeOtpTimer');
+        localStorage.removeItem('weBakeOtpTimer');
         localStorage.setItem(MIGRATION_KEY, 'true');
       }
     } catch (e) {}
