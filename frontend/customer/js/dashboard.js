@@ -600,47 +600,7 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        const showConfirmRefundModal = (onConfirm) => {
-          document.getElementById('confirm-refund-modal')?.remove();
-          const confirmModalHtml = `
-            <div id="confirm-refund-modal" class="overlay active" style="z-index:100000;">
-              <div class="modal active" style="max-width:440px; text-align:center; padding: 2rem; background:#fff; border-radius:12px; box-shadow:0 12px 35px rgba(0,0,0,0.25);">
-                <div style="font-size:2.8rem; color:#dc3545; margin-bottom:0.75rem;">
-                  <i class="fas fa-exclamation-circle"></i>
-                </div>
-                <h3 style="color:#2E1A14; font-size:1.25rem; font-weight:700; margin-bottom:0.5rem;">Confirm Cancellation & Refund</h3>
-                <p style="color:#666; font-size:0.88rem; line-height:1.6; margin-bottom:1.25rem;">
-                  Are you sure you want to request cancellation for this order placed on <strong>${order.date}</strong>?<br>
-                  A 50% downpayment refund of <strong style="color:#28a745;">\u20B1${downpayment.toLocaleString()}</strong> will be credited to your <strong>${wallet}</strong> account (<strong>${accNum}</strong>).
-                </p>
-                <div style="display:flex; justify-content:center; gap:0.75rem;">
-                  <button type="button" id="confirm-refund-no" class="btn btn-outline" style="padding:0.55rem 1.25rem; font-size:0.85rem;">No, Keep Order</button>
-                  <button type="button" id="confirm-refund-yes" class="btn btn-primary" style="padding:0.55rem 1.35rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545;">
-                    <i class="fas fa-undo-alt"></i> Yes, Request Refund
-                  </button>
-                </div>
-              </div>
-            </div>
-          `;
-          document.body.insertAdjacentHTML('beforeend', confirmModalHtml);
-
-          const confirmWrap = document.getElementById('confirm-refund-modal');
-          const btnNo = document.getElementById('confirm-refund-no');
-          const btnYes = document.getElementById('confirm-refund-yes');
-
-          const closeConfirm = () => confirmWrap?.remove();
-          btnNo?.addEventListener('click', closeConfirm);
-          confirmWrap?.addEventListener('click', (ev) => {
-            if (ev.target === confirmWrap) closeConfirm();
-          });
-
-          btnYes?.addEventListener('click', () => {
-            closeConfirm();
-            onConfirm();
-          });
-        };
-
-        showConfirmRefundModal(() => {
+        const doRefundRequest = () => {
           const refundData = {
             reason: reason,
             wallet: wallet,
@@ -680,7 +640,17 @@ document.addEventListener('DOMContentLoaded', () => {
           closeModal();
           DashboardOrders.render();
           toast('Cancellation & downpayment refund request submitted successfully.');
-        });
+        };
+
+        if (window.WeBakeModals && typeof window.WeBakeModals.confirmRefund === 'function') {
+          window.WeBakeModals.confirmRefund({
+            orderDate: order.date,
+            downpayment: downpayment,
+            wallet: wallet,
+            accNum: accNum,
+            onConfirm: doRefundRequest
+          });
+        }
       });
     },
 
@@ -738,26 +708,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const cancelBtn = document.getElementById('cancel-partner-btn');
       if (cancelBtn) {
         cancelBtn.addEventListener('click', () => {
-          const modalHtml = `
-            <div id="cancel-partner-modal" class="overlay active" style="z-index:9999;">
-              <div class="modal active" style="max-width:400px; text-align:center; padding: 2rem;">
-                <h3 style="color:#dc3545; margin-bottom:1rem;"><i class="fas fa-exclamation-triangle"></i> Cancel Application</h3>
-                <p style="margin-bottom:1.5rem; color:#555;">Are you sure you want to cancel your partnership request? This action cannot be undone.</p>
-                <div style="display:flex; justify-content:center; gap:1rem;">
-                  <button id="cancel-modal-no" class="btn btn-outline">No, Keep It</button>
-                  <button id="cancel-modal-yes" class="btn btn-primary" style="background:#dc3545; border-color:#dc3545;">Yes, Cancel Request</button>
-                </div>
-              </div>
-            </div>
-          `;
-          document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-          document.getElementById('cancel-modal-no')?.addEventListener('click', () => {
-            document.getElementById('cancel-partner-modal')?.remove();
-          });
-
-          document.getElementById('cancel-modal-yes')?.addEventListener('click', () => {
-            document.getElementById('cancel-partner-modal')?.remove();
+          const doCancel = () => {
             const freshAll = DashboardStore.getUsers();
             const target = freshAll.find(u => DashboardStore.sameEmail(u.email, session.email));
             if (target) {
@@ -784,7 +735,11 @@ document.addEventListener('DOMContentLoaded', () => {
               toast('Partnership cancelled.');
               window.dispatchEvent(new CustomEvent('weBakePartnerChange'));
             }
-          });
+          };
+
+          if (window.WeBakeModals && typeof window.WeBakeModals.confirmCancelPartner === 'function') {
+            window.WeBakeModals.confirmCancelPartner({ onConfirm: doCancel });
+          }
         });
       }
     }

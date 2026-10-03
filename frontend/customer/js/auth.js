@@ -125,161 +125,12 @@
   // 3. AUTH MODAL TEMPLATES & INJECTION
   // ====================================================================
   function injectAuthTemplates() {
-    if (document.getElementById('auth-overlay')) return;
-
-    const authHtml = `
-      <style>
-        .auth-icon-input{position:relative}
-        .auth-icon-input i.fa-lock,.auth-icon-input i.fa-envelope,.auth-icon-input i.fa-user,.auth-icon-input i.fa-phone,.auth-icon-input i.fa-map-marker-alt{position:absolute;left:1rem;top:50%;transform:translateY(-50%);color:var(--gray);font-size:.9rem}
-        .auth-icon-input input{padding-left:2.5rem!important;padding-right:2.5rem!important}
-        .auth-eye-toggle{position:absolute;right:1rem;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--gray);font-size:.95rem;background:none;border:none;padding:0}
-        .auth-eye-toggle:hover{color:var(--dark)}
-        .auth-modal-title{text-align:center;margin-bottom:.5rem;color:var(--primary);font-size:1.5rem}
-        .auth-modal-subtitle{text-align:center;color:var(--gray);margin-bottom:1.5rem;font-size:.9rem}
-        .auth-link{color:#6B3A2A;font-weight:600;text-decoration:none;transition:var(--ease)}
-        .auth-link:hover{text-decoration:underline;color:#D4A96A}
-        .track-tab-wrap{display:flex;gap:0.5rem;margin-bottom:1.25rem;background:#f5f0eb;padding:4px;border-radius:8px;width:100%;box-sizing:border-box}
-        .track-tab-btn{flex:1 1 0;min-width:0;border-radius:6px;font-weight:600;font-size:0.85rem;padding:0.55rem 0.5rem;border:none;transition:all .2s;cursor:pointer;white-space:normal!important;text-align:center;line-height:1.25;display:inline-flex;align-items:center;justify-content:center;gap:0.4rem;box-sizing:border-box;word-break:normal;overflow-wrap:break-word}
-        .track-tab-btn i{flex-shrink:0}
-        .track-tab-btn.active{background:var(--primary)!important;color:#fff!important}
-        .track-tab-btn:not(.active){background:transparent!important;color:#666!important}
-        .track-tab-btn:hover:not(.active){color:var(--primary)!important}
-        @media(max-width:520px){
-          #track-order-modal{padding:1.5rem 1rem!important;width:95%!important}
-          .track-tab-wrap{gap:0.35rem;padding:3px}
-          .track-tab-btn{font-size:0.78rem;padding:0.5rem 0.35rem;gap:0.3rem}
-          .track-tab-btn i{font-size:0.82rem}
-        }
-        @media(max-width:380px){
-          .track-tab-wrap{flex-direction:column;gap:0.35rem}
-          .track-tab-btn{width:100%;padding:0.6rem 0.75rem;font-size:0.82rem}
-        }
-      </style>
-      <div class="overlay" id="auth-overlay" style="z-index:3000"></div>
-
-      <!-- SIGN IN -->
-      <div class="modal" id="signin-modal" style="z-index:3001;padding:2.5rem">
-        <button class="modal-close" data-auth-close>&times;</button>
-        <h3 class="auth-modal-title">Welcome Back</h3>
-        <p class="auth-modal-subtitle">Sign in to your WeBake account</p>
-        <form id="signin-form">
-          <div class="form-group">
-            <label>Email</label>
-            <div class="auth-icon-input"><i class="fas fa-envelope"></i><input type="email" class="form-input" required placeholder="Enter your email"></div>
-          </div>
-          <div class="form-group">
-            <label>Password</label>
-            <div class="auth-icon-input"><i class="fas fa-lock"></i><input type="password" class="form-input" required placeholder="Enter your password"><button type="button" class="auth-eye-toggle"><i class="fas fa-eye"></i></button></div>
-          </div>
-          <div class="form-group" style="text-align:right;margin-top:-.5rem">
-            <a href="#" data-auth-open="forgot-modal" class="auth-link" style="font-size:.85rem;font-weight:500">Forgot Password?</a>
-          </div>
-          <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-sign-in-alt"></i> Log In</button>
-        </form>
-        <p style="text-align:center;margin-top:1.5rem;font-size:.9rem">Don't have an account yet? <a href="#" data-auth-open="register-modal" class="auth-link">Create one here</a></p>
-      </div>
-
-      <!-- REGISTER -->
-      <div class="modal" id="register-modal" style="z-index:3001;padding:2.5rem">
-        <button class="modal-close" data-auth-close>&times;</button>
-        <h3 class="auth-modal-title">Create Account</h3>
-        <p class="auth-modal-subtitle">Join us and enjoy freshly baked goods!</p>
-        <form id="register-form">
-          <div class="form-group">
-            <label>Full Name</label>
-            <div class="auth-icon-input"><i class="fas fa-user"></i><input type="text" class="form-input" required placeholder="Juan Dela Cruz"></div>
-          </div>
-          <div class="form-group">
-            <label>Email</label>
-            <div class="auth-icon-input"><i class="fas fa-envelope"></i><input type="email" class="form-input" required id="reg-email" placeholder="juan@gmail.com" pattern="[a-zA-Z0-9._%+\\-]+@[gG][mM][aA][iI][lL]\\.[cC][oO][mM]" title="Must be a valid Gmail address (@gmail.com)"></div>
-            <div class="reg-email-error" style="display:none; color:var(--danger); font-size:0.75rem; margin-top:0.25rem;">Please enter a valid Gmail address (must end with @gmail.com)</div>
-          </div>
-          <div class="form-group">
-            <label>Contact Number</label>
-            <div class="auth-icon-input"><i class="fas fa-phone"></i><input type="tel" class="form-input" required id="reg-contact" placeholder="09XXXXXXXXX" pattern="09[0-9]{9}" maxlength="11" inputmode="numeric" title="Must start with 09 and be 11 digits long"></div>
-            <div class="reg-contact-error" style="display:none; color:var(--danger); font-size:0.75rem; margin-top:0.25rem;">Contact number must be 11 digits starting with 09 (no letters/characters)</div>
-          </div>
-          <div class="form-group">
-            <label>Delivery Address</label>
-            <div class="auth-icon-input"><i class="fas fa-map-marker-alt"></i><input type="text" class="form-input" required id="reg-address" placeholder="123 Bakery St, City"></div>
-          </div>
-          <div class="form-group">
-            <label>Password</label>
-            <div class="auth-icon-input"><i class="fas fa-lock"></i><input type="password" class="form-input" required id="reg-pwd" placeholder="Create a strong password"><button type="button" class="auth-eye-toggle"><i class="fas fa-eye"></i></button></div>
-            <div class="pwd-strength" style="display:none; margin-top:0.5rem; height:4px; border-radius:2px; background:#eee; overflow:hidden;"><div class="pwd-strength-bar" style="width:0; height:100%; transition:all 0.3s;"></div></div>
-            <div class="pwd-strength-text" style="display:none; font-size:0.75rem; margin-top:0.25rem; font-weight:600;"></div>
-          </div>
-          <div class="form-group">
-            <label>Confirm Password</label>
-            <div class="auth-icon-input"><i class="fas fa-lock"></i><input type="password" class="form-input" required id="reg-cpwd" placeholder="Confirm your password"><button type="button" class="auth-eye-toggle"><i class="fas fa-eye"></i></button></div>
-            <div class="cpwd-error" style="display:none; color:var(--danger); font-size:0.75rem; margin-top:0.25rem;">Passwords do not match</div>
-          </div>
-          <button type="submit" class="btn btn-primary btn-block" id="reg-submit-btn"><i class="fas fa-user-plus"></i> Register Account</button>
-        </form>
-        <p style="text-align:center;margin-top:1.5rem;font-size:.9rem">Already have an account? <a href="#" data-auth-open="signin-modal" class="auth-link">Sign In</a></p>
-      </div>
-
-      <!-- FORGOT PASSWORD -->
-      <div class="modal" id="forgot-modal" style="z-index:3001;padding:2.5rem">
-        <button class="modal-close" data-auth-close>&times;</button>
-        <h3 class="auth-modal-title">Reset Password</h3>
-        <p class="auth-modal-subtitle">Enter your email to receive an OTP.</p>
-        <form id="forgot-form">
-          <div class="form-group">
-            <label>Email</label>
-            <div class="auth-icon-input"><i class="fas fa-envelope"></i><input type="email" class="form-input" id="forgot-email" required placeholder="Enter your registered email"></div>
-            <div id="forgot-email-error" style="display:none; color:var(--danger); font-size:0.75rem; margin-top:0.25rem;"></div>
-          </div>
-          <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-paper-plane"></i> Send OTP</button>
-        </form>
-        <p style="text-align:center;margin-top:1.5rem;font-size:.9rem">Remember your password? <a href="#" data-auth-open="signin-modal" class="auth-link">Return to Sign In</a></p>
-      </div>
-
-      <!-- OTP VERIFICATION -->
-      <div class="modal" id="otp-modal" style="z-index:3001;padding:2.5rem">
-        <button class="modal-close" data-auth-close>&times;</button>
-        <div style="text-align:center;font-size:2.5rem;color:var(--accent);margin-bottom:1rem"><i class="fas fa-envelope-open-text"></i></div>
-        <h3 class="auth-modal-title" style="margin-bottom:.25rem">Verify Email</h3>
-        <p class="auth-modal-subtitle">Enter the 6‑digit code sent to <br><strong id="otp-email-display" style="color:var(--dark)"></strong></p>
-        <form id="otp-form">
-          <div class="form-group otp-inputs" id="otpInputs" style="display:flex;gap:0.5rem;justify-content:center;margin-bottom:1.5rem">
-            <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
-            <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
-            <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
-            <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
-            <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
-            <input class="otp-input form-input" type="text" inputmode="numeric" maxlength="1" required style="width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:600;padding:0">
-          </div>
-          <div class="invalid-feedback" id="otp-error-modal" style="display:none; color:var(--danger); background:rgba(220,53,69,0.1); padding:0.6rem 0.85rem; border-radius:var(--radius); margin-bottom:1rem; text-align:center; font-size:0.85rem; font-weight:500;"></div>
-          <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-check-circle"></i> Verify</button>
-        </form>
-        <p style="text-align:center;margin-top:1.5rem;font-size:.9rem;color:var(--gray)"><span id="otp-timer-wrap">Resend code in <strong id="otp-timer">60</strong>s</span> <a href="#" id="otp-resend-btn" class="auth-link" style="display:none"><i class="fas fa-redo-alt"></i> Resend OTP</a></p>
-      </div>
-
-      <!-- RESET PASSWORD -->
-      <div class="modal" id="reset-modal" style="z-index:3001;padding:2.5rem">
-        <button class="modal-close" data-auth-close>&times;</button>
-        <h3 class="auth-modal-title">Set New Password</h3>
-        <p class="auth-modal-subtitle">Enter and confirm your new password.</p>
-        <form id="reset-form">
-          <div class="form-group">
-            <label>New Password</label>
-            <div class="auth-icon-input"><i class="fas fa-lock"></i><input type="password" class="form-input" required id="reset-pwd" placeholder="New password"><button type="button" class="auth-eye-toggle"><i class="fas fa-eye"></i></button></div>
-            <div class="pwd-strength" style="display:none; margin-top:0.5rem; height:4px; border-radius:2px; background:#eee; overflow:hidden;"><div class="pwd-strength-bar" style="width:0; height:100%; transition:all 0.3s;"></div></div>
-            <div class="pwd-strength-text" style="display:none; font-size:0.75rem; margin-top:0.25rem; font-weight:600;"></div>
-          </div>
-          <div class="form-group">
-            <label>Confirm Password</label>
-            <div class="auth-icon-input"><i class="fas fa-lock"></i><input type="password" class="form-input" required id="reset-cpwd" placeholder="Confirm password"><button type="button" class="auth-eye-toggle"><i class="fas fa-eye"></i></button></div>
-            <div class="cpwd-error" style="display:none; color:var(--danger); font-size:0.75rem; margin-top:0.25rem;">Passwords do not match</div>
-          </div>
-          <button type="submit" class="btn btn-primary btn-block" id="reset-submit-btn"><i class="fas fa-save"></i> Save Password</button>
-        </form>
-      </div>
-    `;
-
-    document.body.insertAdjacentHTML('beforeend', authHtml);
+    if (window.WeBakeModals && typeof window.WeBakeModals.injectTemplates === 'function') {
+      window.WeBakeModals.injectTemplates();
+      return;
+    }
   }
+
 
   // ====================================================================
   // 4. PASSWORD STRENGTH & VALIDATION LOGIC
@@ -866,20 +717,25 @@
 
     // Global click listener
     document.body.addEventListener('click', e => {
-      // Password Eye toggle
+      // Password Eye toggle (delegated to modals.js when present)
       const toggle = e.target.closest('.auth-eye-toggle');
       if (toggle) {
+        if (window.WeBakeModals) return;
         e.preventDefault();
-        const input = toggle.parentElement.querySelector('input');
+        const input = toggle.parentElement?.querySelector('input') || toggle.closest('.form-group')?.querySelector('input');
         const icon = toggle.querySelector('i');
-        const hidden = input.type === 'password';
-        input.type = hidden ? 'text' : 'password';
-        icon.classList.toggle('fa-eye', !hidden);
-        icon.classList.toggle('fa-eye-slash', hidden);
+        if (input && icon) {
+          const hidden = input.type === 'password';
+          input.type = hidden ? 'text' : 'password';
+          icon.classList.remove(hidden ? 'fa-eye' : 'fa-eye-slash');
+          icon.classList.add(hidden ? 'fa-eye-slash' : 'fa-eye');
+        }
+        return;
       }
 
       // Track Transactions click delegation
       if (e.target.closest('[data-track-order-open]')) {
+        if (window.WeBakeModals) return;
         e.preventDefault();
         if (typeof window.openTrackOrderModal === 'function') {
           window.openTrackOrderModal();
@@ -890,12 +746,14 @@
 
       // Open Modal via data-auth-open
       if (e.target.closest('[data-auth-open]')) {
+        if (window.WeBakeModals) return;
         e.preventDefault();
         openAuthModal(e.target.closest('[data-auth-open]').getAttribute('data-auth-open'));
       }
 
       // Close Modal via data-auth-close or backdrop
       if (e.target.matches('[data-auth-close]') || e.target.id === 'auth-overlay') {
+        if (window.WeBakeModals) return;
         closeAuthModals();
       }
 

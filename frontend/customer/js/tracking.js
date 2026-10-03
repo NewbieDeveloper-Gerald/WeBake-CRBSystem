@@ -21,55 +21,11 @@
 
   // --- 1. Templates & Modal Markup ---
   function ensureTrackingModal() {
-    if (document.getElementById('track-order-modal')) return;
-
-    const modalHtml = `
-      <!-- TRACK TRANSACTIONS MODAL -->
-      <div class="modal" id="track-order-modal" style="z-index:3001;padding:2rem;max-width:560px;width:92%;max-height:90vh;overflow-y:auto;">
-        <button class="modal-close" data-auth-close>&times;</button>
-        <h3 class="auth-modal-title" style="margin-bottom:0.25rem;"><i class="fas fa-search-dollar"></i> Track Transactions</h3>
-        <p class="auth-modal-subtitle" style="margin-bottom:1.25rem;">Look up bread delivery orders, 50% downpayments, refunds, or wholesale partnership applications in real-time.</p>
-        
-        <!-- Track Mode Tabs -->
-        <div class="track-tab-wrap">
-          <button type="button" class="btn btn-sm track-tab-btn active" id="tab-btn-orders">
-            <i class="fas fa-bread-slice"></i> <span>Bread Orders</span>
-          </button>
-          <button type="button" class="btn btn-sm track-tab-btn" id="tab-btn-partner">
-            <i class="fas fa-handshake"></i> <span>Partnership Applications</span>
-          </button>
-        </div>
-
-        <form id="track-order-form" style="margin-bottom:1rem;">
-          <input type="hidden" id="track-type-mode" value="order">
-          <div class="form-group" style="text-align:left;">
-            <label id="track-label-id" style="font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:0.45rem;margin-bottom:0.35rem;color:var(--dark);">
-              <i class="fas fa-receipt" style="color:var(--primary);font-size:0.95rem;"></i> Order ID *
-            </label>
-            <input type="text" class="form-input" id="track-input-id" required placeholder="e.g. WB-84920" style="text-transform:uppercase;">
-          </div>
-          <div class="form-group" style="text-align:left;">
-            <label id="track-label-contact" style="font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:0.45rem;margin-bottom:0.35rem;color:var(--dark);">
-              <i class="fas fa-address-card" style="color:var(--primary);font-size:0.95rem;"></i> Email or Contact Number *
-            </label>
-            <input type="text" class="form-input" id="track-input-contact" required placeholder="Email or phone used at checkout">
-          </div>
-          <div id="track-error-msg" style="display:none; color:var(--danger); background:rgba(220,53,69,0.1); padding:0.6rem; border-radius:var(--radius); font-size:0.85rem; text-align:center; margin-bottom:0.75rem;"></div>
-          <button type="submit" class="btn btn-primary btn-block" id="track-submit-btn"><i class="fas fa-search"></i> Check Order Status</button>
-        </form>
-
-        <div id="track-result-container" style="display:none; text-align:left;"></div>
-      </div>
-    `;
-
-    // Append to auth overlay if exists, or to body
-    const overlay = document.getElementById('auth-overlay');
-    if (overlay) {
-      document.body.insertAdjacentHTML('beforeend', modalHtml);
-    } else {
-      document.body.insertAdjacentHTML('beforeend', modalHtml);
+    if (window.WeBakeModals && typeof window.WeBakeModals.injectTemplates === 'function') {
+      window.WeBakeModals.injectTemplates();
     }
   }
+
 
   // --- 2. Tab Controller ---
   function setTrackTab(mode) {
@@ -391,47 +347,7 @@
         return;
       }
 
-      function showConfirmRefundModal(onConfirm) {
-        document.getElementById('confirm-refund-modal')?.remove();
-        const confirmModalHtml = `
-          <div id="confirm-refund-modal" class="overlay active" style="z-index:100000;">
-            <div class="modal active" style="max-width:440px; text-align:center; padding: 2rem; background:#fff; border-radius:12px; box-shadow:0 12px 35px rgba(0,0,0,0.25);">
-              <div style="font-size:2.8rem; color:#dc3545; margin-bottom:0.75rem;">
-                <i class="fas fa-exclamation-circle"></i>
-              </div>
-              <h3 style="color:#2E1A14; font-size:1.25rem; font-weight:700; margin-bottom:0.5rem;">Confirm Cancellation & Refund</h3>
-              <p style="color:#666; font-size:0.88rem; line-height:1.6; margin-bottom:1.25rem;">
-                Are you sure you want to request cancellation for order <strong>${order.orderId}</strong>?<br>
-                A 50% downpayment refund of <strong style="color:#28a745;">₱${downpayment.toLocaleString()}</strong> will be credited to your <strong>${wallet}</strong> account (<strong>${accountNum}</strong>).
-              </p>
-              <div style="display:flex; justify-content:center; gap:0.75rem;">
-                <button type="button" id="confirm-refund-no" class="btn btn-outline" style="padding:0.55rem 1.25rem; font-size:0.85rem;">No, Keep Order</button>
-                <button type="button" id="confirm-refund-yes" class="btn btn-primary" style="padding:0.55rem 1.35rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545;">
-                  <i class="fas fa-undo-alt"></i> Yes, Request Refund
-                </button>
-              </div>
-            </div>
-          </div>
-        `;
-        document.body.insertAdjacentHTML('beforeend', confirmModalHtml);
-
-        const confirmWrap = document.getElementById('confirm-refund-modal');
-        const btnNo = document.getElementById('confirm-refund-no');
-        const btnYes = document.getElementById('confirm-refund-yes');
-
-        const closeConfirm = () => confirmWrap?.remove();
-        btnNo?.addEventListener('click', closeConfirm);
-        confirmWrap?.addEventListener('click', (e) => {
-          if (e.target === confirmWrap) closeConfirm();
-        });
-
-        btnYes?.addEventListener('click', () => {
-          closeConfirm();
-          onConfirm();
-        });
-      }
-
-      showConfirmRefundModal(() => {
+      const onConfirmAction = () => {
         const allOrders = JSON.parse(localStorage.getItem('weBakeAllOrders') || '[]');
         const targetO = allOrders.find(o => o.orderId === order.orderId);
         const refundData = {
@@ -439,6 +355,7 @@
           wallet: wallet,
           accountNum: accountNum,
           accountName: accountName,
+          amount: downpayment,
           requestedAt: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
         };
 
@@ -449,26 +366,50 @@
         }
 
         const allUsers = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
-        let updatedUser = false;
+        let updated = false;
         for (const u of allUsers) {
           if (u.orderHistory) {
             const match = u.orderHistory.find(o => o.orderId === order.orderId);
             if (match) {
               match.status = 'cancellation_requested';
               match.refundDetails = refundData;
-              updatedUser = true;
+              updated = true;
             }
           }
         }
-        if (updatedUser) localStorage.setItem('weBakeUsers', JSON.stringify(allUsers));
+        if (updated) {
+          localStorage.setItem('weBakeUsers', JSON.stringify(allUsers));
+        }
 
-        order.status = 'cancellation_requested';
-        order.refundDetails = refundData;
-        showToast('Cancellation & refund request submitted successfully.');
-        renderTrackOrderResult(order, resBox);
-      });
+        closeRefundForm();
+        renderOrderResult(targetO || order);
+        showToast('Cancellation & downpayment refund request submitted successfully.');
+      };
+
+      if (window.WeBakeModals && typeof window.WeBakeModals.confirmRefund === 'function') {
+        window.WeBakeModals.confirmRefund({
+          orderDate: `order ${order.orderId}`,
+          downpayment: downpayment,
+          wallet: wallet,
+          accNum: accountNum,
+          onConfirm: () => {
+            onConfirmAction();
+            order.status = 'cancellation_requested';
+            order.refundDetails = {
+              reason: reason,
+              wallet: wallet,
+              accountNum: accountNum,
+              accountName: accountName,
+              amount: downpayment,
+              requestedAt: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+            };
+            renderTrackOrderResult(order, resBox);
+          }
+        });
+      }
     });
   }
+
 
   // --- 5. Render Partner Application Search Result ---
   function renderTrackPartnerResult(app, resBox) {
@@ -577,29 +518,7 @@
 
     // Cancel application button
     resBox.querySelector('#track-cancel-partner-btn')?.addEventListener('click', () => {
-      document.getElementById('cancel-partner-modal')?.remove();
-
-      const modalHtml = `
-        <div id="cancel-partner-modal" class="overlay active" style="z-index:999999;">
-          <div class="modal active" style="max-width:400px; text-align:center; padding: 2rem; background:#fff; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
-            <h3 style="color:#dc3545; margin-bottom:1rem;"><i class="fas fa-exclamation-triangle"></i> Cancel Application</h3>
-            <p style="margin-bottom:1.5rem; color:#555; font-size:0.9rem; line-height:1.5;">Are you sure you want to cancel your partnership request? This action cannot be undone.</p>
-            <div style="display:flex; justify-content:center; gap:1rem;">
-              <button id="cancel-modal-no" class="btn btn-outline" type="button">No, Keep It</button>
-              <button id="cancel-modal-yes" class="btn btn-primary" type="button" style="background:#dc3545; border-color:#dc3545;">Yes, Cancel Request</button>
-            </div>
-          </div>
-        </div>
-      `;
-      document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-      document.getElementById('cancel-modal-no')?.addEventListener('click', () => {
-        document.getElementById('cancel-partner-modal')?.remove();
-      });
-
-      document.getElementById('cancel-modal-yes')?.addEventListener('click', () => {
-        document.getElementById('cancel-partner-modal')?.remove();
-
+      const doCancelPartner = () => {
         const allApps = JSON.parse(localStorage.getItem('weBakePartnerApplications') || '[]');
         const targetIndex = allApps.findIndex(a => a.appId && a.appId.toUpperCase() === app.appId.toUpperCase());
         if (targetIndex !== -1) {
@@ -628,7 +547,11 @@
 
         window.dispatchEvent(new Event('storage'));
         window.dispatchEvent(new CustomEvent('weBakePartnerChange'));
-      });
+      };
+
+      if (window.WeBakeModals && typeof window.WeBakeModals.confirmCancelPartner === 'function') {
+        window.WeBakeModals.confirmCancelPartner({ onConfirm: doCancelPartner });
+      }
     });
   }
 
