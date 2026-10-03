@@ -490,18 +490,7 @@
           autoFillCheckoutForm();
           return;
         } else {
-          // Fallback to local store for offline or dev test accounts
-          const localUser = AuthStore.find(email);
-          if (localUser && localUser.password === pwd) {
-            AuthStore.setSession(localUser);
-            showToast(`Welcome back, ${localUser.name}! 🎉`);
-            closeAuthModals();
-            updateNavState();
-            autoFillCheckoutForm();
-            return;
-          }
-
-          const errorMsg = data.message || 'Failed to sign in. Please verify your email and password.';
+          const errorMsg = data.message || 'No account found for this email. Please check your spelling or register.';
           showToast(errorMsg);
           if (data.error === 'user_not_found') {
             if (inputs[0]) inputs[0].focus();
@@ -511,16 +500,7 @@
         }
       } catch (err) {
         console.error('[Sign In Error]:', err);
-        const localUser = AuthStore.find(email);
-        if (localUser && localUser.password === pwd) {
-          AuthStore.setSession(localUser);
-          showToast(`Welcome back, ${localUser.name}! 🎉`);
-          closeAuthModals();
-          updateNavState();
-          autoFillCheckoutForm();
-        } else {
-          showToast('Network error while signing in. Please check your internet connection.');
-        }
+        showToast('Network error while signing in. Please check your internet connection.');
       } finally {
         if (submitBtn) {
           submitBtn.disabled = false;
@@ -761,25 +741,31 @@
                 autoFillCheckoutForm();
                 return;
               } else {
-                console.warn('[Cloud Registration Warning]:', regData.message);
-                AuthStore.add(registeredUser);
-                AuthStore.setSession(registeredUser);
-                pendingRegistration = null;
-                showToast(`Account created! Welcome, ${registeredUser.name}! 🎉`);
-                closeAuthModals();
-                updateNavState();
-                autoFillCheckoutForm();
+                const errMsg = regData.message || 'Failed to create account in cloud database. Please try again.';
+                if (otpError) {
+                  otpError.textContent = errMsg;
+                  otpError.style.display = 'block';
+                }
+                showToast(errMsg);
+                if (verifyBtn) {
+                  verifyBtn.disabled = false;
+                  verifyBtn.innerHTML = 'Verify &amp; Create Account';
+                }
                 return;
               }
             } catch (err) {
               console.error('[Cloud Registration Fetch Error]:', err);
-              AuthStore.add(registeredUser);
-              AuthStore.setSession(registeredUser);
-              pendingRegistration = null;
-              showToast(`Account created! Welcome, ${registeredUser.name}! 🎉`);
-              closeAuthModals();
-              updateNavState();
-              autoFillCheckoutForm();
+              const errMsg = 'Network error connecting to authentication server. Please try again.';
+              if (otpError) {
+                otpError.textContent = errMsg;
+                otpError.style.display = 'block';
+              }
+              showToast(errMsg);
+              if (verifyBtn) {
+                verifyBtn.disabled = false;
+                verifyBtn.innerHTML = 'Verify &amp; Create Account';
+              }
+              return;
             }
           } else if (flowMode === 'forgot') {
             closeAuthModals();
