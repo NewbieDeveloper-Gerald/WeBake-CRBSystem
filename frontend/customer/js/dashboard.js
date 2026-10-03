@@ -762,8 +762,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Custom event sync
-  window.addEventListener('weBakePartnerChange', () => {
-    DashboardPartnership.render();
-  });
+  // Background cloud database sync
+  async function syncFromCloud() {
+    try {
+      const sess = DashboardStore.getSession();
+      if (!sess || !sess.email) return;
+      const apiBase = window.WEBAKE_API_BASE || (
+        window.location.protocol === 'file:' ||
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1'
+          ? 'http://localhost:5000/api'
+          : '/api'
+      );
+      const res = await fetch(`${apiBase}/auth/sync?email=${encodeURIComponent(sess.email)}`);
+      const data = await res.json();
+      if (data && data.success && data.user) {
+        const allUsers = DashboardStore.getUsers();
+        const idx = allUsers.findIndex(u => DashboardStore.sameEmail(u.email, sess.email));
+        if (idx !== -1) {
+          allUsers[idx] = Object.assign(allUsers[idx], data.user);
+        } else {
+          allUsers.push(data.user);
+        }
+        DashboardStore.saveUsers(allUsers);
+        currentUser = allUsers[idx !== -1 ? idx : allUsers.length - 1];
+        DashboardProfile.init();
+        DashboardOrders.render();
+        DashboardPartnership.render();
+      }
+    } catch (e) {
+      console.warn('[Dashboard Cloud Sync Error]:', e);
+    }
+  }
+  syncFromCloud();
 });

@@ -5,22 +5,29 @@
  * ====================================================================
  */
 
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const { Pool } = require('pg');
 
-const poolConfig = {
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || '5432', 10),
-  database: process.env.DB_NAME || 'postgres',
-  ssl: {
-    rejectUnauthorized: false
-  },
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000
-};
+const poolConfig = process.env.DATABASE_URL
+  ? {
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000
+    }
+  : {
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      host: process.env.DB_HOST,
+      port: parseInt(process.env.DB_PORT || '6543', 10),
+      database: process.env.DB_NAME || 'postgres',
+      ssl: { rejectUnauthorized: false },
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000
+    };
 
 // If DATABASE_URL is present and DB_HOST is not explicitly preferred, we can also support connectionString
 const pool = new Pool(poolConfig);

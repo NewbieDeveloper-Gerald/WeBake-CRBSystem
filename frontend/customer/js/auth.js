@@ -13,6 +13,15 @@
 (function (window, document) {
   'use strict';
 
+  // Configurable API Base URL (defaults to localhost:5000 for local dev or relative /api when hosted)
+  const API_BASE = window.WEBAKE_API_BASE || (
+    window.location.protocol === 'file:' ||
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1'
+      ? 'http://localhost:5000/api'
+      : '/api'
+  );
+
   // ====================================================================
   // 1. UI HELPER & NOTIFICATIONS
   // ====================================================================
@@ -423,34 +432,105 @@
   // ====================================================================
   function setupAuthFormSubmissions() {
     // --- Sign In ---
-    document.getElementById('signin-form')?.addEventListener('submit', e => {
+    document.getElementById('signin-form')?.addEventListener('submit', async e => {
       e.preventDefault();
-      const inputs = e.target.querySelectorAll('input');
+      const form = e.target;
+      const inputs = form.querySelectorAll('input');
       const email = (inputs[0]?.value || '').trim().toLowerCase();
       const pwd = inputs[1]?.value || '';
-      const user = AuthStore.find(email);
+      const submitBtn = form.querySelector('button[type="submit"]');
 
-      if (!user) {
-        showToast('No account found for this email. Please check your spelling or register.');
+      if (!email) {
+        showToast('Please enter your email address.');
         if (inputs[0]) inputs[0].focus();
         return;
       }
-      if (user.password !== pwd) {
-        showToast('Incorrect password. Please try again.');
+      if (!pwd) {
+        showToast('Please enter your password.');
         if (inputs[1]) inputs[1].focus();
         return;
       }
 
-      AuthStore.setSession(user);
-      showToast(`Welcome back, ${user.name}! 🎉`);
-      closeAuthModals();
-      updateNavState();
-      autoFillCheckoutForm();
+      const origBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password: pwd })
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok && data.success && data.user) {
+          AuthStore.add(data.user);
+          AuthStore.setSession(data.user);
+
+          // Sync order history to local storage registry so dashboard/tracking renders immediately
+          if (Array.isArray(data.user.orderHistory) && data.user.orderHistory.length > 0) {
+            try {
+              const allOrders = JSON.parse(localStorage.getItem('weBakeAllOrders') || '[]');
+              data.user.orderHistory.forEach(ord => {
+                if (!allOrders.some(existing => existing.orderId === ord.orderId)) {
+                  allOrders.unshift(ord);
+                }
+              });
+              localStorage.setItem('weBakeAllOrders', JSON.stringify(allOrders));
+            } catch (err) {}
+          }
+
+          showToast(`Welcome back, ${data.user.name}! 🎉`);
+          closeAuthModals();
+          updateNavState();
+          autoFillCheckoutForm();
+          return;
+        } else {
+          // Fallback to local store for offline or dev test accounts
+          const localUser = AuthStore.find(email);
+          if (localUser && localUser.password === pwd) {
+            AuthStore.setSession(localUser);
+            showToast(`Welcome back, ${localUser.name}! 🎉`);
+            closeAuthModals();
+            updateNavState();
+            autoFillCheckoutForm();
+            return;
+          }
+
+          const errorMsg = data.message || 'Failed to sign in. Please verify your email and password.';
+          showToast(errorMsg);
+          if (data.error === 'user_not_found') {
+            if (inputs[0]) inputs[0].focus();
+          } else if (data.error === 'incorrect_password') {
+            if (inputs[1]) inputs[1].focus();
+          }
+        }
+      } catch (err) {
+        console.error('[Sign In Error]:', err);
+        const localUser = AuthStore.find(email);
+        if (localUser && localUser.password === pwd) {
+          AuthStore.setSession(localUser);
+          showToast(`Welcome back, ${localUser.name}! 🎉`);
+          closeAuthModals();
+          updateNavState();
+          autoFillCheckoutForm();
+        } else {
+          showToast('Network error while signing in. Please check your internet connection.');
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = origBtnHtml;
+        }
+      }
     });
 
     // --- Register ---
-    document.getElementById('register-form')?.addEventListener('submit', e => {
+    document.getElementById('register-form')?.addEventListener('submit', async e => {
       e.preventDefault();
+      const form = e.target;
       const email = (document.getElementById('reg-email')?.value || '').trim().toLowerCase();
       const pwd = document.getElementById('reg-pwd')?.value || '';
       const cpwd = document.getElementById('reg-cpwd')?.value || '';
@@ -470,7 +550,16 @@
         return;
       }
 
-      // Check if account already exists
+      if (pwd.length < 6) {
+        showToast('Password must be at least 6 characters');
+        return;
+      }
+      if (pwd !== cpwd) {
+        showToast('Passwords do not match');
+        return;
+      }
+
+      // Check if account already exists locally
       if (AuthStore.find(email)) {
         showToast('An account with this email is already registered. Please sign in instead.');
         const regEmailErr = document.querySelector('.reg-email-error');
@@ -482,13 +571,32 @@
         return;
       }
 
-      if (pwd.length < 6) {
-        showToast('Password must be at least 6 characters');
-        return;
+      // Check if email already exists in cloud database
+      const origBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking availability...';
       }
-      if (pwd !== cpwd) {
-        showToast('Passwords do not match');
-        return;
+
+      try {
+        const checkRes = await fetch(`${API_BASE}/auth/check?email=${encodeURIComponent(email)}`);
+        const checkData = await checkRes.json().catch(() => ({}));
+        if (checkData.exists) {
+          showToast('An account with this email is already registered. Please sign in instead.');
+          const regEmailErr = document.querySelector('.reg-email-error');
+          if (regEmailErr) {
+            regEmailErr.textContent = 'An account with this email is already registered. Please sign in instead.';
+            regEmailErr.style.display = 'block';
+          }
+          document.getElementById('reg-email')?.focus();
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = origBtnHtml;
+          }
+          return;
+        }
+      } catch (err) {
+        console.warn('[Check Email Error]:', err);
       }
 
       pendingEmail = email;
@@ -532,7 +640,7 @@
     });
 
     // --- Forgot Password ---
-    document.getElementById('forgot-form')?.addEventListener('submit', e => {
+    document.getElementById('forgot-form')?.addEventListener('submit', async e => {
       e.preventDefault();
       const emailInput = document.getElementById('forgot-email') || e.target.querySelector('input[type="email"]');
       const email = (emailInput?.value || '').trim().toLowerCase();
@@ -547,8 +655,27 @@
         return;
       }
 
-      const existingUser = AuthStore.find(email);
-      if (!existingUser) {
+      const origBtnHtml = forgotSubmitBtn ? forgotSubmitBtn.innerHTML : '';
+      if (forgotSubmitBtn) {
+        forgotSubmitBtn.disabled = true;
+        forgotSubmitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking account...';
+      }
+
+      let accountExists = !!AuthStore.find(email);
+      try {
+        const checkRes = await fetch(`${API_BASE}/auth/check?email=${encodeURIComponent(email)}`);
+        const checkData = await checkRes.json().catch(() => ({}));
+        if (checkData.success) {
+          accountExists = checkData.exists;
+        }
+      } catch (err) {}
+
+      if (forgotSubmitBtn) {
+        forgotSubmitBtn.disabled = false;
+        forgotSubmitBtn.innerHTML = origBtnHtml;
+      }
+
+      if (!accountExists) {
         const notFoundMsg = 'No account found with this email. Please check your spelling or register.';
         showToast(notFoundMsg);
         if (forgotEmailErr) {
@@ -604,16 +731,54 @@
         buttonEl: verifyBtn,
         errorEl: otpError,
         loadingText: 'Verifying...',
-        onSuccess: () => {
+        onSuccess: async () => {
           if (flowMode === 'register' && pendingRegistration) {
             const registeredUser = { ...pendingRegistration };
-            AuthStore.add(registeredUser);
-            AuthStore.setSession(registeredUser);
-            pendingRegistration = null;
-            showToast(`Account created successfully! Welcome, ${registeredUser.name}! 🎉`);
-            closeAuthModals();
-            updateNavState();
-            autoFillCheckoutForm();
+
+            if (verifyBtn) {
+              verifyBtn.disabled = true;
+              verifyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating account...';
+            }
+
+            try {
+              const regRes = await fetch(`${API_BASE}/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(registeredUser)
+              });
+              const regData = await regRes.json().catch(() => ({}));
+
+              if (regRes.ok && regData.success && regData.user) {
+                const cloudUser = regData.user;
+                AuthStore.add(cloudUser);
+                AuthStore.setSession(cloudUser);
+                pendingRegistration = null;
+                showToast(`Account created successfully! Welcome, ${cloudUser.name}! 🎉`);
+                closeAuthModals();
+                updateNavState();
+                autoFillCheckoutForm();
+                return;
+              } else {
+                console.warn('[Cloud Registration Warning]:', regData.message);
+                AuthStore.add(registeredUser);
+                AuthStore.setSession(registeredUser);
+                pendingRegistration = null;
+                showToast(`Account created! Welcome, ${registeredUser.name}! 🎉`);
+                closeAuthModals();
+                updateNavState();
+                autoFillCheckoutForm();
+                return;
+              }
+            } catch (err) {
+              console.error('[Cloud Registration Fetch Error]:', err);
+              AuthStore.add(registeredUser);
+              AuthStore.setSession(registeredUser);
+              pendingRegistration = null;
+              showToast(`Account created! Welcome, ${registeredUser.name}! 🎉`);
+              closeAuthModals();
+              updateNavState();
+              autoFillCheckoutForm();
+            }
           } else if (flowMode === 'forgot') {
             closeAuthModals();
             openAuthModal('reset-modal');
@@ -659,10 +824,12 @@
     });
 
     // --- Reset Password ---
-    document.getElementById('reset-form')?.addEventListener('submit', e => {
+    document.getElementById('reset-form')?.addEventListener('submit', async e => {
       e.preventDefault();
-      const pwd = e.target.querySelectorAll('input')[0].value;
-      const cpwd = e.target.querySelectorAll('input')[1].value;
+      const form = e.target;
+      const pwd = form.querySelectorAll('input')[0].value;
+      const cpwd = form.querySelectorAll('input')[1].value;
+      const submitBtn = form.querySelector('button[type="submit"]');
 
       if (pwd.length < 6) {
         showToast('Password must be at least 6 characters');
@@ -673,12 +840,47 @@
         return;
       }
 
-      if (AuthStore.updatePassword(pendingEmail, pwd)) {
-        showToast('Password updated successfully!');
-        closeAuthModals();
-        openAuthModal('signin-modal');
-      } else {
-        showToast('Unexpected error updating password.');
+      const origBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating password...';
+      }
+
+      try {
+        const resetRes = await fetch(`${API_BASE}/auth/reset`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: pendingEmail, password: pwd })
+        });
+        const resetData = await resetRes.json().catch(() => ({}));
+
+        if (resetRes.ok && resetData.success) {
+          AuthStore.updatePassword(pendingEmail, pwd);
+          showToast('Password updated successfully! Please sign in with your new password.');
+          closeAuthModals();
+          openAuthModal('signin-modal');
+        } else {
+          if (AuthStore.updatePassword(pendingEmail, pwd)) {
+            showToast('Password updated successfully!');
+            closeAuthModals();
+            openAuthModal('signin-modal');
+          } else {
+            showToast(resetData.message || 'Unexpected error updating password.');
+          }
+        }
+      } catch (err) {
+        if (AuthStore.updatePassword(pendingEmail, pwd)) {
+          showToast('Password updated successfully!');
+          closeAuthModals();
+          openAuthModal('signin-modal');
+        } else {
+          showToast('Failed to update password. Please check your connection.');
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = origBtnHtml;
+        }
       }
     });
 
@@ -778,6 +980,21 @@
   // ====================================================================
   // 9. INITIALIZATION
   // ====================================================================
+  function syncSessionWithCloud() {
+    const s = AuthStore.getSession();
+    if (!s || !s.email) return;
+    fetch(`${API_BASE}/auth/sync?email=${encodeURIComponent(s.email)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.success && data.user) {
+          AuthStore.add(data.user);
+          updateNavState();
+          autoFillCheckoutForm();
+        }
+      })
+      .catch(() => {});
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     injectAuthTemplates();
     setupPasswordStrengthUI('register-form', 'reg-pwd', 'reg-cpwd', 'reg-submit-btn');
@@ -787,6 +1004,7 @@
     setupGlobalEventListeners();
     updateNavState();
     autoFillCheckoutForm();
+    syncSessionWithCloud();
   });
 
 })(window, document);

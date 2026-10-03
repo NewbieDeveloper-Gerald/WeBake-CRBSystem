@@ -14,6 +14,7 @@ const otpRoutes = require('./routes/otpRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const productRoutes = require('./routes/productRoutes');
 const partnerRoutes = require('./routes/partnerRoutes');
+const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -52,6 +53,7 @@ app.use('/api/otp', otpRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/partner', partnerRoutes);
+app.use('/api/auth', authRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {
