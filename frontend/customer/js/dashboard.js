@@ -462,49 +462,87 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      if (!confirm(`Are you sure you want to request cancellation for this order placed on ${order.date}?\n\nDownpayment of \u20B1${downpayment.toLocaleString()} will be refunded to your ${wallet} account (${accNum}).`)) {
-        return;
+      function showConfirmRefundModal(onConfirm) {
+        document.getElementById('confirm-refund-modal')?.remove();
+        const confirmModalHtml = `
+          <div id="confirm-refund-modal" class="overlay active" style="z-index:100000;">
+            <div class="modal active" style="max-width:440px; text-align:center; padding: 2rem; background:#fff; border-radius:12px; box-shadow:0 12px 35px rgba(0,0,0,0.25);">
+              <div style="font-size:2.8rem; color:#dc3545; margin-bottom:0.75rem;">
+                <i class="fas fa-exclamation-circle"></i>
+              </div>
+              <h3 style="color:#2E1A14; font-size:1.25rem; font-weight:700; margin-bottom:0.5rem;">Confirm Cancellation & Refund</h3>
+              <p style="color:#666; font-size:0.88rem; line-height:1.6; margin-bottom:1.25rem;">
+                Are you sure you want to request cancellation for this order placed on <strong>${order.date}</strong>?<br>
+                A 50% downpayment refund of <strong style="color:#28a745;">\u20B1${downpayment.toLocaleString()}</strong> will be credited to your <strong>${wallet}</strong> account (<strong>${accNum}</strong>).
+              </p>
+              <div style="display:flex; justify-content:center; gap:0.75rem;">
+                <button type="button" id="confirm-refund-no" class="btn btn-outline" style="padding:0.55rem 1.25rem; font-size:0.85rem;">No, Keep Order</button>
+                <button type="button" id="confirm-refund-yes" class="btn btn-primary" style="padding:0.55rem 1.35rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545;">
+                  <i class="fas fa-undo-alt"></i> Yes, Request Refund
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', confirmModalHtml);
+
+        const confirmWrap = document.getElementById('confirm-refund-modal');
+        const btnNo = document.getElementById('confirm-refund-no');
+        const btnYes = document.getElementById('confirm-refund-yes');
+
+        const closeConfirm = () => confirmWrap?.remove();
+        btnNo?.addEventListener('click', closeConfirm);
+        confirmWrap?.addEventListener('click', (e) => {
+          if (e.target === confirmWrap) closeConfirm();
+        });
+
+        btnYes?.addEventListener('click', () => {
+          closeConfirm();
+          onConfirm();
+        });
       }
 
-      const refundData = {
-        reason: reason,
-        wallet: wallet,
-        accountNum: accNum,
-        accountName: accName,
-        amount: downpayment,
-        requestedAt: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-      };
+      showConfirmRefundModal(() => {
+        const refundData = {
+          reason: reason,
+          wallet: wallet,
+          accountNum: accNum,
+          accountName: accName,
+          amount: downpayment,
+          requestedAt: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+        };
 
-      // 1. Update weBakeAllOrders
-      const allOrders = JSON.parse(localStorage.getItem('weBakeAllOrders') || '[]');
-      const targetO = allOrders.find(o => o.orderId === order.orderId);
-      if (targetO) {
-        targetO.status = 'cancellation_requested';
-        targetO.refundDetails = refundData;
-        localStorage.setItem('weBakeAllOrders', JSON.stringify(allOrders));
-      }
+        // 1. Update weBakeAllOrders
+        const allOrders = JSON.parse(localStorage.getItem('weBakeAllOrders') || '[]');
+        const targetO = allOrders.find(o => o.orderId === order.orderId);
+        if (targetO) {
+          targetO.status = 'cancellation_requested';
+          targetO.refundDetails = refundData;
+          localStorage.setItem('weBakeAllOrders', JSON.stringify(allOrders));
+        }
 
-      // 2. Update weBakeUsers
-      const allUsers = getUsers();
-      let updated = false;
-      for (const u of allUsers) {
-        if (u.orderHistory) {
-          const match = u.orderHistory.find(o => o.orderId === order.orderId);
-          if (match) {
-            match.status = 'cancellation_requested';
-            match.refundDetails = refundData;
-            updated = true;
+        // 2. Update weBakeUsers
+        const allUsers = getUsers();
+        let updated = false;
+        for (const u of allUsers) {
+          if (u.orderHistory) {
+            const match = u.orderHistory.find(o => o.orderId === order.orderId);
+            if (match) {
+              match.status = 'cancellation_requested';
+              match.refundDetails = refundData;
+              updated = true;
+            }
           }
         }
-      }
-      if (updated) {
-        localStorage.setItem(USERS_KEY, JSON.stringify(allUsers));
-        currentUser.orderHistory = (allUsers.find(u => sameEmail(u.email, session.email)) || {}).orderHistory || [];
-      }
+        if (updated) {
+          localStorage.setItem(USERS_KEY, JSON.stringify(allUsers));
+          currentUser.orderHistory = (allUsers.find(u => sameEmail(u.email, session.email)) || {}).orderHistory || [];
+        }
 
-      closeModal();
-      renderOrders();
-      showToast('Cancellation & downpayment refund request submitted successfully.');
+        closeModal();
+        renderOrders();
+        showToast('Cancellation & downpayment refund request submitted successfully.');
+      });
     });
   }
 

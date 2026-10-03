@@ -1212,17 +1212,27 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           // Match validation
-          if (cpwd && cpwdError) {
-            if (pwd !== cpwd) {
+          if (convertCpwd && cpwdError) {
+            if (!cpwd) {
+              cpwdError.style.display = 'none';
+              cpwdError.textContent = '';
+              convertCpwd.classList.remove('is-invalid', 'is-valid');
+              if (convertSubmitBtn) convertSubmitBtn.disabled = (pwd.length < 6);
+            } else if (pwd !== cpwd) {
               cpwdError.style.display = 'block';
+              cpwdError.style.color = '#dc3545';
+              cpwdError.innerHTML = '<i class="fas fa-times-circle"></i> Passwords do not match';
+              convertCpwd.classList.add('is-invalid');
+              convertCpwd.classList.remove('is-valid');
               if (convertSubmitBtn) convertSubmitBtn.disabled = true;
             } else {
-              cpwdError.style.display = 'none';
+              cpwdError.style.display = 'block';
+              cpwdError.style.color = '#28a745';
+              cpwdError.innerHTML = '<i class="fas fa-check-circle"></i> Passwords match!';
+              convertCpwd.classList.remove('is-invalid');
+              convertCpwd.classList.add('is-valid');
               if (convertSubmitBtn) convertSubmitBtn.disabled = (pwd.length < 6);
             }
-          } else if (cpwdError) {
-            cpwdError.style.display = 'none';
-            if (convertSubmitBtn) convertSubmitBtn.disabled = (pwd.length < 6);
           }
         }
 
@@ -1721,9 +1731,10 @@ document.addEventListener('DOMContentLoaded', () => {
         verifiedPartnerEmail = ((u && u.email) || s.email || '').trim().toLowerCase();
 
         // Hide contact input section and show verified account badge
-        if (contactSection) contactSection.style.display = 'none';
-        if (partnerEmailEl) partnerEmailEl.removeAttribute('required');
-        if (partnerPhoneEl) partnerPhoneEl.removeAttribute('required');
+        if (contactSection) {
+          contactSection.style.display = 'none';
+          contactSection.querySelectorAll('input, select').forEach(el => el.removeAttribute('required'));
+        }
 
         if (loggedInBadge) {
           loggedInBadge.style.display = 'block';
