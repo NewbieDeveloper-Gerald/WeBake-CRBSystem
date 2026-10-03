@@ -51,7 +51,8 @@ CREATE TABLE otp_verifications (
     attempt_count INT DEFAULT 0 NOT NULL,
     resend_available_at TIMESTAMPTZ NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
-    consumed_at TIMESTAMPTZ,                        -- NULL until successfully verified
+    verified_at TIMESTAMPTZ,                        -- Set when OTP code successfully verified
+    consumed_at TIMESTAMPTZ,                        -- Set when token is consumed for registration/reset
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
@@ -75,6 +76,7 @@ CREATE TABLE users (
     is_active BOOLEAN DEFAULT TRUE NOT NULL,        -- Allows admin soft-suspension
     email_verified_at TIMESTAMPTZ,
     last_login_at TIMESTAMPTZ,
+    saved_cart JSONB DEFAULT '[]'::jsonb NOT NULL,  -- Cloud-synced customer shopping cart
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -231,6 +233,7 @@ CREATE INDEX idx_cart_items_cart ON cart_items(cart_id);
 CREATE TABLE orders (
     id BIGSERIAL PRIMARY KEY,
     order_code VARCHAR(30) NOT NULL UNIQUE,         -- 'WB-84920'
+    idempotency_key VARCHAR(64) UNIQUE,             -- Prevents duplicate submissions on network retry
     user_id BIGINT REFERENCES users(id) ON DELETE SET NULL, -- NULL for guest checkouts
     customer_name VARCHAR(150) NOT NULL,
     customer_email VARCHAR(255) NOT NULL,
