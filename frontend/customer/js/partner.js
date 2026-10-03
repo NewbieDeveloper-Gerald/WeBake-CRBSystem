@@ -794,7 +794,7 @@
       window.location.hostname === 'localhost' ||
       window.location.hostname === '127.0.0.1'
         ? 'http://localhost:5000/api'
-        : '/api'
+        : 'https://webake-crbsystem-backend.onrender.com/api'
     );
     fetch(`${apiBase}/partner/apply`, {
       method: 'POST',

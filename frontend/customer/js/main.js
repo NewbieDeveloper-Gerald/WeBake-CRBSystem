@@ -1034,7 +1034,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.hostname === 'localhost' ||
         window.location.hostname === '127.0.0.1'
           ? 'http://localhost:5000/api'
-          : '/api'
+          : 'https://webake-crbsystem-backend.onrender.com/api'
       );
 
       const targetEmail = ((placedOrder && placedOrder.customer?.email) || customerInfo?.email || '').trim().toLowerCase();
