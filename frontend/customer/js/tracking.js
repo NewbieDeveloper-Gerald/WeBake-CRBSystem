@@ -308,7 +308,7 @@
         window.location.hostname === 'localhost' ||
         window.location.hostname === '127.0.0.1'
           ? 'http://localhost:5000/api'
-          : 'https://webake-crbsystem-backend.onrender.com/api'
+          : '/api'
       );
       fetch(`${apiBase}/orders/receipt`, {
         method: 'POST',
@@ -555,8 +555,7 @@
     });
   }
 
-  // --- 6. Form Submission & Smart Routing ---
-  function handleTrackSubmit(e) {
+  async function handleTrackSubmit(e) {
     e.preventDefault();
     const idInput = document.getElementById('track-input-id');
     const contactInput = document.getElementById('track-input-contact');
@@ -588,35 +587,69 @@
         renderTrackOrderResult(order, resBox);
         return;
       }
-
-      if (errBox) {
-        errBox.textContent = 'No matching partnership application found. Please verify your Reference ID (e.g. WB-PRT-XXXXX) and registered email or phone.';
-        errBox.style.display = 'block';
+    } else {
+      // Default: Bread Orders lookup
+      const order = findOrderRecord(enteredId, enteredContact);
+      if (order) {
+        if (errBox) errBox.style.display = 'none';
+        setTrackTab('order');
+        renderTrackOrderResult(order, resBox);
+        return;
       }
-      if (resBox) resBox.style.display = 'none';
-      return;
+
+      // Fallback: check if user entered a partner application on the order tab
+      const app = findPartnerRecord(enteredId, enteredContact);
+      if (app) {
+        if (errBox) errBox.style.display = 'none';
+        setTrackTab('partner');
+        renderTrackPartnerResult(app, resBox);
+        return;
+      }
     }
 
-    // Default: Bread Orders lookup
-    const order = findOrderRecord(enteredId, enteredContact);
-    if (order) {
-      if (errBox) errBox.style.display = 'none';
-      setTrackTab('order');
-      renderTrackOrderResult(order, resBox);
-      return;
+    // Cloud Database Lookup Fallback (across devices)
+    const submitBtn = document.getElementById('track-submit-btn');
+    const origBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching database...';
     }
 
-    // Fallback: check if user entered a partner application on the order tab
-    const app = findPartnerRecord(enteredId, enteredContact);
-    if (app) {
-      if (errBox) errBox.style.display = 'none';
-      setTrackTab('partner');
-      renderTrackPartnerResult(app, resBox);
-      return;
+    try {
+      const apiBase = window.WEBAKE_API_BASE || (
+        window.location.protocol === 'file:' ||
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1'
+          ? 'http://localhost:5000/api'
+          : '/api'
+      );
+      const res = await fetch(`${apiBase}/orders/track?id=${encodeURIComponent(enteredId)}&contact=${encodeURIComponent(enteredContact)}&mode=${isPartnerQuery ? 'partner' : 'order'}`);
+      const data = await res.json();
+      if (data && data.success) {
+        if (errBox) errBox.style.display = 'none';
+        if (data.type === 'partner' && data.partner) {
+          setTrackTab('partner');
+          renderTrackPartnerResult(data.partner, resBox);
+          return;
+        } else if (data.type === 'order' && data.order) {
+          setTrackTab('order');
+          renderTrackOrderResult(data.order, resBox);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('[Track Cloud Query Error]:', err);
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = origBtnHtml;
+      }
     }
 
     if (errBox) {
-      errBox.textContent = 'No matching order found. Please verify your Order ID and the email or phone number used at checkout.';
+      errBox.textContent = isPartnerQuery
+        ? 'No matching partnership application found. Please verify your Reference ID (e.g. WB-PRT-XXXXX) and registered email or phone.'
+        : 'No matching order found. Please verify your Order ID and the email or phone number used at checkout.';
       errBox.style.display = 'block';
     }
     if (resBox) resBox.style.display = 'none';

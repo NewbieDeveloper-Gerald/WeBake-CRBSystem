@@ -143,6 +143,22 @@ document.addEventListener('DOMContentLoaded', () => {
         u.savedCart = cart;
         localStorage.setItem('weBakeUsers', JSON.stringify(all));
       }
+
+      // Asynchronously persist cart to Supabase cloud database
+      if (sEmail) {
+        const apiBase = window.WEBAKE_API_BASE || (
+          window.location.protocol === 'file:' ||
+          window.location.hostname === 'localhost' ||
+          window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:5000/api'
+            : '/api'
+        );
+        fetch(`${apiBase}/cart/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: sEmail, cart: cart })
+        }).catch(err => console.warn('[Cloud Cart Sync Notice]:', err));
+      }
     } catch (e) {}
   }
 
@@ -153,8 +169,32 @@ document.addEventListener('DOMContentLoaded', () => {
       const all = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
       const sEmail = (s.email || '').trim().toLowerCase();
       const u = all.find(u => (u.email || '').trim().toLowerCase() === sEmail);
-      if (u && u.savedCart) {
+      if (u && Array.isArray(u.savedCart)) {
         cart = u.savedCart;
+      }
+
+      // Asynchronously fetch latest cart from Supabase cloud database
+      if (sEmail) {
+        const apiBase = window.WEBAKE_API_BASE || (
+          window.location.protocol === 'file:' ||
+          window.location.hostname === 'localhost' ||
+          window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:5000/api'
+            : '/api'
+        );
+        fetch(`${apiBase}/cart/sync?email=${encodeURIComponent(sEmail)}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data && data.success && Array.isArray(data.cart)) {
+              cart = data.cart;
+              if (u) {
+                u.savedCart = cart;
+                localStorage.setItem('weBakeUsers', JSON.stringify(all));
+              }
+              updateCartUI();
+            }
+          })
+          .catch(err => console.warn('[Cloud Cart Load Notice]:', err));
       }
     } catch (e) {}
   }
@@ -1034,7 +1074,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.hostname === 'localhost' ||
         window.location.hostname === '127.0.0.1'
           ? 'http://localhost:5000/api'
-          : 'https://webake-crbsystem-backend.onrender.com/api'
+          : '/api'
       );
 
       const targetEmail = ((placedOrder && placedOrder.customer?.email) || customerInfo?.email || '').trim().toLowerCase();
@@ -1442,6 +1482,11 @@ document.addEventListener('DOMContentLoaded', () => {
      -------------------------------------------------------------------------- */
   loadCartFromStore();
   updateCartUI();
+
+  // Re-synchronize cloud cart whenever authentication state changes
+  window.addEventListener('weBakeAuthChange', () => {
+    loadCartFromStore();
+  });
 
   // Auto-checkout from Dashboard URL query parameters (?checkout=true&items=0,1)
   const urlParams = new URLSearchParams(window.location.search);

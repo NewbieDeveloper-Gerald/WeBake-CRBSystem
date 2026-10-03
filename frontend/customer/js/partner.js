@@ -794,8 +794,16 @@
       window.location.hostname === 'localhost' ||
       window.location.hostname === '127.0.0.1'
         ? 'http://localhost:5000/api'
-        : 'https://webake-crbsystem-backend.onrender.com/api'
+        : '/api'
     );
+
+    const submitBtn = partnerForm.querySelector('button[type="submit"]');
+    const origBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting to cloud...';
+    }
+
     fetch(`${apiBase}/partner/apply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -811,13 +819,29 @@
         products: details.products || [],
         notes: details.notes || ''
       })
-    }).catch(e => console.warn('[Partner API Sync]:', e.message));
-
-    toast(isUpdate ? 'Partnership application updated successfully!' : 'Partnership application submitted successfully!');
-
-    if (currentUser) {
-      setTimeout(() => { window.location.href = 'dashboard.html'; }, 1500);
-    } else {
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data && data.success) {
+        if (currentUser) {
+          currentUser.partnerAppId = data.applicationCode || appId;
+          currentUser.partnerStatus = data.status || 'pending';
+          PartnerStore.saveUsers(allUsers);
+        }
+      }
+    })
+    .catch(e => console.warn('[Partner API Sync]:', e.message))
+    .finally(() => {
+      toast(isUpdate ? 'Partnership application updated successfully!' : 'Partnership application submitted successfully!');
+      if (currentUser) {
+        setTimeout(() => { window.location.href = 'dashboard.html'; }, 1000);
+      } else {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = origBtnHtml;
+        }
+      }
+    });
       // Guest applicant: Render confirmation card with Reference ID & direct Track link
       const formContainer = document.querySelector('.partner-form-container');
       if (formContainer) {

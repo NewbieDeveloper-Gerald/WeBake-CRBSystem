@@ -25,7 +25,7 @@ module.exports = async function handler(req, res) {
 
     const userRes = await pool.query(`
       SELECT u.id, u.role_id, u.full_name, u.email_address, u.contact_number,
-             u.partner_status, u.is_active,
+             u.partner_status, u.is_active, u.saved_cart,
              a.address_line1 AS address
       FROM users u
       LEFT JOIN user_addresses a ON a.user_id = u.id AND a.is_default = TRUE
@@ -97,16 +97,40 @@ module.exports = async function handler(req, res) {
       }));
     }
 
+    // Query wholesale partner application
     let partnerStatus = user.partner_status || 'none';
+    let partnerAppId = null;
+    let partnerDetails = null;
+
     try {
       const partnerRes = await pool.query(
-        'SELECT status FROM wholesale_partner_applications WHERE user_id = $1 OR LOWER(contact_email) = $2 ORDER BY id DESC LIMIT 1;',
+        `SELECT application_code, business_name, business_type, years_in_operation,
+                estimated_weekly_volume, delivery_address, products_of_interest, additional_notes, status
+         FROM partner_applications
+         WHERE user_id = $1 OR LOWER(applicant_email) = $2
+         ORDER BY id DESC LIMIT 1;`,
         [user.id, cleanEmail]
       );
       if (partnerRes.rows.length > 0) {
-        partnerStatus = partnerRes.rows[0].status;
+        const app = partnerRes.rows[0];
+        partnerStatus = app.status;
+        partnerAppId = app.application_code;
+        partnerDetails = {
+          'business-name': app.business_name,
+          'business-type': app.business_type,
+          'owner-name': user.full_name,
+          email: user.email_address,
+          phone: user.contact_number,
+          years: app.years_in_operation,
+          volume: app.estimated_weekly_volume,
+          address: app.delivery_address,
+          products: app.products_of_interest || [],
+          notes: app.additional_notes || ''
+        };
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[Partner Application Query Notice]:', e.message);
+    }
 
     return res.status(200).json({
       success: true,
@@ -117,6 +141,9 @@ module.exports = async function handler(req, res) {
         contact: user.contact_number,
         address: user.address || '',
         partnerStatus: partnerStatus,
+        partnerAppId: partnerAppId,
+        partnerDetails: partnerDetails,
+        savedCart: user.saved_cart || [],
         orderHistory: orderHistory
       }
     });

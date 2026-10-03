@@ -22,28 +22,12 @@
   ],
   "rewrites": [
     {
-      "source": "/api/orders/cancel",
-      "destination": "https://webake-crbsystem-backend.onrender.com/api/orders/cancel"
-    },
-    {
-      "source": "/api/orders/:orderCode",
-      "destination": "https://webake-crbsystem-backend.onrender.com/api/orders/:orderCode"
-    },
-    {
-      "source": "/api/orders",
-      "destination": "https://webake-crbsystem-backend.onrender.com/api/orders"
-    },
-    {
       "source": "/api/products",
       "destination": "https://webake-crbsystem-backend.onrender.com/api/products"
     },
     {
       "source": "/api/products/:path*",
       "destination": "https://webake-crbsystem-backend.onrender.com/api/products/:path*"
-    },
-    {
-      "source": "/api/partner/:path*",
-      "destination": "https://webake-crbsystem-backend.onrender.com/api/partner/:path*"
     },
     {
       "source": "/api/health",

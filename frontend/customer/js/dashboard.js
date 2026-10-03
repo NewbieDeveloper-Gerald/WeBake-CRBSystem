@@ -109,9 +109,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let currentUser = DashboardStore.getCurrentUser();
   if (!currentUser) {
-    DashboardStore.clearSession();
-    window.location.href = 'home.html';
-    return;
+    currentUser = {
+      name: session.name || 'Valued Customer',
+      email: session.email,
+      savedCart: [],
+      orderHistory: [],
+      partnerStatus: 'none'
+    };
+    const all = DashboardStore.getUsers();
+    all.push(currentUser);
+    DashboardStore.saveUsers(all);
   }
 
   /* --------------------------------------------------------------------------
@@ -318,6 +325,7 @@ document.addEventListener('DOMContentLoaded', () => {
         DashboardStore.saveUsers(allUsers);
         currentUser.savedCart = allUsers[userIndex].savedCart;
         this.render();
+        this.syncToCloud(currentUser.savedCart);
         toast('Cart updated.');
       }
     },
@@ -330,8 +338,26 @@ document.addEventListener('DOMContentLoaded', () => {
         DashboardStore.saveUsers(allUsers);
         currentUser.savedCart = allUsers[userIndex].savedCart;
         this.render();
+        this.syncToCloud(currentUser.savedCart);
         toast('Item removed from cart.');
       }
+    },
+
+    syncToCloud(cart) {
+      const sess = DashboardStore.getSession();
+      if (!sess || !sess.email) return;
+      const apiBase = window.WEBAKE_API_BASE || (
+        window.location.protocol === 'file:' ||
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1'
+          ? 'http://localhost:5000/api'
+          : '/api'
+      );
+      fetch(`${apiBase}/cart/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: sess.email, cart })
+      }).catch(e => console.warn('[Dash Cart Sync Warning]:', e));
     }
   };
 
@@ -637,6 +663,24 @@ document.addEventListener('DOMContentLoaded', () => {
             currentUser.orderHistory = (allUsers.find(u => DashboardStore.sameEmail(u.email, session.email)) || {}).orderHistory || [];
           }
 
+          // Asynchronously persist cancellation request to Supabase cloud database
+          const apiBase = window.WEBAKE_API_BASE || (
+            window.location.protocol === 'file:' ||
+            window.location.hostname === 'localhost' ||
+            window.location.hostname === '127.0.0.1'
+              ? 'http://localhost:5000/api'
+              : '/api'
+          );
+          fetch(`${apiBase}/orders/cancel`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orderId: order.orderId,
+              email: session.email,
+              refundDetails: refundData
+            })
+          }).catch(e => console.warn('[Cloud Order Cancel Notice]:', e));
+
           closeModal();
           DashboardOrders.render();
           toast('Cancellation & downpayment refund request submitted successfully.');
@@ -731,6 +775,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 DashboardStore.saveApplications(allApps);
               }
 
+              // Asynchronously cancel in Supabase cloud database
+              const apiBase = window.WEBAKE_API_BASE || (
+                window.location.protocol === 'file:' ||
+                window.location.hostname === 'localhost' ||
+                window.location.hostname === '127.0.0.1'
+                  ? 'http://localhost:5000/api'
+                  : '/api'
+              );
+              fetch(`${apiBase}/partner/cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: session.email, appId: savedAppId })
+              }).catch(e => console.warn('[Cloud Partner Cancel Notice]:', e));
+
               this.render();
               toast('Partnership cancelled.');
               window.dispatchEvent(new CustomEvent('weBakePartnerChange'));
@@ -757,6 +815,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Multi-tab storage sync
   window.addEventListener('storage', (e) => {
     if (e.key === DashboardStore.KEYS.USERS || e.key === DashboardStore.KEYS.APPS) {
+      DashboardCart.render();
       DashboardOrders.render();
       DashboardPartnership.render();
     }
@@ -787,6 +846,7 @@ document.addEventListener('DOMContentLoaded', () => {
         DashboardStore.saveUsers(allUsers);
         currentUser = allUsers[idx !== -1 ? idx : allUsers.length - 1];
         DashboardProfile.init();
+        DashboardCart.render();
         DashboardOrders.render();
         DashboardPartnership.render();
       }
