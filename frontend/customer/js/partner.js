@@ -789,7 +789,7 @@
     }
 
     // Asynchronously dispatch application to Supabase backend API
-    const apiBase = window.WEBAKE_API_BASE || (
+    const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
       window.location.protocol === 'file:' ||
       window.location.hostname === 'localhost' ||
       window.location.hostname === '127.0.0.1'
@@ -846,6 +846,7 @@
       // Guest applicant: Render confirmation card with Reference ID & direct Track link
       const formContainer = document.querySelector('.partner-form-container');
       if (formContainer) {
+        const esc = (typeof window.escapeHtml === 'function') ? window.escapeHtml : (str) => String(str || '').replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c] || c));
         formContainer.innerHTML = `
           <div style="text-align:center; padding:1.5rem 0; animation: fadeIn 0.4s ease;">
             <div style="font-size:3.5rem; color:#28a745; margin-bottom:1rem;"><i class="fas fa-check-circle"></i></div>
@@ -856,7 +857,7 @@
 
             <div style="background:#FAF6F0; border:1px dashed #ebd9c8; border-radius:10px; padding:1.25rem 1.5rem; max-width:440px; margin:0 auto 1.5rem;">
               <span style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:#888; display:block; letter-spacing:0.5px;">Your Application Reference ID</span>
-              <div style="font-size:1.85rem; font-weight:800; color:var(--primary); margin:0.35rem 0;" id="app-reference-id">${appId}</div>
+              <div style="font-size:1.85rem; font-weight:800; color:var(--primary); margin:0.35rem 0;" id="app-reference-id">${esc(appId)}</div>
               <button type="button" class="btn btn-sm btn-outline" id="btn-copy-partner-id" style="padding:0.35rem 1rem; font-size:0.8rem;">
                 <i class="far fa-copy"></i> <span id="copy-partner-text">Copy Reference ID</span>
               </button>

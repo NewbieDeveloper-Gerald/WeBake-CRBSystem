@@ -13,8 +13,8 @@
 (function (window, document) {
   'use strict';
 
-  // Configurable API Base URL (defaults to localhost:5000 for local dev or relative /api when hosted)
-  const API_BASE = window.WEBAKE_API_BASE || (
+  // Configurable API Base URL
+  const API_BASE = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
     window.location.protocol === 'file:' ||
     window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1'
@@ -40,12 +40,18 @@
     return (email || '').trim().toLowerCase();
   }
 
+  function sanitizeUserData(user) {
+    if (!user || typeof user !== 'object') return null;
+    const { password, password_hash, ...safe } = user;
+    return safe;
+  }
+
   // ====================================================================
   // 2. DATA STORE & SESSION SERVICE
   // ====================================================================
   const USERS_KEY = 'weBakeUsers';
   const SESSION_KEY = 'weBakeSession';
-  const MIGRATION_KEY = 'weBake_clean_slate_2026_10_03_v1';
+  const MIGRATION_KEY = 'weBake_clean_slate_2026_10_03_v2';
 
   // Automatic clean slate reset for all devices (laptop, phone, etc.)
   (function cleanAllAccounts() {
@@ -72,42 +78,44 @@
   };
 
   const AuthStore = {
-    getAll: () => JSON.parse(localStorage.getItem(USERS_KEY) || '[]'),
-    save: arr => localStorage.setItem(USERS_KEY, JSON.stringify(arr)),
+    getAll: () => {
+      try {
+        const users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
+        return Array.isArray(users) ? users.map(u => sanitizeUserData(u)).filter(Boolean) : [];
+      } catch (e) {
+        return [];
+      }
+    },
+    save: arr => {
+      const sanitized = (arr || []).map(u => sanitizeUserData(u)).filter(Boolean);
+      localStorage.setItem(USERS_KEY, JSON.stringify(sanitized));
+    },
     find: email => {
       const target = normalizeEmail(email);
       if (!target) return null;
       return AuthStore.getAll().find(u => normalizeEmail(u.email) === target) || null;
     },
     add: user => {
+      if (!user) return;
       const all = AuthStore.getAll();
-      const cleanEmail = normalizeEmail(user.email);
-      user.email = cleanEmail;
+      const safeUser = sanitizeUserData(user);
+      const cleanEmail = normalizeEmail(safeUser.email);
+      safeUser.email = cleanEmail;
       const existingIdx = all.findIndex(u => normalizeEmail(u.email) === cleanEmail);
       if (existingIdx >= 0) {
-        all[existingIdx] = Object.assign(all[existingIdx], user);
+        all[existingIdx] = Object.assign(all[existingIdx], safeUser);
       } else {
-        all.push(user);
+        all.push(safeUser);
       }
       AuthStore.save(all);
-    },
-    updatePassword: (email, pwd) => {
-      const target = normalizeEmail(email);
-      const all = AuthStore.getAll();
-      const idx = all.findIndex(u => normalizeEmail(u.email) === target);
-      if (idx >= 0) {
-        all[idx].password = pwd;
-        AuthStore.save(all);
-        return true;
-      }
-      return false;
     },
     updateProfile: (email, data) => {
       const target = normalizeEmail(email);
       const all = AuthStore.getAll();
       const idx = all.findIndex(u => normalizeEmail(u.email) === target);
       if (idx >= 0) {
-        Object.assign(all[idx], data);
+        const safeData = sanitizeUserData(data) || {};
+        Object.assign(all[idx], safeData);
         AuthStore.save(all);
         return true;
       }
@@ -131,6 +139,7 @@
   let pendingEmail = null;
   let flowMode = null; // 'register' or 'forgot'
   let pendingRegistration = null;
+  let resetProofToken = null;
 
   // ====================================================================
   // 3. AUTH MODAL TEMPLATES & INJECTION
@@ -713,9 +722,12 @@
         buttonEl: verifyBtn,
         errorEl: otpError,
         loadingText: 'Verifying...',
-        onSuccess: async () => {
+        onSuccess: async (verifyData) => {
           if (flowMode === 'register' && pendingRegistration) {
-            const registeredUser = { ...pendingRegistration };
+            const registeredUser = {
+              ...pendingRegistration,
+              proofToken: verifyData?.proofToken
+            };
 
             if (verifyBtn) {
               verifyBtn.disabled = true;
@@ -741,7 +753,7 @@
                 autoFillCheckoutForm();
                 return;
               } else {
-                const errMsg = regData.message || 'Failed to create account in cloud database. Please try again.';
+                const errMsg = regData.message || 'Failed to create account. Please try again.';
                 if (otpError) {
                   otpError.textContent = errMsg;
                   otpError.style.display = 'block';
@@ -768,6 +780,7 @@
               return;
             }
           } else if (flowMode === 'forgot') {
+            resetProofToken = verifyData?.proofToken || null;
             closeAuthModals();
             openAuthModal('reset-modal');
           }
@@ -838,32 +851,20 @@
         const resetRes = await fetch(`${API_BASE}/auth/reset`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: pendingEmail, password: pwd })
+          body: JSON.stringify({ email: pendingEmail, password: pwd, proofToken: resetProofToken })
         });
         const resetData = await resetRes.json().catch(() => ({}));
 
         if (resetRes.ok && resetData.success) {
-          AuthStore.updatePassword(pendingEmail, pwd);
+          resetProofToken = null;
           showToast('Password updated successfully! Please sign in with your new password.');
           closeAuthModals();
           openAuthModal('signin-modal');
         } else {
-          if (AuthStore.updatePassword(pendingEmail, pwd)) {
-            showToast('Password updated successfully!');
-            closeAuthModals();
-            openAuthModal('signin-modal');
-          } else {
-            showToast(resetData.message || 'Unexpected error updating password.');
-          }
+          showToast(resetData.message || 'Failed to update password. Please request a new verification code.');
         }
       } catch (err) {
-        if (AuthStore.updatePassword(pendingEmail, pwd)) {
-          showToast('Password updated successfully!');
-          closeAuthModals();
-          openAuthModal('signin-modal');
-        } else {
-          showToast('Failed to update password. Please check your connection.');
-        }
+        showToast('Failed to update password. Please check your network connection.');
       } finally {
         if (submitBtn) {
           submitBtn.disabled = false;

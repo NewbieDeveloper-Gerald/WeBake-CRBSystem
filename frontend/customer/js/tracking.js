@@ -167,7 +167,8 @@
     const downpayment = order.downpayment !== undefined ? order.downpayment : Math.round(order.total * 0.5);
     const balance = order.balance !== undefined ? order.balance : (order.total - downpayment);
     const method = order.paymentMethod || 'GCash';
-    const refNo = order.referenceNumber ? `(Ref: ${order.referenceNumber})` : '';
+    const esc = window.escapeHtml || (s => s);
+    const refNo = order.referenceNumber ? `(Ref: ${esc(order.referenceNumber)})` : '';
 
     const itemsHtml = `
       <div style="font-size:0.75rem; font-weight:bold; padding: 4px 0; display:flex; justify-content:space-between; color:#666; border-bottom: 1px solid #ddd;">
@@ -177,8 +178,8 @@
       </div>
     ` + (order.items || []).map(i => `
       <div style="font-size:0.8rem; padding: 4px 0; display:flex; justify-content:space-between; border-bottom: 1px dashed #eee;">
-        <span style="flex:1;">${i.name}</span>
-        <span style="flex:1; text-align:center;">${i.qty} Bundle(${i.qty * (i.min || 100)} pcs)</span>
+        <span style="flex:1;">${esc(i.name)}</span>
+        <span style="flex:1; text-align:center;">${parseInt(i.qty, 10)} Bundle(${parseInt(i.qty, 10) * (i.min || 100)} pcs)</span>
         <span style="flex:1; text-align:right;">₱${(i.price * i.qty).toLocaleString()}</span>
       </div>
     `).join('');
@@ -213,11 +214,11 @@
           </div>
           <div class="form-group" style="margin-bottom:0.5rem;">
             <label style="font-size:0.78rem;font-weight:600;display:flex;align-items:center;gap:0.35rem;"><i class="fas fa-mobile-alt" style="color:var(--primary);"></i> Account Number to Receive Refund *</label>
-            <input type="tel" class="form-input" id="refund-input-number" value="${order.customer?.contact || ''}" placeholder="09XXXXXXXXX" style="font-size:0.82rem; padding:0.4rem;">
+            <input type="tel" class="form-input" id="refund-input-number" value="${esc(order.customer?.contact || '')}" placeholder="09XXXXXXXXX" style="font-size:0.82rem; padding:0.4rem;">
           </div>
           <div class="form-group" style="margin-bottom:0.75rem;">
             <label style="font-size:0.78rem;font-weight:600;display:flex;align-items:center;gap:0.35rem;"><i class="fas fa-user" style="color:var(--primary);"></i> Account Name *</label>
-            <input type="text" class="form-input" id="refund-input-name" value="${order.customer?.name || ''}" placeholder="Name on GCash / Maya" style="font-size:0.82rem; padding:0.4rem;">
+            <input type="text" class="form-input" id="refund-input-name" value="${esc(order.customer?.name || '')}" placeholder="Name on GCash / Maya" style="font-size:0.82rem; padding:0.4rem;">
           </div>
           <button type="button" class="btn btn-primary btn-sm btn-block" id="btn-submit-refund-action" style="background:#dc3545; border-color:#dc3545;">
             Confirm & Request ₱${downpayment.toLocaleString()} Refund
@@ -227,7 +228,7 @@
     } else if (order.status === 'cancellation_requested') {
       refundSectionHtml = `
         <div style="background:#fff3cd; border:1px solid #ffeeba; border-radius:6px; padding:0.75rem; margin-top:0.75rem; font-size:0.82rem; color:#856404;">
-          <i class="fas fa-clock"></i> <strong>Cancellation & Refund in Progress:</strong> We received your request to cancel this order and refund <strong>₱${downpayment.toLocaleString()}</strong> to your ${order.refundDetails?.wallet || 'E-Wallet'} (${order.refundDetails?.accountNum || ''}). Our bakery team is reviewing and will credit your refund within 24 hours.
+          <i class="fas fa-clock"></i> <strong>Cancellation & Refund in Progress:</strong> We received your request to cancel this order and refund <strong>₱${downpayment.toLocaleString()}</strong> to your ${esc(order.refundDetails?.wallet || 'E-Wallet')} (${esc(order.refundDetails?.accountNum || '')}). Our bakery team is reviewing and will credit your refund within 24 hours.
         </div>
       `;
     } else if (order.status === 'cancelled') {
@@ -249,8 +250,8 @@
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.75rem; flex-wrap:wrap; gap:0.5rem;">
           <div>
             <span style="font-size:0.75rem; color:var(--gray); text-transform:uppercase; font-weight:700;">Order ID</span>
-            <div style="font-size:1.15rem; font-weight:800; color:var(--primary);">${order.orderId}</div>
-            <div style="font-size:0.78rem; color:#888;"><i class="far fa-calendar-alt"></i> ${order.date}</div>
+            <div style="font-size:1.15rem; font-weight:800; color:var(--primary);">${esc(order.orderId)}</div>
+            <div style="font-size:0.78rem; color:#888;"><i class="far fa-calendar-alt"></i> ${esc(order.date)}</div>
           </div>
           <span style="padding:0.25rem 0.65rem; border-radius:20px; font-size:0.78rem; font-weight:700; background:${statusBg}; color:${statusColor};">
             ${statusText}
@@ -258,8 +259,8 @@
         </div>
 
         <div style="font-size:0.82rem; color:#555; margin-bottom:0.75rem; padding-bottom:0.5rem; border-bottom:1px solid #eee;">
-          <div><strong>Customer:</strong> ${order.customer?.name || 'Customer'} (${order.customer?.contact || ''})</div>
-          <div><strong>Delivery Address:</strong> ${order.customer?.address || 'N/A'}</div>
+          <div><strong>Customer:</strong> ${esc(order.customer?.name || 'Customer')} (${esc(order.customer?.contact || '')})</div>
+          <div><strong>Delivery Address:</strong> ${esc(order.customer?.address || 'N/A')}</div>
         </div>
 
         <div style="margin-bottom:0.75rem;">
@@ -272,7 +273,7 @@
             <strong>₱${order.total.toLocaleString()}</strong>
           </div>
           <div style="display:flex; justify-content:space-between; margin-bottom:3px; color:#28a745;">
-            <span><i class="fas fa-check-circle"></i> 50% Downpayment (${method} ${refNo}):</span>
+            <span><i class="fas fa-check-circle"></i> 50% Downpayment (${esc(method)} ${refNo}):</span>
             <strong>₱${downpayment.toLocaleString()}</strong>
           </div>
           <div style="display:flex; justify-content:space-between; color:var(--primary); font-weight:700; border-top:1px dashed #ebd9c8; padding-top:4px; margin-top:4px;">
@@ -284,7 +285,7 @@
         ${order.customer?.email ? `
           <div style="margin-top:0.75rem; display:flex; justify-content:space-between; align-items:center; background:#e8f4fd; border:1px solid #bee5eb; border-radius:6px; padding:0.6rem 0.85rem; font-size:0.8rem; color:#0c5460; flex-wrap:wrap; gap:0.5rem;">
             <div>
-              <i class="fas fa-envelope" style="color:#17a2b8;"></i> Receipt: <strong>${order.customer.email}</strong>
+              <i class="fas fa-envelope" style="color:#17a2b8;"></i> Receipt: <strong>${esc(order.customer.email)}</strong>
             </div>
             <button type="button" class="btn btn-outline btn-sm" id="btn-track-resend-receipt" style="padding:0.25rem 0.65rem; font-size:0.75rem; border-color:#bee5eb; background:#fff; color:#0c5460;">
               <i class="fas fa-redo"></i> Resend Receipt
@@ -303,7 +304,7 @@
       const btn = this;
       btn.disabled = true;
       btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
-      const apiBase = window.WEBAKE_API_BASE || (
+      const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
         window.location.protocol === 'file:' ||
         window.location.hostname === 'localhost' ||
         window.location.hostname === '127.0.0.1'
@@ -381,6 +382,25 @@
           localStorage.setItem('weBakeUsers', JSON.stringify(allUsers));
         }
 
+        // Asynchronously persist cancellation request to cloud database
+        const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
+          window.location.protocol === 'file:' ||
+          window.location.hostname === 'localhost' ||
+          window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:5000/api'
+            : '/api'
+        );
+        fetch(`${apiBase}/orders/cancel`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            orderId: order.orderId,
+            email: (order.customer && order.customer.email) || '',
+            refundDetails: refundData
+          })
+        }).catch(e => console.warn('[Cloud Order Cancel Notice]:', e));
+
         closeRefundForm();
         renderOrderResult(targetO || order);
         showToast('Cancellation & downpayment refund request submitted successfully.');
@@ -437,8 +457,9 @@
       statusIcon = 'fa-ban';
     }
 
+    const esc = (typeof window.escapeHtml === 'function') ? window.escapeHtml : (str) => String(str || '').replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c] || c));
     const details = app.details || {};
-    const productsList = (details.products && details.products.length) ? details.products.join(', ') : 'All Products';
+    const productsList = (details.products && details.products.length) ? details.products.map(p => esc(p)).join(', ') : 'All Products';
     const isApproved = (app.status === 'approved' || app.status === 'active');
     const canModify = (app.status !== 'cancelled' && app.status !== 'rejected' && app.status !== 'declined');
 
@@ -462,13 +483,15 @@
       </div>
     ` : '';
 
+    const yearsText = details.years ? (String(details.years).toLowerCase().includes('year') ? `${esc(details.years)} in operation` : `${esc(details.years)} years in operation`) : '1+ years in operation';
+
     resBox.innerHTML = `
       <div style="border:1px solid var(--border); border-radius:8px; padding:1.25rem; background:#fff; margin-top:0.75rem;">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.75rem; flex-wrap:wrap; gap:0.5rem;">
           <div>
             <span style="font-size:0.75rem; color:var(--gray); text-transform:uppercase; font-weight:700;">Partnership Application ID</span>
-            <div style="font-size:1.15rem; font-weight:800; color:var(--primary);">${app.appId}</div>
-            <div style="font-size:0.78rem; color:#888;"><i class="far fa-calendar-alt"></i> Submitted: ${app.date || 'Recent'}</div>
+            <div style="font-size:1.15rem; font-weight:800; color:var(--primary);">${esc(app.appId)}</div>
+            <div style="font-size:0.78rem; color:#888;"><i class="far fa-calendar-alt"></i> Submitted: ${esc(app.date || 'Recent')}</div>
           </div>
           <span style="padding:0.25rem 0.65rem; border-radius:20px; font-size:0.78rem; font-weight:700; background:${statusBg}; color:${statusColor}; display:inline-flex; align-items:center; gap:0.35rem;">
             <i class="fas ${statusIcon}"></i> ${statusText}
@@ -476,20 +499,20 @@
         </div>
 
         <div style="background:#faf6f0; border:1px solid #ebd9c8; border-radius:6px; padding:0.85rem; font-size:0.83rem; margin-bottom:0.85rem; line-height:1.6;">
-          <div><strong>Bakery / Business Name:</strong> ${details['bakery-name'] || 'N/A'}</div>
-          <div><strong>Representative:</strong> ${details['owner-name'] || 'N/A'}</div>
-          <div><strong>Business Type:</strong> ${details.type || 'Bakery'} (${details.years ? (String(details.years).toLowerCase().includes('year') ? `${details.years} in operation` : `${details.years} years in operation`) : '1+ years in operation'})</div>
-          <div><strong>Business Address:</strong> ${details.address || 'N/A'}</div>
-          <div><strong>Contact Info:</strong> ${details.phone || app.phone || 'N/A'} · ${details.email || app.email || 'N/A'}</div>
+          <div><strong>Bakery / Business Name:</strong> ${esc(details['bakery-name'] || 'N/A')}</div>
+          <div><strong>Representative:</strong> ${esc(details['owner-name'] || 'N/A')}</div>
+          <div><strong>Business Type:</strong> ${esc(details.type || 'Bakery')} (${yearsText})</div>
+          <div><strong>Business Address:</strong> ${esc(details.address || 'N/A')}</div>
+          <div><strong>Contact Info:</strong> ${esc(details.phone || app.phone || 'N/A')} · ${esc(details.email || app.email || 'N/A')}</div>
           <div><strong>Products of Interest:</strong> ${productsList}</div>
-          ${details.permit ? `<div><strong>Business Permit:</strong> ${details.permit}</div>` : ''}
-          ${details.tin ? `<div><strong>TIN:</strong> ${details.tin}</div>` : ''}
-          ${details.notes ? `<div><strong>Notes:</strong> ${details.notes}</div>` : ''}
+          ${details.permit ? `<div><strong>Business Permit:</strong> ${esc(details.permit)}</div>` : ''}
+          ${details.tin ? `<div><strong>TIN:</strong> ${esc(details.tin)}</div>` : ''}
+          ${details.notes ? `<div><strong>Notes:</strong> ${esc(details.notes)}</div>` : ''}
         </div>
 
         <div style="font-size:0.82rem; color:#555; background:#f9f9f9; border-left:3px solid var(--primary); padding:0.65rem 0.85rem; border-radius:0 4px 4px 0; line-height:1.5;">
           <strong><i class="fas fa-info-circle" style="color:var(--primary);"></i> Next Steps:</strong><br>
-          ${nextStepsText}
+          ${esc(nextStepsText)}
         </div>
 
         ${actionsHtml}
@@ -616,7 +639,7 @@
     }
 
     try {
-      const apiBase = window.WEBAKE_API_BASE || (
+      const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
         window.location.protocol === 'file:' ||
         window.location.hostname === 'localhost' ||
         window.location.hostname === '127.0.0.1'

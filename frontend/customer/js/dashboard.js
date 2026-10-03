@@ -214,22 +214,23 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
 
       let total = 0;
+      const esc = (typeof window.escapeHtml === 'function') ? window.escapeHtml : (str) => String(str || '').replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c] || c));
 
       cart.forEach((item, index) => {
-        const itemTotal = item.price * item.qty;
+        const itemTotal = (Number(item.price) || 0) * (Number(item.qty) || 0);
         total += itemTotal;
         html += `
           <tr>
             <td><input type="checkbox" class="cart-item-check" data-index="${index}" data-price="${itemTotal}" checked></td>
-            <td><strong>${item.name}</strong></td>
+            <td><strong>${esc(item.name)}</strong></td>
             <td style="text-align:center;">
               <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;">
                 <div style="display:flex; align-items:center; gap:0.25rem;">
                   <button class="cart-qty-btn btn btn-outline" data-index="${index}" data-action="minus" style="padding:0 0.4rem; cursor:pointer; min-width:unset; line-height:1.2;">-</button>
-                  <span style="font-weight:bold; min-width:1.5rem; text-align:center;">${item.qty}</span>
+                  <span style="font-weight:bold; min-width:1.5rem; text-align:center;">${Number(item.qty) || 1}</span>
                   <button class="cart-qty-btn btn btn-outline" data-index="${index}" data-action="plus" style="padding:0 0.4rem; cursor:pointer; min-width:unset; line-height:1.2;">+</button>
                 </div>
-                <span style="font-size:0.75rem; color:#666;">(${item.qty * (item.min || 100)} pcs)</span>
+                <span style="font-size:0.75rem; color:#666;">(${(Number(item.qty) || 1) * (Number(item.min) || 100)} pcs)</span>
               </div>
             </td>
             <td style="text-align:right;">\u20B1${itemTotal.toFixed(2)}</td>
@@ -346,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
     syncToCloud(cart) {
       const sess = DashboardStore.getSession();
       if (!sess || !sess.email) return;
-      const apiBase = window.WEBAKE_API_BASE || (
+      const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
         window.location.protocol === 'file:' ||
         window.location.hostname === 'localhost' ||
         window.location.hostname === '127.0.0.1'
@@ -356,6 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
       fetch(`${apiBase}/cart/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ email: sess.email, cart })
       }).catch(e => console.warn('[Dash Cart Sync Warning]:', e));
     }
@@ -379,27 +381,32 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       let html = '';
+      const esc = (typeof window.escapeHtml === 'function') ? window.escapeHtml : (str) => String(str || '').replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c] || c));
+
       orders.forEach(order => {
         let statusClass = 'status-pending';
         let statusText = 'Pending Downpayment Verification';
-        if (order.status === 'completed') {
+        if (order.status === 'completed' || order.status === 'delivered') {
           statusClass = 'status-completed';
-          statusText = 'Completed';
+          statusText = 'Delivered / Completed';
         } else if (order.status === 'cancelled') {
           statusClass = 'status-cancelled';
           statusText = 'Cancelled & Refunded';
         } else if (order.status === 'cancellation_requested') {
           statusClass = 'status-pending';
           statusText = 'Cancellation & Refund Requested';
-        } else if (order.status === 'processing' || order.status === 'preparing') {
+        } else if (order.status === 'baking' || order.status === 'processing' || order.status === 'preparing') {
           statusClass = 'status-pending';
-          statusText = 'In Production / Preparing';
+          statusText = 'In Production / Baking';
+        } else if (order.status === 'out_for_delivery') {
+          statusClass = 'status-pending';
+          statusText = 'Out for Delivery';
         }
 
-        const downpayment = order.downpayment !== undefined ? order.downpayment : Math.round(order.total * 0.5);
-        const balance = order.balance !== undefined ? order.balance : (order.total - downpayment);
-        const method = order.paymentMethod || 'GCash';
-        const refNo = order.referenceNumber ? `(Ref: ${order.referenceNumber})` : '';
+        const downpayment = order.downpayment !== undefined ? Number(order.downpayment) : Math.round(Number(order.total || 0) * 0.5);
+        const balance = order.balance !== undefined ? Number(order.balance) : (Number(order.total || 0) - downpayment);
+        const method = esc(order.paymentMethod || 'GCash');
+        const refNo = order.referenceNumber ? `(Ref: ${esc(order.referenceNumber)})` : '';
 
         const itemsHtml = `
           <div style="font-size:0.8rem; font-weight:bold; padding: 4px 0; display:flex; justify-content:space-between; color:#666; border-bottom: 1px solid #ddd;">
@@ -409,9 +416,9 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         ` + (order.items || []).map(i => `
           <div style="font-size:0.85rem; padding: 6px 0; display:flex; justify-content:space-between; border-bottom: 1px dashed #eee;">
-            <span style="flex:1;">${i.name}</span>
-            <span style="flex:1; text-align:center;">${i.qty} Bundle(${i.qty * (i.min || 100)} pcs)</span>
-            <span style="flex:1; text-align:right;">\u20B1${(i.price * i.qty).toLocaleString()}</span>
+            <span style="flex:1;">${esc(i.name)}</span>
+            <span style="flex:1; text-align:center;">${Number(i.qty) || 1} Bundle(${(Number(i.qty) || 1) * (Number(i.min) || 100)} pcs)</span>
+            <span style="flex:1; text-align:right;">\u20B1${((Number(i.price) || 0) * (Number(i.qty) || 1)).toLocaleString()}</span>
           </div>
         `).join('');
 
@@ -423,9 +430,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <i class="fas fa-clock"></i> Cancellation & Downpayment Refund in Review
               </div>
               <div>
-                We received your request to cancel this order and refund <strong>\u20B1${downpayment.toLocaleString()}</strong> to your ${order.refundDetails?.wallet || 'E-Wallet'} (${order.refundDetails?.accountNum || ''}).
+                We received your request to cancel this order and refund <strong>\u20B1${downpayment.toLocaleString()}</strong> to your ${esc(order.refundDetails?.wallet || 'E-Wallet')} (${esc(order.refundDetails?.accountNum || '')}).
               </div>
-              ${order.refundDetails?.reason ? `<div style="font-size:0.75rem; margin-top:0.25rem; color:#6d5203;"><strong>Reason:</strong> ${order.refundDetails.reason}</div>` : ''}
+              ${order.refundDetails?.reason ? `<div style="font-size:0.75rem; margin-top:0.25rem; color:#6d5203;"><strong>Reason:</strong> ${esc(order.refundDetails.reason)}</div>` : ''}
               <div style="font-size:0.75rem; color:#856404; opacity:0.85; margin-top:0.25rem;">
                 Our bakery team is reviewing your request and will credit your account within 24 hours.
               </div>
@@ -437,7 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <i class="fas fa-check-circle"></i> <strong>Order Cancelled:</strong> This order has been cancelled and the 50% downpayment refund (\u20B1${downpayment.toLocaleString()}) processed.
             </div>
           `;
-        } else if (order.status === 'completed' || order.status === 'processing' || order.status === 'preparing') {
+        } else if (order.status === 'completed' || order.status === 'delivered' || order.status === 'out_for_delivery' || order.status === 'baking' || order.status === 'processing' || order.status === 'preparing') {
           refundActionHtml = `
             <div style="width:100%; text-align:right; margin-top:0.35rem; font-size:0.78rem; color:#888;">
               <i class="fas fa-lock"></i> Order in production / completed — cancellation closed.
@@ -446,7 +453,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (order.orderId) {
           refundActionHtml = `
             <div style="text-align:right; width:100%; margin-top:0.4rem;">
-              <button type="button" class="btn btn-danger-outline btn-sm request-order-cancel-btn" data-order-id="${order.orderId}" style="font-size:0.8rem; padding:0.35rem 0.75rem; font-weight:600; display:inline-flex; align-items:center; gap:0.4rem; cursor:pointer;">
+              <button type="button" class="btn btn-danger-outline btn-sm request-order-cancel-btn" data-order-id="${esc(order.orderId)}" style="font-size:0.8rem; padding:0.35rem 0.75rem; font-weight:600; display:inline-flex; align-items:center; gap:0.4rem; cursor:pointer;">
                 <i class="fas fa-undo-alt"></i> Request Cancellation & Refund
               </button>
             </div>
@@ -457,7 +464,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="order-item" style="display:flex; flex-direction:column; gap:0.5rem; align-items:flex-start; padding: 1rem; border: 1px solid #eee; border-radius: 8px; margin-bottom: 1rem;">
             <div style="display:flex; justify-content:space-between; width:100%; align-items:center; flex-wrap:wrap; gap:0.5rem;">
               <strong style="display:inline-flex; align-items:center; gap:0.4rem; color:#333;">
-                <i class="far fa-calendar-alt" style="color:var(--primary);"></i> <span>Order Placed: ${order.date}</span>
+                <i class="far fa-calendar-alt" style="color:var(--primary);"></i> <span>Order Placed: ${esc(order.date)}</span>
               </strong>
               <div class="order-status ${statusClass}">${statusText}</div>
             </div>
@@ -469,7 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <div style="width:100%; background: #faf6f3; border: 1px dashed #ebd9c8; border-radius: 6px; padding: 0.65rem 0.85rem; margin-top: 0.5rem; font-size: 0.85rem;">
               <div style="display:flex; justify-content:space-between; margin-bottom: 3px;">
                 <span style="color:#666;">Total Order Value:</span>
-                <strong>\u20B1${order.total.toLocaleString()}</strong>
+                <strong>\u20B1${(Number(order.total) || 0).toLocaleString()}</strong>
               </div>
               <div style="display:flex; justify-content:space-between; margin-bottom: 3px; color:#28a745;">
                 <span><i class="fas fa-check-circle"></i> 50% Downpayment Paid (${method} ${refNo}):</span>
@@ -664,7 +671,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           // Asynchronously persist cancellation request to Supabase cloud database
-          const apiBase = window.WEBAKE_API_BASE || (
+          const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
             window.location.protocol === 'file:' ||
             window.location.hostname === 'localhost' ||
             window.location.hostname === '127.0.0.1'
@@ -674,6 +681,7 @@ document.addEventListener('DOMContentLoaded', () => {
           fetch(`${apiBase}/orders/cancel`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({
               orderId: order.orderId,
               email: session.email,

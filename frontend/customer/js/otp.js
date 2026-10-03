@@ -9,8 +9,8 @@
 (function (window) {
   'use strict';
 
-  // Configurable API Base URL (defaults to localhost:5000 for local dev or relative /api when hosted)
-  const API_BASE = window.WEBAKE_API_BASE || (
+  // Configurable API Base URL
+  const API_BASE = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
     window.location.protocol === 'file:' ||
     window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1'

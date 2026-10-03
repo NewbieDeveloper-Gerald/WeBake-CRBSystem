@@ -132,6 +132,22 @@ document.addEventListener('DOMContentLoaded', () => {
   /* --------------------------------------------------------------------------
      4. Store & Session Synchronization Hooks
      -------------------------------------------------------------------------- */
+  function mergeCarts(baseCart, incomingCart) {
+    const result = (baseCart || []).map(item => ({ ...item }));
+    (incomingCart || []).forEach(incoming => {
+      if (!incoming) return;
+      const incomingId = parseInt(incoming.productId || incoming.id || 0, 10);
+      if (!incomingId) return;
+      const existing = result.find(c => parseInt(c.productId || c.id || 0, 10) === incomingId);
+      if (existing) {
+        existing.qty = Math.min(99, (parseInt(existing.qty, 10) || 1) + (parseInt(incoming.qty, 10) || 1));
+      } else {
+        result.push({ ...incoming });
+      }
+    });
+    return result;
+  }
+
   function syncCartToStore() {
     try {
       const s = JSON.parse(localStorage.getItem('weBakeSession'));
@@ -146,16 +162,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Asynchronously persist cart to Supabase cloud database
       if (sEmail) {
-        const apiBase = window.WEBAKE_API_BASE || (
-          window.location.protocol === 'file:' ||
-          window.location.hostname === 'localhost' ||
-          window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:5000/api'
-            : '/api'
-        );
+        const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || '/api';
         fetch(`${apiBase}/cart/sync`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ email: sEmail, cart: cart })
         }).catch(err => console.warn('[Cloud Cart Sync Notice]:', err));
       }
@@ -169,29 +180,32 @@ document.addEventListener('DOMContentLoaded', () => {
       const all = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
       const sEmail = (s.email || '').trim().toLowerCase();
       const u = all.find(u => (u.email || '').trim().toLowerCase() === sEmail);
+      const guestCart = [...cart];
+
       if (u && Array.isArray(u.savedCart)) {
-        cart = u.savedCart;
+        cart = mergeCarts(u.savedCart, guestCart);
+        u.savedCart = cart;
+        localStorage.setItem('weBakeUsers', JSON.stringify(all));
       }
 
       // Asynchronously fetch latest cart from Supabase cloud database
       if (sEmail) {
-        const apiBase = window.WEBAKE_API_BASE || (
-          window.location.protocol === 'file:' ||
-          window.location.hostname === 'localhost' ||
-          window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:5000/api'
-            : '/api'
-        );
-        fetch(`${apiBase}/cart/sync?email=${encodeURIComponent(sEmail)}`)
+        const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || '/api';
+        fetch(`${apiBase}/cart/sync?email=${encodeURIComponent(sEmail)}`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' }
+        })
           .then(res => res.json())
           .then(data => {
             if (data && data.success && Array.isArray(data.cart)) {
-              cart = data.cart;
+              cart = mergeCarts(data.cart, cart);
               if (u) {
                 u.savedCart = cart;
                 localStorage.setItem('weBakeUsers', JSON.stringify(all));
               }
               updateCartUI();
+              syncCartToStore();
             }
           })
           .catch(err => console.warn('[Cloud Cart Load Notice]:', err));
@@ -482,15 +496,15 @@ document.addEventListener('DOMContentLoaded', () => {
       otpError.textContent = '';
     }
 
-    // Clear payment inputs & errors
-    const payError = document.getElementById('pay-error');
+    // Clear payment inputs & errors (Fixes closeCheckout IDs)
+    const payError = document.getElementById('payment-error-msg') || document.getElementById('pay-error');
     if (payError) {
       payError.style.display = 'none';
       payError.textContent = '';
     }
     const refInput = document.getElementById('gcash-ref');
     if (refInput) refInput.value = '';
-    const proofInput = document.getElementById('pay-proof');
+    const proofInput = document.getElementById('gcash-proof') || document.getElementById('pay-proof');
     if (proofInput) proofInput.value = '';
 
     // Clear validation borders and feedback
@@ -855,8 +869,9 @@ document.addEventListener('DOMContentLoaded', () => {
       buttonEl: verifyBtn,
       errorEl: otpError,
       loadingText: 'Verifying...',
-      onSuccess: () => {
+      onSuccess: (data) => {
         if (otpError) otpError.style.display = 'none';
+        window.checkoutProofToken = data?.proofToken || '';
         showToast('Email verified successfully!');
         showStep('step-payment');
       },
@@ -950,7 +965,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Payment Confirmation & Order Finalization
-  document.getElementById('pay-btn')?.addEventListener('click', () => {
+  document.getElementById('pay-btn')?.addEventListener('click', async () => {
     const method = paymentMethodInput?.value || 'GCash';
     const errBox = document.getElementById('payment-error-msg');
     if (errBox) errBox.style.display = 'none';
@@ -1008,21 +1023,125 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing Downpayment...';
     btn.disabled = true;
 
-    setTimeout(() => {
-      const placedOrder = addOrderToStore(totalAmt, {
-        method: method,
-        referenceNumber: ref.value.trim(),
-        downpayment: downpayment,
-        balance: balance
-      });
-      const orderId = placedOrder?.orderId || ('WB-' + Math.floor(10000 + Math.random() * 90000));
+    // Generate or maintain idempotency key across retries
+    if (!window.currentCheckoutIdempotencyKey) {
+      window.currentCheckoutIdempotencyKey = 'wb_chk_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+    }
 
+    const apiBase = window.WEBAKE_API_BASE || (
+      window.location.protocol === 'file:' ||
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:5000/api'
+        : '/api'
+    );
+
+    const payload = {
+      items: checkoutItems.map(item => ({
+        productId: item.id,
+        qty: item.qty
+      })),
+      customer: {
+        fullName: customerInfo.name,
+        email: customerInfo.email,
+        phone: customerInfo.contact,
+        address: customerInfo.address,
+        deliveryDate: customerInfo.deliveryDate || new Date().toISOString().slice(0, 10),
+        deliveryTime: customerInfo.deliveryTime || '09:00 AM - 12:00 PM',
+        notes: customerInfo.notes || ''
+      },
+      paymentMethod: method,
+      referenceNumber: refVal,
+      proofToken: window.checkoutProofToken || '',
+      idempotencyKey: window.currentCheckoutIdempotencyKey
+    };
+
+    try {
+      const response = await fetch(`${apiBase}/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': window.currentCheckoutIdempotencyKey
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result.success) {
+        // ON FAILURE: Show error, re-enable button, keep cart intact! (Fixes C5, M11)
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check-circle"></i> Confirm 50% Payment';
+        const errorMsg = result.message || 'Unable to place order. Please try again.';
+        if (errBox) {
+          errBox.textContent = errorMsg;
+          errBox.style.display = 'block';
+        }
+        showToast(errorMsg);
+        return;
+      }
+
+      // ON SUCCESS: Use the SERVER's authoritative order code and totals (Fixes C5)
+      const orderId = result.orderId;
+      const subtotal = result.subtotal || checkoutItems.reduce((s, i) => s + i.price * i.qty, 0);
+      const deliveryFee = result.deliveryFee !== undefined ? result.deliveryFee : 50.00;
+      const totalAmt = result.grandTotal || (subtotal + deliveryFee);
+      const downpayment = result.downpaymentRequired || Math.round(totalAmt * 0.5);
+      const balance = result.balanceDue || (totalAmt - downpayment);
+
+      const placedOrder = {
+        orderId: orderId,
+        date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+        items: [...checkoutItems],
+        subtotal: subtotal,
+        deliveryFee: deliveryFee,
+        total: totalAmt,
+        downpayment: downpayment,
+        balance: balance,
+        paymentMethod: method,
+        referenceNumber: refVal,
+        status: 'pending',
+        customer: {
+          name: customerInfo.name,
+          email: customerInfo.email,
+          contact: customerInfo.contact,
+          address: customerInfo.address
+        }
+      };
+
+      try {
+        const allOrders = JSON.parse(localStorage.getItem('weBakeAllOrders') || '[]');
+        if (!allOrders.some(o => o.orderId === orderId)) {
+          allOrders.unshift(placedOrder);
+          localStorage.setItem('weBakeAllOrders', JSON.stringify(allOrders));
+        }
+
+        let currentSession = null;
+        try {
+          currentSession = JSON.parse(localStorage.getItem('weBakeSession'));
+        } catch (e) {}
+
+        if (currentSession && currentSession.email) {
+          const users = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
+          const userIdx = users.findIndex(u => (u.email || '').toLowerCase() === currentSession.email.toLowerCase());
+          if (userIdx !== -1) {
+            users[userIdx].orderHistory = users[userIdx].orderHistory || [];
+            if (!users[userIdx].orderHistory.some(o => o.orderId === orderId)) {
+              users[userIdx].orderHistory.unshift(placedOrder);
+              localStorage.setItem('weBakeUsers', JSON.stringify(users));
+            }
+          }
+        }
+      } catch (storageErr) {
+        console.warn('[LocalStorage Sync Notice]:', storageErr);
+      }
+
+      // Populate Order ID Card (Guests only - removed for customers with account who track via dashboard)
       let currentSession = null;
       try {
         currentSession = JSON.parse(localStorage.getItem('weBakeSession'));
       } catch (e) {}
 
-      // Populate Order ID Card (Guests only - removed for customers with account who track via dashboard)
       const orderIdCard = document.getElementById('success-order-id-card');
       if (orderIdCard) {
         if (currentSession && currentSession.email) {
@@ -1068,88 +1187,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // Dispatch digital receipt email via backend API
-      const apiBase = window.WEBAKE_API_BASE || (
-        window.location.protocol === 'file:' ||
-        window.location.hostname === 'localhost' ||
-        window.location.hostname === '127.0.0.1'
-          ? 'http://localhost:5000/api'
-          : '/api'
-      );
-
-      const targetEmail = ((placedOrder && placedOrder.customer?.email) || customerInfo?.email || '').trim().toLowerCase();
-      const finalOrder = {
-        ...(placedOrder || {}),
-        orderId: orderId,
-        date: placedOrder?.date || new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-        items: placedOrder?.items?.length ? placedOrder.items : [...checkoutItems],
-        total: totalAmt,
-        downpayment: downpayment,
-        balance: balance,
-        paymentMethod: method,
-        referenceNumber: ref.value.trim(),
-        customer: {
-          name: customerInfo?.name || placedOrder?.customer?.name || 'Valued Customer',
-          contact: customerInfo?.contact || placedOrder?.customer?.contact || '',
-          email: targetEmail,
-          address: customerInfo?.address || placedOrder?.customer?.address || ''
-        }
-      };
-
-      function dispatchReceipt(isResend = false, btnEl = null, msgEl = null) {
-        if (!targetEmail) return;
-        if (btnEl) {
-          btnEl.disabled = true;
-          btnEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resending...';
-        }
-        const endpoint = isResend ? `${apiBase}/orders/receipt` : `${apiBase}/orders`;
-        fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            order: finalOrder,
-            hasAccount: !!(currentSession && currentSession.email)
-          })
-        })
-        .then(res => res.json())
-        .then(result => {
-          if (btnEl) {
-            btnEl.disabled = false;
-            btnEl.innerHTML = '<i class="fas fa-redo"></i> Resend Receipt';
-          }
-          if (result.success) {
-            showToast(isResend ? `Receipt resent to ${targetEmail} 📧` : `Digital receipt sent to ${targetEmail} 📧`);
-            if (msgEl) {
-              msgEl.textContent = 'Sent! Check Inbox/Spam.';
-              msgEl.style.display = 'inline';
-              setTimeout(() => { if (msgEl) msgEl.style.display = 'none'; }, 4000);
-            }
-          } else {
-            console.warn('[Receipt Notice]:', result.message);
-            if (msgEl) {
-              msgEl.textContent = 'Could not send. Please try again.';
-              msgEl.style.color = '#dc3545';
-              msgEl.style.display = 'inline';
-            }
-          }
-        })
-        .catch(err => {
-          if (btnEl) {
-            btnEl.disabled = false;
-            btnEl.innerHTML = '<i class="fas fa-redo"></i> Resend Receipt';
-          }
-          console.warn('[Receipt Network Notice]:', err.message);
-        });
-      }
-
-      dispatchReceipt(false);
-
       // Populate success breakdown
       const successSummary = document.getElementById('success-downpayment-summary');
       if (successSummary) {
         successSummary.innerHTML = `
           <div class="downpayment-breakdown-box" style="text-align:left;">
             <div class="downpayment-breakdown-row">
+              <span>Subtotal:</span>
+              <strong>\u20B1${subtotal.toLocaleString()}</strong>
+            </div>
+            <div class="downpayment-breakdown-row">
+              <span>Delivery Fee:</span>
+              <strong>\u20B1${deliveryFee.toFixed(2)}</strong>
+            </div>
+            <div class="downpayment-breakdown-row" style="border-top:1px solid #eee; padding-top:4px;">
               <span>Total Order Value:</span>
               <strong>\u20B1${totalAmt.toLocaleString()}</strong>
             </div>
@@ -1159,7 +1210,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             <div class="downpayment-breakdown-row" style="font-size:0.8rem; color:#666;">
               <span>Reference Number:</span>
-              <span>${ref.value.trim()}</span>
+              <span>${refVal}</span>
             </div>
             <div class="downpayment-breakdown-row balance" style="margin-top:0.4rem; padding-top:0.4rem; border-top:1px dashed #ebd9c8;">
               <span><i class="fas fa-truck"></i> Remaining Balance Upon Delivery:</span>
@@ -1169,30 +1220,19 @@ document.addEventListener('DOMContentLoaded', () => {
           <div style="background:#e8f4fd; color:#0c5460; padding:0.75rem 1rem; border-radius:8px; font-size:0.83rem; text-align:left; border:1px solid #bee5eb; margin-top:0.65rem;">
             <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.3rem;">
               <i class="fas fa-paper-plane" style="color:#17a2b8; font-size:1rem;"></i>
-              <span>A digital receipt has been sent to <strong>${targetEmail || customerInfo.email}</strong>.</span>
+              <span>A digital receipt has been sent to <strong>${customerInfo.email}</strong>.</span>
             </div>
             <div style="font-size:0.78rem; color:#6c757d; line-height:1.45;">
-              📬 <em>Can't find it in your Inbox? Please check your <strong>Spam</strong>, <strong>Junk</strong>, or <strong>Promotions</strong> folder and mark as "Not Spam".</em>
-            </div>
-            <div style="margin-top:0.5rem; display:flex; align-items:center; gap:0.6rem;">
-              <button type="button" class="btn btn-outline btn-sm" id="resend-receipt-btn" style="padding:0.25rem 0.65rem; font-size:0.76rem; border-color:#bee5eb; background:#fff; color:#0c5460;">
-                <i class="fas fa-redo"></i> Resend Receipt
-              </button>
-              <span id="resend-receipt-msg" style="font-size:0.75rem; color:#28a745; display:none;"></span>
+              \uD83D\uDCEC <em>Can't find it in your Inbox? Please check your <strong>Spam</strong>, <strong>Junk</strong>, or <strong>Promotions</strong> folder and mark as "Not Spam".</em>
             </div>
           </div>
           <div style="background:#fff3cd; color:#856404; padding:0.75rem 1rem; border-radius:var(--radius); font-size:0.82rem; text-align:left; border:1px solid #ffeeba; margin-top:0.6rem;">
             <i class="fas fa-info-circle"></i> <strong>Reminder:</strong> Please prepare <strong>\u20B1${balance.toLocaleString()}</strong> upon delivery. You may pay in cash to the delivery rider or scan their ${method} QR upon handover.
           </div>
         `;
-
-        document.getElementById('resend-receipt-btn')?.addEventListener('click', function() {
-          const msgEl = document.getElementById('resend-receipt-msg');
-          dispatchReceipt(true, this, msgEl);
-        });
       }
 
-      // 1-Click Convert to Account for Guests
+      // Guest Convert to Account handler
       const guestConvertBox = document.getElementById('success-guest-convert-box');
       if (!currentSession && guestConvertBox) {
         guestConvertBox.innerHTML = `
@@ -1204,62 +1244,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 <p>Save your order details for <strong>${customerInfo.email}</strong> to easily track your delivery, view receipts, and request refunds in your personal dashboard anytime!</p>
               </div>
             </div>
-
-            <!-- Ask First Choice -->
             <div id="guest-ask-step" style="margin-top:0.85rem; display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
               <button type="button" class="btn btn-primary btn-sm" id="btn-ask-yes-pwd" style="padding:0.6rem 1.25rem; font-size:0.88rem;">
-                <i class="fas fa-key"></i> Yes, Create Password
+                <i class="fas fa-key"></i> Yes, Create Account
               </button>
               <button type="button" class="btn btn-outline btn-sm" id="btn-ask-no-pwd" style="padding:0.6rem 1rem; font-size:0.88rem; color:#666; border-color:#ccc;">
                 <i class="fas fa-times"></i> No, Thanks
               </button>
             </div>
-
-            <!-- Create Password Form (Initially Hidden) -->
-            <form id="guest-convert-form" style="display:none; margin-top:1rem; border-top:1px dashed #d4a96a; padding-top:0.85rem;">
-              <div style="font-size:0.85rem; font-weight:600; color:var(--primary); margin-bottom:0.75rem;">
-                <i class="fas fa-shield-alt"></i> Set a password to save your account:
-              </div>
-              <div class="guest-convert-fields">
-                <div class="form-group" style="margin-bottom:0.5rem; text-align:left;">
-                  <label style="font-size:0.8rem; font-weight:600; display:flex; align-items:center; gap:0.35rem; margin-bottom:0.25rem;">
-                    <i class="fas fa-lock" style="color:var(--primary); font-size:0.85rem;"></i> Create Password *
-                  </label>
-                  <div class="auth-icon-input">
-                    <i class="fas fa-lock"></i>
-                    <input type="password" class="form-input" id="guest-convert-pwd" placeholder="Enter password (min 6 chars)" minlength="6" required style="font-size:0.85rem;">
-                    <button type="button" class="auth-eye-toggle" aria-label="Toggle password visibility"><i class="fas fa-eye"></i></button>
-                  </div>
-                  <div class="pwd-strength" style="display:none;">
-                    <div class="pwd-strength-bar"></div>
-                  </div>
-                  <div class="pwd-strength-text" style="display:none;"></div>
-                </div>
-
-                <div class="form-group" style="margin-bottom:0.25rem; text-align:left;">
-                  <label style="font-size:0.8rem; font-weight:600; display:flex; align-items:center; gap:0.35rem; margin-bottom:0.25rem;">
-                    <i class="fas fa-shield-alt" style="color:var(--primary); font-size:0.85rem;"></i> Confirm Password *
-                  </label>
-                  <div class="auth-icon-input">
-                    <i class="fas fa-lock"></i>
-                    <input type="password" class="form-input" id="guest-convert-cpwd" placeholder="Confirm your password" minlength="6" required style="font-size:0.85rem;">
-                    <button type="button" class="auth-eye-toggle" aria-label="Toggle password visibility"><i class="fas fa-eye"></i></button>
-                  </div>
-                  <div class="cpwd-error" style="display:none;">Passwords do not match</div>
-                </div>
-              </div>
-
-              <div style="display:flex; gap:0.6rem; margin-top:0.75rem;">
-                <button type="button" class="btn btn-outline btn-sm" id="btn-cancel-convert" style="padding:0.65rem 1rem; font-size:0.85rem; color:#666;">
-                  Cancel
-                </button>
-                <button type="submit" class="btn btn-primary btn-block" id="btn-convert-submit" style="padding:0.65rem 1rem; font-size:0.88rem; flex:1;">
-                  <i class="fas fa-check-circle"></i> Save Account & Open Dashboard
-                </button>
-              </div>
-            </form>
-
-            <!-- Dismissed acknowledgement -->
             <div id="guest-declined-msg" style="display:none; margin-top:0.75rem; font-size:0.84rem; color:var(--gray); background:#f8f9fa; padding:0.6rem 0.85rem; border-radius:6px; border:1px solid #e9ecef;">
               <i class="fas fa-info-circle" style="color:var(--primary);"></i> You can track this order anytime with your Order ID (<strong>${orderId}</strong>) via <strong>Track Transactions</strong>.
             </div>
@@ -1268,167 +1260,57 @@ document.addEventListener('DOMContentLoaded', () => {
         guestConvertBox.style.display = 'block';
 
         const askStep = document.getElementById('guest-ask-step');
-        const convertForm = document.getElementById('guest-convert-form');
         const declinedMsg = document.getElementById('guest-declined-msg');
         const btnAskYes = document.getElementById('btn-ask-yes-pwd');
         const btnAskNo = document.getElementById('btn-ask-no-pwd');
-        const btnCancelConvert = document.getElementById('btn-cancel-convert');
 
         btnAskYes?.addEventListener('click', () => {
-          if (askStep) askStep.style.display = 'none';
-          if (declinedMsg) declinedMsg.style.display = 'none';
-          if (convertForm) convertForm.style.display = 'block';
-          document.getElementById('guest-convert-pwd')?.focus();
+          if (window.openAuthModal) {
+            closeCheckout();
+            window.openAuthModal('signup-modal');
+            const regEmailInput = document.getElementById('reg-email');
+            const regNameInput = document.getElementById('reg-fullname');
+            const regContactInput = document.getElementById('reg-contact');
+            if (regEmailInput) regEmailInput.value = customerInfo.email;
+            if (regNameInput) regNameInput.value = customerInfo.name;
+            if (regContactInput) regContactInput.value = customerInfo.contact;
+          }
         });
 
         btnAskNo?.addEventListener('click', () => {
           if (askStep) askStep.style.display = 'none';
-          if (convertForm) convertForm.style.display = 'none';
           if (declinedMsg) declinedMsg.style.display = 'block';
-        });
-
-        btnCancelConvert?.addEventListener('click', () => {
-          if (convertForm) convertForm.style.display = 'none';
-          if (askStep) askStep.style.display = 'flex';
-          if (declinedMsg) declinedMsg.style.display = 'none';
-        });
-
-        const convertPwd = document.getElementById('guest-convert-pwd');
-        const convertCpwd = document.getElementById('guest-convert-cpwd');
-        const convertSubmitBtn = document.getElementById('btn-convert-submit');
-
-        const strengthWrap = convertForm?.querySelector('.pwd-strength');
-        const strengthBar = convertForm?.querySelector('.pwd-strength-bar');
-        const strengthText = convertForm?.querySelector('.pwd-strength-text');
-        const cpwdError = convertForm?.querySelector('.cpwd-error');
-
-        function checkConvertStrength(pwd) {
-          let strength = 0;
-          if (pwd.length >= 6) strength += 25;
-          if (pwd.length >= 10) strength += 25;
-          if (/[A-Z]/.test(pwd)) strength += 25;
-          if (/[0-9!@#$%^&*]/.test(pwd)) strength += 25;
-          return strength;
-        }
-
-        function validateConvertPwd() {
-          const pwd = convertPwd ? convertPwd.value : '';
-          const cpwd = convertCpwd ? convertCpwd.value : '';
-
-          // Strength indicator
-          if (pwd && strengthWrap && strengthBar && strengthText) {
-            strengthWrap.style.display = 'block';
-            strengthText.style.display = 'block';
-            const score = checkConvertStrength(pwd);
-            strengthBar.style.width = score + '%';
-            if (score <= 25) {
-              strengthBar.style.background = 'red';
-              strengthText.textContent = 'Weak';
-              strengthText.style.color = 'red';
-            } else if (score <= 50) {
-              strengthBar.style.background = 'orange';
-              strengthText.textContent = 'Fair';
-              strengthText.style.color = 'orange';
-            } else if (score <= 75) {
-              strengthBar.style.background = '#e6c200';
-              strengthText.textContent = 'Good';
-              strengthText.style.color = '#e6c200';
-            } else {
-              strengthBar.style.background = 'green';
-              strengthText.textContent = 'Strong';
-              strengthText.style.color = 'green';
-            }
-          } else if (strengthWrap && strengthText) {
-            strengthWrap.style.display = 'none';
-            strengthText.style.display = 'none';
-          }
-
-          // Match validation
-          if (convertCpwd && cpwdError) {
-            if (!cpwd) {
-              cpwdError.style.display = 'none';
-              cpwdError.textContent = '';
-              convertCpwd.classList.remove('is-invalid', 'is-valid');
-              if (convertSubmitBtn) convertSubmitBtn.disabled = (pwd.length < 6);
-            } else if (pwd !== cpwd) {
-              cpwdError.style.display = 'block';
-              cpwdError.style.color = '#dc3545';
-              cpwdError.innerHTML = '<i class="fas fa-times-circle"></i> Passwords do not match';
-              convertCpwd.classList.add('is-invalid');
-              convertCpwd.classList.remove('is-valid');
-              if (convertSubmitBtn) convertSubmitBtn.disabled = true;
-            } else {
-              cpwdError.style.display = 'block';
-              cpwdError.style.color = '#28a745';
-              cpwdError.innerHTML = '<i class="fas fa-check-circle"></i> Passwords match!';
-              convertCpwd.classList.remove('is-invalid');
-              convertCpwd.classList.add('is-valid');
-              if (convertSubmitBtn) convertSubmitBtn.disabled = (pwd.length < 6);
-            }
-          }
-        }
-
-        convertPwd?.addEventListener('input', validateConvertPwd);
-        convertCpwd?.addEventListener('input', validateConvertPwd);
-
-        convertForm?.addEventListener('submit', (e) => {
-          e.preventDefault();
-          const pwd = convertPwd?.value;
-          const cpwd = convertCpwd?.value;
-
-          if (!pwd || pwd.length < 6) {
-            showToast('Password must be at least 6 characters.');
-            return;
-          }
-          if (pwd !== cpwd) {
-            showToast('Passwords do not match.');
-            if (cpwdError) cpwdError.style.display = 'block';
-            return;
-          }
-
-          const users = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
-          let existingUser = users.find(u => u.email.toLowerCase() === (customerInfo.email || '').toLowerCase());
-          if (existingUser) {
-            existingUser.password = pwd;
-            existingUser.orderHistory = existingUser.orderHistory || [];
-            if (placedOrder && !existingUser.orderHistory.some(o => o.orderId === orderId)) {
-              existingUser.orderHistory.unshift(placedOrder);
-            }
-          } else {
-            const newUser = {
-              name: customerInfo.name,
-              email: customerInfo.email,
-              contact: customerInfo.contact,
-              address: customerInfo.address,
-              password: pwd,
-              orderHistory: placedOrder ? [placedOrder] : []
-            };
-            users.push(newUser);
-          }
-          localStorage.setItem('weBakeUsers', JSON.stringify(users));
-          localStorage.setItem('weBakeSession', JSON.stringify({ name: customerInfo.name, email: customerInfo.email }));
-          if (window.updateNavState) window.updateNavState();
-          showToast(`Account created! Welcome, ${customerInfo.name} 🎉`);
-          setTimeout(() => {
-            window.location.href = 'dashboard.html';
-          }, 1200);
         });
       } else if (guestConvertBox) {
         guestConvertBox.style.display = 'none';
         guestConvertBox.innerHTML = '';
       }
 
-      // Only remove the checked out items from the cart
+      // ONLY remove checked-out items from cart after confirmed server success!
       checkoutItems.forEach(item => {
         cart = cart.filter(c => c.id !== item.id);
       });
+
+      // Reset idempotency key & proof token for next checkout
+      window.currentCheckoutIdempotencyKey = null;
+      window.checkoutProofToken = null;
 
       updateCartUI();
       syncCartToStore();
       showStep('step-success');
       btn.innerHTML = '<i class="fas fa-check-circle"></i> Confirm 50% Payment';
       btn.disabled = false;
-    }, 1500);
+
+    } catch (networkErr) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check-circle"></i> Confirm 50% Payment';
+      const netMsg = 'Cannot connect to order server. Please check your internet connection and try again.';
+      if (errBox) {
+        errBox.textContent = netMsg;
+        errBox.style.display = 'block';
+      }
+      showToast(netMsg);
+    }
   });
 
   // Order Again reset
