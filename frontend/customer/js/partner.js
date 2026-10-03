@@ -832,16 +832,17 @@
     })
     .catch(e => console.warn('[Partner API Sync]:', e.message))
     .finally(() => {
-      toast(isUpdate ? 'Partnership application updated successfully!' : 'Partnership application submitted successfully!');
-      if (currentUser) {
-        setTimeout(() => { window.location.href = 'dashboard.html'; }, 1000);
-      } else {
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = origBtnHtml;
-        }
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = origBtnHtml;
       }
     });
+
+    toast(isUpdate ? 'Partnership application updated successfully!' : 'Partnership application submitted successfully!');
+
+    if (currentUser) {
+      setTimeout(() => { window.location.href = 'dashboard.html'; }, 1000);
+    } else {
       // Guest applicant: Render confirmation card with Reference ID & direct Track link
       const formContainer = document.querySelector('.partner-form-container');
       if (formContainer) {
