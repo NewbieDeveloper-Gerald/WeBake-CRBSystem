@@ -82,9 +82,16 @@ async function handleSend(req, res, pool) {
   await transporter.sendMail({
     from: `"WeBake — Crumbs N' Rolls Bakery" <${fromAddress}>`,
     to: cleanEmail,
+    replyTo: fromAddress,
     subject: `${otp} is your WeBake verification code`,
     text: `Your WeBake verification code is: ${otp}. This code will expire in 5 minutes.`,
-    html: buildOtpEmailHtml({ otp, purpose })
+    html: buildOtpEmailHtml({ otp, purpose }),
+    priority: 'high',
+    headers: {
+      'X-Priority': '1 (Highest)',
+      'X-MSMail-Priority': 'High',
+      'Importance': 'High'
+    }
   });
 
   return sendJson(res, 200, {

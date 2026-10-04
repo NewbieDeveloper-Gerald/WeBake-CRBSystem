@@ -1,21 +1,48 @@
 /**
  * ====================================================================
- * WeBake - OTP Routes & In-Memory Store
- * Handles cryptographic generation, rate limiting, and verification
+ * WeBake - OTP Routes (Supabase PostgreSQL Backed with In-Memory Resilience)
+ * Handles cryptographic generation, rate limiting, and signed proof tokens
  * ====================================================================
  */
 
 const express = require('express');
 const crypto = require('crypto');
+const db = require('../database/db');
 const { sendOtpEmail } = require('../services/mailer');
 
 const router = express.Router();
 
-// In-Memory store for active OTPs (Key: lowercase email)
-// Auto-cleans expired entries
-const otpStore = new Map();
+const OTP_PEPPER = process.env.OTP_SECRET || process.env.SESSION_SECRET || 'webake_crb_otp_pepper_salt_2026';
+const PROOF_SECRET = process.env.OTP_SECRET || (process.env.SESSION_SECRET ? process.env.SESSION_SECRET + '_proof_salt' : 'webake_crb_otp_proof_salt_2026');
 
-// Helper: Periodic cleanup of expired tokens every 5 minutes
+// Helper for Base64URL Encoding & Proof Tokens
+function base64UrlEncode(str) {
+  return Buffer.from(str)
+    .toString('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+}
+
+function createProofToken({ email, purpose, otpId, expMinutes = 10 }) {
+  const payload = {
+    email: (email || '').trim().toLowerCase(),
+    purpose,
+    otpId: otpId || Date.now(),
+    type: 'otp_proof',
+    exp: Date.now() + expMinutes * 60 * 1000
+  };
+  const jsonStr = JSON.stringify(payload);
+  const encodedPayload = base64UrlEncode(jsonStr);
+  const signature = crypto
+    .createHmac('sha256', PROOF_SECRET)
+    .update(encodedPayload)
+    .digest('base64url');
+  return `${encodedPayload}.${signature}`;
+}
+
+// In-Memory store fallback
+const otpStore = new Map();
 const cleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [email, record] of otpStore.entries()) {
@@ -26,7 +53,6 @@ const cleanupInterval = setInterval(() => {
 }, 5 * 60 * 1000);
 if (cleanupInterval.unref) cleanupInterval.unref();
 
-// Strict email format validation
 function isValidEmail(email) {
   if (!email || typeof email !== 'string') return false;
   const re = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -35,11 +61,11 @@ function isValidEmail(email) {
 
 /**
  * POST /api/otp/send
- * Sends a 6-digit OTP to the requested email
+ * Generates and emails a 6-digit OTP
  */
 router.post('/send', async (req, res) => {
   try {
-    const { email, purpose } = req.body || {};
+    const { email, purpose = 'verification' } = req.body || {};
 
     if (!email || !isValidEmail(email)) {
       return res.status(400).json({
@@ -50,44 +76,103 @@ router.post('/send', async (req, res) => {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const existing = otpStore.get(cleanEmail);
 
-    // Rate limiting: 60 seconds cooldown between resends
-    if (existing && Date.now() < existing.resendAvailableAt) {
-      const waitSec = Math.ceil((existing.resendAvailableAt - Date.now()) / 1000);
-      return res.status(429).json({
-        success: false,
-        error: 'cooldown',
-        message: `Please wait ${waitSec} second${waitSec === 1 ? '' : 's'} before requesting another code.`,
-        remainingSeconds: waitSec
-      });
+    // 1. Database Rate Limit & Cooldown Check (if DB is accessible)
+    try {
+      const hourlyCheck = await db.query(`
+        SELECT count(*)::int AS count 
+        FROM otp_verifications 
+        WHERE email_address = $1 AND created_at > NOW() - INTERVAL '1 hour';
+      `, [cleanEmail]);
+
+      if (hourlyCheck.rows[0]?.count >= 10) {
+        return res.status(429).json({
+          success: false,
+          error: 'rate_limited',
+          message: 'Too many verification requests. Please wait before requesting more codes.'
+        });
+      }
+
+      const cooldownCheck = await db.query(`
+        SELECT resend_available_at 
+        FROM otp_verifications 
+        WHERE email_address = $1 AND consumed_at IS NULL AND expires_at > NOW()
+        ORDER BY id DESC LIMIT 1;
+      `, [cleanEmail]);
+
+      if (cooldownCheck.rows.length > 0) {
+        const resendAt = new Date(cooldownCheck.rows[0].resend_available_at).getTime();
+        const now = Date.now();
+        if (now < resendAt) {
+          const waitSec = Math.ceil((resendAt - now) / 1000);
+          return res.status(429).json({
+            success: false,
+            error: 'cooldown',
+            message: `Please wait ${waitSec} second${waitSec === 1 ? '' : 's'} before requesting another code.`,
+            remainingSeconds: waitSec
+          });
+        }
+      }
+    } catch (dbErr) {
+      // In-Memory Cooldown fallback
+      const existing = otpStore.get(cleanEmail);
+      if (existing && Date.now() < existing.resendAvailableAt) {
+        const waitSec = Math.ceil((existing.resendAvailableAt - Date.now()) / 1000);
+        return res.status(429).json({
+          success: false,
+          error: 'cooldown',
+          message: `Please wait ${waitSec} second${waitSec === 1 ? '' : 's'} before requesting another code.`,
+          remainingSeconds: waitSec
+        });
+      }
     }
 
-    // Cryptographically secure 6-digit OTP (100000 to 999999)
+    // 2. Generate secure 6-digit OTP
     const otp = crypto.randomInt(100000, 1000000).toString();
+    const otpHash = crypto.createHash('sha256').update(otp + OTP_PEPPER).digest('hex');
 
-    // Store OTP metadata (5-minute expiry, max 5 failed attempts)
+    // 3. Save into Supabase Database
+    let dbOtpId = null;
+    try {
+      const insertRes = await db.query(`
+        INSERT INTO otp_verifications (
+          email_address, otp_code_hash, purpose, attempt_count, resend_available_at, expires_at
+        ) VALUES (
+          $1, $2, $3, 0, NOW() + INTERVAL '60 seconds', NOW() + INTERVAL '5 minutes'
+        ) RETURNING id;
+      `, [cleanEmail, otpHash, purpose]);
+      if (insertRes.rows.length > 0) {
+        dbOtpId = insertRes.rows[0].id;
+      }
+    } catch (dbErr) {
+      console.warn('[OTP] Database insert skipped, falling back to memory store:', dbErr.message);
+    }
+
+    // Always keep in memory store as fallback
     otpStore.set(cleanEmail, {
+      id: dbOtpId || Date.now(),
       code: otp,
-      purpose: purpose || 'verification',
+      purpose,
       expiresAt: Date.now() + 5 * 60 * 1000,
       attempts: 0,
       resendAvailableAt: Date.now() + 60 * 1000
     });
 
-    // Send real email via crbwebake@gmail.com
+    // 4. Send transactional email
     try {
       await sendOtpEmail({
         email: cleanEmail,
         otp,
-        purpose: purpose || 'verification'
+        purpose
       });
     } catch (mailErr) {
       otpStore.delete(cleanEmail);
+      if (dbOtpId) {
+        try { await db.query('DELETE FROM otp_verifications WHERE id = $1;', [dbOtpId]); } catch (_) {}
+      }
       throw mailErr;
     }
 
-    // IMPORTANT: Never return the OTP in the API response
     return res.json({
       success: true,
       message: 'Verification code has been sent to your email.'
@@ -105,11 +190,11 @@ router.post('/send', async (req, res) => {
 
 /**
  * POST /api/otp/verify
- * Verifies the 6-digit code for the email
+ * Validates the 6-digit OTP code and returns an authentic signed proof token
  */
-router.post('/verify', (req, res) => {
+router.post('/verify', async (req, res) => {
   try {
-    const { email, code } = req.body || {};
+    const { email, code, purpose } = req.body || {};
 
     if (!email || !isValidEmail(email)) {
       return res.status(400).json({
@@ -119,8 +204,8 @@ router.post('/verify', (req, res) => {
       });
     }
 
-    const cleanCode = (code || '').toString().trim();
-    if (!/^\d{6}$/.test(cleanCode)) {
+    const cleanCode = (code || '').toString().trim().replace(/\D/g, '');
+    if (cleanCode.length !== 6) {
       return res.status(400).json({
         success: false,
         error: 'invalid_format',
@@ -129,18 +214,95 @@ router.post('/verify', (req, res) => {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const record = otpStore.get(cleanEmail);
+    const cleanPurpose = (purpose || '').trim();
 
-    // 1. Missing or already expired
+    // 1. Try DB Verification first
+    try {
+      const querySql = cleanPurpose
+        ? `SELECT id, otp_code_hash, attempt_count, expires_at, purpose
+           FROM otp_verifications
+           WHERE email_address = $1 AND purpose = $2 AND consumed_at IS NULL
+           ORDER BY id DESC LIMIT 1;`
+        : `SELECT id, otp_code_hash, attempt_count, expires_at, purpose
+           FROM otp_verifications
+           WHERE email_address = $1 AND consumed_at IS NULL
+           ORDER BY id DESC LIMIT 1;`;
+      const queryParams = cleanPurpose ? [cleanEmail, cleanPurpose] : [cleanEmail];
+      const { rows } = await db.query(querySql, queryParams);
+
+      if (rows.length > 0) {
+        const record = rows[0];
+
+        if (new Date() > new Date(record.expires_at)) {
+          return res.status(400).json({
+            success: false,
+            error: 'expired',
+            message: 'Verification code has expired. Please request a new code.'
+          });
+        }
+
+        const attemptRes = await db.query(`
+          UPDATE otp_verifications 
+          SET attempt_count = attempt_count + 1 
+          WHERE id = $1 AND attempt_count < 5
+          RETURNING attempt_count;
+        `, [record.id]);
+
+        if (attemptRes.rows.length === 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'too_many_attempts',
+            message: 'Too many incorrect attempts. Please request a new code.'
+          });
+        }
+
+        const currentAttempts = attemptRes.rows[0].attempt_count;
+        const inputHash = crypto.createHash('sha256').update(cleanCode + OTP_PEPPER).digest('hex');
+        const bufInput = Buffer.from(inputHash);
+        const bufStored = Buffer.from(record.otp_code_hash);
+        const isMatch = bufInput.length === bufStored.length && crypto.timingSafeEqual(bufInput, bufStored);
+
+        if (!isMatch) {
+          const remaining = 5 - currentAttempts;
+          return res.status(400).json({
+            success: false,
+            error: 'wrong_code',
+            message: `Incorrect code. ${remaining > 0 ? remaining + ' attempt' + (remaining === 1 ? '' : 's') + ' remaining.' : 'Please request a new code.'}`
+          });
+        }
+
+        // On success: mark verified
+        await db.query(`UPDATE otp_verifications SET verified_at = NOW() WHERE id = $1;`, [record.id]);
+        otpStore.delete(cleanEmail);
+
+        const proofToken = createProofToken({
+          email: cleanEmail,
+          purpose: record.purpose,
+          otpId: record.id,
+          expMinutes: 10
+        });
+
+        return res.json({
+          success: true,
+          verified: true,
+          proofToken,
+          message: 'Email verified successfully.'
+        });
+      }
+    } catch (dbErr) {
+      console.warn('[OTP] DB verify fallback to memory store:', dbErr.message);
+    }
+
+    // 2. In-Memory Store Fallback
+    const record = otpStore.get(cleanEmail);
     if (!record) {
       return res.status(400).json({
         success: false,
-        error: 'expired',
-        message: 'Verification code has expired or was not requested. Please request a new code.'
+        error: 'no_otp_found',
+        message: 'No active verification code found. Please request a new code.'
       });
     }
 
-    // 2. Expired timestamp
     if (Date.now() > record.expiresAt) {
       otpStore.delete(cleanEmail);
       return res.status(400).json({
@@ -150,22 +312,19 @@ router.post('/verify', (req, res) => {
       });
     }
 
-    // 3. Rate limiting attempts (Maximum 5 attempts per OTP)
     if (record.attempts >= 5) {
       otpStore.delete(cleanEmail);
       return res.status(429).json({
         success: false,
         error: 'too_many_attempts',
-        message: 'Too many incorrect attempts. For security, please request a new verification code.'
+        message: 'Too many incorrect attempts. Please request a new verification code.'
       });
     }
 
-    // 4. Code mismatch
     if (record.code !== cleanCode) {
       record.attempts += 1;
-      const remainingAttempts = 5 - record.attempts;
-
-      if (remainingAttempts <= 0) {
+      const remaining = 5 - record.attempts;
+      if (remaining <= 0) {
         otpStore.delete(cleanEmail);
         return res.status(429).json({
           success: false,
@@ -173,19 +332,25 @@ router.post('/verify', (req, res) => {
           message: 'Too many incorrect attempts. Please request a new code.'
         });
       }
-
       return res.status(400).json({
         success: false,
         error: 'wrong_code',
-        message: `Incorrect code. ${remainingAttempts} attempt${remainingAttempts === 1 ? '' : 's'} remaining.`
+        message: `Incorrect code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`
       });
     }
 
-    // 5. Successful verification: Delete immediately so it cannot be re-used
     otpStore.delete(cleanEmail);
+    const proofToken = createProofToken({
+      email: cleanEmail,
+      purpose: record.purpose,
+      otpId: record.id,
+      expMinutes: 10
+    });
 
     return res.json({
       success: true,
+      verified: true,
+      proofToken,
       message: 'Email verified successfully.'
     });
 

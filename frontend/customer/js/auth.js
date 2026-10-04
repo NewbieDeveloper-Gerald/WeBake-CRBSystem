@@ -157,12 +157,21 @@
   // 4. PASSWORD STRENGTH & VALIDATION LOGIC
   // ====================================================================
   function checkPasswordStrength(pwd) {
+    if (!pwd || typeof pwd !== 'string') return 0;
     let strength = 0;
-    if (pwd.length >= 6) strength += 25;
-    if (pwd.length >= 10) strength += 25;
-    if (/[A-Z]/.test(pwd)) strength += 25;
-    if (/[0-9!@#$%^&*]/.test(pwd)) strength += 25;
-    return strength;
+    // Length progression: gives immediate feedback on typing
+    if (pwd.length >= 1) strength += Math.min(pwd.length * 4, 20); // 1-5 chars = 4-20%
+    if (pwd.length >= 6) strength += 20; // 6+ chars
+    if (pwd.length >= 8) strength += 15; // 8+ chars
+    if (pwd.length >= 10) strength += 10; // 10+ chars
+
+    // Complexity factors
+    if (/[a-z]/.test(pwd)) strength += 10;
+    if (/[A-Z]/.test(pwd)) strength += 10;
+    if (/[0-9]/.test(pwd)) strength += 10;
+    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd)) strength += 15;
+
+    return Math.min(strength, 100);
   }
 
   function setupPasswordStrengthUI(formId, pwdId, cpwdId, submitId) {
@@ -181,29 +190,65 @@
       const pwd = pwdInput ? pwdInput.value : '';
       const cpwd = cpwdInput ? cpwdInput.value : '';
 
-      // Strength
+      // Strength progress bar & label
       if (pwd) {
         if (strengthWrap) strengthWrap.style.display = 'block';
         if (strengthText) strengthText.style.display = 'block';
         const score = checkPasswordStrength(pwd);
-        if (strengthBar) strengthBar.style.width = score + '%';
 
-        if (score <= 25) {
-          if (strengthBar) strengthBar.style.background = 'red';
-          if (strengthText) { strengthText.textContent = 'Weak'; strengthText.style.color = 'red'; }
-        } else if (score <= 50) {
-          if (strengthBar) strengthBar.style.background = 'orange';
-          if (strengthText) { strengthText.textContent = 'Fair'; strengthText.style.color = 'orange'; }
-        } else if (score <= 75) {
-          if (strengthBar) strengthBar.style.background = '#e6c200';
-          if (strengthText) { strengthText.textContent = 'Good'; strengthText.style.color = '#e6c200'; }
+        if (pwd.length < 6) {
+          if (strengthBar) {
+            strengthBar.style.width = Math.max(score, 20) + '%';
+            strengthBar.style.backgroundColor = '#dc3545';
+          }
+          if (strengthText) {
+            strengthText.textContent = 'Too short (min. 6 characters)';
+            strengthText.style.color = '#dc3545';
+          }
+        } else if (score < 50) {
+          if (strengthBar) {
+            strengthBar.style.width = score + '%';
+            strengthBar.style.backgroundColor = '#dc3545';
+          }
+          if (strengthText) {
+            strengthText.textContent = 'Weak';
+            strengthText.style.color = '#dc3545';
+          }
+        } else if (score < 70) {
+          if (strengthBar) {
+            strengthBar.style.width = score + '%';
+            strengthBar.style.backgroundColor = '#fd7e14';
+          }
+          if (strengthText) {
+            strengthText.textContent = 'Fair';
+            strengthText.style.color = '#fd7e14';
+          }
+        } else if (score < 85) {
+          if (strengthBar) {
+            strengthBar.style.width = score + '%';
+            strengthBar.style.backgroundColor = '#f59e0b';
+          }
+          if (strengthText) {
+            strengthText.textContent = 'Good';
+            strengthText.style.color = '#f59e0b';
+          }
         } else {
-          if (strengthBar) strengthBar.style.background = 'green';
-          if (strengthText) { strengthText.textContent = 'Strong'; strengthText.style.color = 'green'; }
+          if (strengthBar) {
+            strengthBar.style.width = '100%';
+            strengthBar.style.backgroundColor = '#10b981';
+          }
+          if (strengthText) {
+            strengthText.textContent = 'Strong';
+            strengthText.style.color = '#10b981';
+          }
         }
       } else {
         if (strengthWrap) strengthWrap.style.display = 'none';
         if (strengthText) strengthText.style.display = 'none';
+        if (strengthBar) {
+          strengthBar.style.width = '0%';
+          strengthBar.style.backgroundColor = '';
+        }
       }
 
       // Password Input Border
@@ -251,8 +296,11 @@
       }
     }
 
-    if (pwdInput) pwdInput.addEventListener('input', validate);
-    if (cpwdInput) cpwdInput.addEventListener('input', validate);
+    // Attach to multiple events for maximum responsiveness & autofill support
+    ['input', 'keyup', 'change'].forEach(evt => {
+      if (pwdInput) pwdInput.addEventListener(evt, validate);
+      if (cpwdInput) cpwdInput.addEventListener(evt, validate);
+    });
   }
 
   function setupLiveFormValidation() {
@@ -784,6 +832,7 @@
             resetProofToken = verifyData?.proofToken || null;
             closeAuthModals();
             openAuthModal('reset-modal');
+            setupPasswordStrengthUI('reset-form', 'reset-pwd', 'reset-cpwd', 'reset-submit-btn');
           }
         },
         onError: msg => {

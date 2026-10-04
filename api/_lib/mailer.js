@@ -1,7 +1,7 @@
 const nodemailer = require('nodemailer');
 
 function createTransporter() {
-  const user = process.env.GMAIL_USER || '';
+  const user = process.env.GMAIL_USER || 'crbwebake@gmail.com';
   const pass = (process.env.GMAIL_APP_PASS || '').replace(/\s+/g, '');
 
   return nodemailer.createTransport({
@@ -28,6 +28,9 @@ function buildOtpEmailHtml({ otp, purpose }) {
   } else if (purpose === 'checkout' || purpose === 'checkout_verification') {
     purposeTitle = 'Confirm Your Order';
     purposeText = 'Thank you for choosing Crumbs N\' Rolls Bakery. Please verify your email address to confirm your bread order:';
+  } else if (purpose === 'partner' || purpose === 'partner_verification') {
+    purposeTitle = 'Wholesale Partnership Application';
+    purposeText = 'Thank you for applying to become a WeBake Wholesale Partner. Please enter the verification code below to verify your email address:';
   } else if (purpose === 'forgot' || purpose === 'forgot_password') {
     purposeTitle = 'Password Reset Request';
     purposeText = 'A password reset was requested for your WeBake account. Use this one-time verification code to proceed:';

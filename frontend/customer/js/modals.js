@@ -32,6 +32,10 @@
       .track-tab-btn{font-size:0.78rem;padding:0.5rem 0.35rem;gap:0.3rem}
       .track-tab-btn i{font-size:0.82rem}
     }
+    .pwd-strength{margin-top:0.5rem;height:6px;border-radius:4px;background:#e9ecef;overflow:hidden;display:none}
+    .pwd-strength-bar{width:0;height:100%;border-radius:4px;transition:width 0.3s ease, background 0.3s ease}
+    .pwd-strength-text{font-size:0.78rem;margin-top:0.35rem;font-weight:600;display:none}
+    .cpwd-error{display:none;color:var(--danger);font-size:0.75rem;margin-top:0.25rem;font-weight:500}
     @media(max-width:380px){
       .track-tab-wrap{flex-direction:column;gap:0.35rem}
       .track-tab-btn{width:100%;padding:0.6rem 0.75rem;font-size:0.82rem}
@@ -93,8 +97,8 @@
         <div class="form-group">
           <label>Password</label>
           <div class="auth-icon-input"><i class="fas fa-lock"></i><input type="password" class="form-input" required id="reg-pwd" placeholder="Create a strong password"><button type="button" class="auth-eye-toggle"><i class="fas fa-eye"></i></button></div>
-          <div class="pwd-strength" style="display:none; margin-top:0.5rem; height:4px; border-radius:2px; background:#eee; overflow:hidden;"><div class="pwd-strength-bar" style="width:0; height:100%; transition:all 0.3s;"></div></div>
-          <div class="pwd-strength-text" style="display:none; font-size:0.75rem; margin-top:0.25rem; font-weight:600;"></div>
+          <div class="pwd-strength"><div class="pwd-strength-bar"></div></div>
+          <div class="pwd-strength-text"></div>
         </div>
         <div class="form-group">
           <label>Confirm Password</label>
@@ -154,8 +158,8 @@
         <div class="form-group">
           <label>New Password</label>
           <div class="auth-icon-input"><i class="fas fa-lock"></i><input type="password" class="form-input" required id="reset-pwd" placeholder="New password"><button type="button" class="auth-eye-toggle"><i class="fas fa-eye"></i></button></div>
-          <div class="pwd-strength" style="display:none; margin-top:0.5rem; height:4px; border-radius:2px; background:#eee; overflow:hidden;"><div class="pwd-strength-bar" style="width:0; height:100%; transition:all 0.3s;"></div></div>
-          <div class="pwd-strength-text" style="display:none; font-size:0.75rem; margin-top:0.25rem; font-weight:600;"></div>
+          <div class="pwd-strength"><div class="pwd-strength-bar"></div></div>
+          <div class="pwd-strength-text"></div>
         </div>
         <div class="form-group">
           <label>Confirm Password</label>

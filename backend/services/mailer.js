@@ -44,6 +44,9 @@ function buildOtpEmailHtml({ otp, purpose }) {
   } else if (purpose === 'checkout' || purpose === 'checkout_verification') {
     purposeTitle = 'Confirm Your Order';
     purposeText = 'Thank you for choosing Crumbs N\' Rolls Bakery. Please verify your email address to confirm your bread order:';
+  } else if (purpose === 'partner' || purpose === 'partner_verification') {
+    purposeTitle = 'Wholesale Partnership Application';
+    purposeText = 'Thank you for applying to become a WeBake Wholesale Partner. Please enter the verification code below to verify your email address:';
   } else if (purpose === 'forgot' || purpose === 'forgot_password') {
     purposeTitle = 'Password Reset Request';
     purposeText = 'A password reset was requested for your WeBake account. Use this one-time verification code to proceed:';
@@ -150,17 +153,30 @@ async function sendOtpEmail({ email, otp, purpose }) {
     );
   }
 
-  const transporter = getTransporter();
-
-  const info = await transporter.sendMail({
+  const mailOptions = {
     from: `"WeBake — Crumbs N' Rolls Bakery" <${fromAddress}>`,
     to: email,
+    replyTo: fromAddress,
     subject: `${otp} is your WeBake verification code`,
     text: `Your WeBake verification code is: ${otp}. This code will expire in 5 minutes.`,
-    html: buildOtpEmailHtml({ otp, purpose })
-  });
+    html: buildOtpEmailHtml({ otp, purpose }),
+    priority: 'high',
+    headers: {
+      'X-Priority': '1 (Highest)',
+      'X-MSMail-Priority': 'High',
+      'Importance': 'High'
+    }
+  };
 
-  return info;
+  try {
+    const transporter = getTransporter();
+    return await transporter.sendMail(mailOptions);
+  } catch (err) {
+    console.warn('[Mailer] Initial send failed, recreating transporter and retrying...', err.message);
+    cachedTransporter = null;
+    const retryTransporter = getTransporter();
+    return await retryTransporter.sendMail(mailOptions);
+  }
 }
 
 /**
