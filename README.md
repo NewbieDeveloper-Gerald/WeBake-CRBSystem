@@ -8,11 +8,11 @@
 ![Supabase](https://img.shields.io/badge/Database-Supabase%20PostgreSQL-3ECF8E?style=flat&logo=supabase)
 ![Security](https://img.shields.io/badge/Security-OWASP%20Hardened-green?style=flat&logo=shield)
 ![Node.js](https://img.shields.io/badge/Node.js-18.x%20%7C%2020.x-339933?style=flat&logo=node.js)
-![Status](https://img.shields.io/badge/Tests-97%2F97%20Passed-brightgreen?style=flat)
+![Tests](https://img.shields.io/badge/Tests-131%2F131%20Passed-brightgreen?style=flat)
 
 **WeBake (CRBSystem)** is a bakery e-commerce, wholesale distribution, and order tracking platform developed for **Crumbs N' Rolls Bakery** (Marilao, Bulacan). The system handles wholesale and retail bakery ordering, multi-channel e-wallet payments (GCash, PayMaya), downpayment validation, live order status tracking, digital receipts, wholesale reseller applications, and customer order management.
 
-The platform is designed to run entirely on **Vercel Serverless Functions** backed by **Supabase PostgreSQL**, adhering strictly to the Vercel Hobby tier function constraints ($\le 12$ serverless functions) with complete enterprise-grade security hardening.
+The platform runs in production on **Vercel Serverless Functions** backed by **Supabase PostgreSQL**, adhering strictly to the Vercel Hobby tier function constraints ($\le 12$ serverless functions) with complete enterprise-grade security hardening. The local Express development server directly mounts the same `/api/*` serverless handlers to ensure 100% parity between local development and cloud production.
 
 ---
 
@@ -70,18 +70,19 @@ The platform is designed to run entirely on **Vercel Serverless Functions** back
 [ Customer Browser ]
        │
        ▼  (HTTPS / CSP / Strict Headers)
-[ Vercel Edge / CDN ]
+[ Vercel Edge / CDN / Express Local Adapter ]
        │
        ├─► (Static Assets: HTML, CSS, JS, Images)
-       │     └─► utils.js (Strict HTML entity escaping against XSS)
-       │     └─► config.js (Frozen centralized configuration)
+       │     └─► shared/formatters.js (Strict HTML entity escaping against XSS)
+       │     └─► shared/config.js (Frozen centralized configuration)
        │     └─► localStorage (Zero plaintext password policy)
        │
-       ▼  (Serverless API Route)
+       ▼  (Serverless API Handlers (/api/*))
 [ Node.js API Functions (/api/*) ]
        │
-       ├─► session.js (HMAC-SHA256 HttpOnly session validation)
-       ├─► authHelper.js (210,000 iteration PBKDF2 hashing)
+       ├─► _lib/session.js (HMAC-SHA256 HttpOnly session validation)
+       ├─► _lib/password-hasher.js (210,000 iteration PBKDF2 hashing)
+       ├─► _lib/user-profile.js (Aggregated profile, orders, and partner loader)
        ├─► otp/index.js (Proof token generation & verified_at gating)
        ├─► orders/index.js (Authoritative catalog lookup & idempotency)
        │
@@ -97,7 +98,7 @@ The platform is designed to run entirely on **Vercel Serverless Functions** back
 ## Technology Stack
 
 * **Frontend**: Vanilla JavaScript (ES6+), HTML5, CSS3, FontAwesome 6, Google Fonts (Poppins, Playfair Display).
-* **Backend Runtime**: Node.js (v18.x / v20.x) running on Vercel Serverless Functions.
+* **Backend Runtime**: Node.js (v18.x / v20.x) running on Vercel Serverless Functions (`/api/*`) and local Express development server (`backend/server.js`).
 * **Database**: PostgreSQL 15 hosted on Supabase with connection pooling (`pg` / `pg-pool`).
 * **Email Service**: Nodemailer (SMTP over TLS via Gmail App Password).
 * **Deployment & Hosting**: Vercel with custom `vercel.json` headers and rewrites.
@@ -108,13 +109,14 @@ The platform is designed to run entirely on **Vercel Serverless Functions** back
 
 ```
 WeBake-CRBSystem/
-├── api/                                # Vercel Serverless API Functions (Max 12 limit)
-│   ├── _lib/                           # Shared internal utilities (excluded from route count)
-│   │   ├── authHelper.js               # PBKDF2 (210k rounds) hashing and validation
+├── api/                                # Vercel Serverless API Functions (11 functions, limit 12)
+│   ├── _lib/                           # Shared internal serverless utilities
 │   │   ├── db.js                       # PostgreSQL connection pooling with SSL
 │   │   ├── http.js                     # CORS, JSON response, and sanitized error handlers
+│   │   ├── mailer.js                   # Nodemailer transporter & email dispatch
+│   │   ├── password-hasher.js          # PBKDF2 (210k rounds) hashing and validation
 │   │   ├── session.js                  # HMAC-SHA256 session and OTP proof tokens
-│   │   └── userProfile.js              # Aggregated profile, orders, and partner loader
+│   │   └── user-profile.js             # Aggregated profile, orders, and partner loader
 │   ├── auth/
 │   │   ├── check.js                    # Email availability checker
 │   │   ├── login.js                    # Authenticates user and sets session cookie
@@ -137,39 +139,71 @@ WeBake-CRBSystem/
 │   ├── database/
 │   │   ├── migrations/
 │   │   │   └── 001_align_schema.sql    # Idempotent database schema migration script
+│   │   ├── seeds/
+│   │   │   └── seed-products.js        # Seed script for bakery product catalog
+│   │   ├── db.js                       # Standalone PostgreSQL pool helper
 │   │   └── schema.sql                  # Comprehensive PostgreSQL database definition
-│   └── .env                            # Local development environment configuration
+│   ├── services/
+│   │   └── mailer.js                   # Standalone Nodemailer email service
+│   ├── .env.example                    # Reference environment configuration template
+│   ├── package.json                    # Backend dependencies (Express, CORS, etc.)
+│   └── server.js                       # Express adapter mounting /api/* for 100% cloud parity
 │
 ├── frontend/customer/                  # Customer-facing web application
 │   ├── css/
-│   │   ├── auth.css                    # Authentication & OTP modals styling
-│   │   ├── main.css                    # Base theme, typography, layout, and components
-│   │   ├── responsive.css              # Mobile, tablet, and desktop responsive breakpoints
-│   │   └── tracking.css                # Order timeline and partner tracking cards
+│   │   ├── base/
+│   │   │   ├── components.css          # Buttons, form controls, modals, and badges
+│   │   │   ├── globals.css             # CSS reset, body, header, footer, animations
+│   │   │   └── variables.css           # Bakery design system variables & color palette
+│   │   └── pages/
+│   │       ├── dashboard.css           # Customer portal styling
+│   │       ├── home.css                # Landing page hero & showcase styling
+│   │       ├── partner.css             # Reseller application form styling
+│   │       └── products.css            # Catalog grid and order modal styling
 │   ├── html/
-│   │   ├── home.html                   # Landing page, hero, product highlights, and reviews
-│   │   ├── products.html               # Product catalog, bundle selector, and cart drawer
 │   │   ├── dashboard.html              # Customer portal (order history, saved cart, refunds)
-│   │   └── partner.html                # Wholesale reseller application portal
+│   │   ├── home.html                   # Landing page, hero, product highlights, and reviews
+│   │   ├── partner.html                # Wholesale reseller application portal
+│   │   └── products.html               # Product catalog, bundle selector, and cart drawer
+│   ├── img/                            # Bakery product images, banners, and logos
+│   │   ├── favicon.png                 # Webake browser tab icon
+│   │   ├── gcash-qr.svg                # GCash payment QR code
+│   │   ├── paymaya-qr.svg              # PayMaya payment QR code
+│   │   └── webake-logo.png             # Official Crumbs N' Rolls logo
 │   ├── js/
-│   │   ├── config.js                   # Central frozen configuration (WEBAKE_CONFIG)
-│   │   ├── utils.js                    # Sanitization, XSS escaping, and currency formatters
-│   │   ├── auth.js                     # User login, registration, and session synchronization
-│   │   ├── dashboard.js                # Customer account dashboard controller
-│   │   ├── main.js                     # Core catalog, cart drawer, and checkout handler
-│   │   ├── otp.js                      # OTP modal interaction and resend timers
-│   │   ├── partner.js                  # Wholesale application form submission
-│   │   └── tracking.js                 # Transaction lookup for orders and partner apps
-│   └── images/                         # Bakery product images, banners, and icons
+│   │   ├── features/
+│   │   │   ├── auth.js                 # User login, registration, and session sync
+│   │   │   ├── dashboard.js            # Customer account dashboard controller
+│   │   │   ├── partner.js              # Wholesale application form submission
+│   │   │   ├── storefront.js           # Core catalog, cart drawer, and checkout handler
+│   │   │   └── tracking.js             # Transaction lookup for orders and partner apps
+│   │   └── shared/
+│   │       ├── config.js               # Central frozen configuration (WEBAKE_CONFIG)
+│   │       ├── formatters.js           # Sanitization, XSS escaping, and currency formatters
+│   │       ├── modals.js               # Reusable confirmation and alert modals
+│   │       └── otp.js                  # OTP modal interaction and resend timers
+│   └── index.html                      # Redirect helper to home.html
 │
-├── scratch/                            # Automated Acceptance Verification Test Suites
-│   ├── test_phase2.js                  # Auth, PBKDF2, OTP proof tokens, and sessions suite
-│   ├── test_phase3.js                  # Orders, catalog pricing, and idempotency suite
-│   └── test_phase4_5.js                # Frontend escaping, health, cart merge, and CSP suite
+├── tests/                              # Automated test suites (131 assertions)
+│   ├── acceptance/
+│   │   ├── orders-and-pricing.test.js  # Orders, catalog pricing, and idempotency (24 checks)
+│   │   ├── partner-application.test.js # Partner applications & reference codes (9 checks)
+│   │   ├── platform-contract.test.js   # Health, escaping, cart merge, CSP, Vercel budget (50 checks)
+│   │   └── security-and-auth.test.js   # Auth, PBKDF2 (210k), sessions & proof tokens (24 checks)
+│   ├── helpers/
+│   │   └── load-env.js                 # Environment variable resolver for test execution
+│   └── integration/
+│       └── express-parity.test.js      # Express server adapter HTTP parity suite (24 checks)
 │
-├── .vercelignore                       # Excludes test scripts, docs, and backend folder
+├── tools/                              # Project maintenance tools
+│   ├── check-references.js             # Static reference integrity checker
+│   └── generate-brand-assets.js        # Automated branding asset generator
+│
+├── .gitignore                          # Git ignored patterns
+├── .vercelignore                       # Excludes test suites, docs, and backend from Vercel
+├── favicon.ico                         # Root favicon
 ├── index.html                          # Root redirect to /frontend/customer/html/home.html
-├── package.json                        # Root dependencies (pg, nodemailer)
+├── package.json                        # Root npm scripts and dependencies
 └── vercel.json                         # Vercel deployment configuration, CSP, and rewrites
 ```
 
@@ -239,11 +273,22 @@ erDiagram
 
     cancellation_requests {
         bigint id PK
+        string cancellation_code UK
         bigint order_id FK
         string customer_email
         numeric downpayment_amount
         string refund_wallet
         string refund_account_number
+        string status
+    }
+
+    partner_applications {
+        bigint id PK
+        string reference_id UK
+        string business_name
+        string contact_person
+        string email
+        string phone
         string status
     }
 
@@ -261,7 +306,7 @@ erDiagram
 
 ## Environment Variables
 
-Configure these environment variables in your Vercel Project Settings or local `.env` file:
+Configure these environment variables in your Vercel Project Settings or local `backend/.env` file:
 
 ```ini
 # Supabase PostgreSQL Database Connection
@@ -276,9 +321,9 @@ DB_PORT=6543
 SESSION_SECRET=your_super_secret_session_hmac_key_min_32_chars
 OTP_SECRET=your_super_secret_otp_proof_hmac_key_min_32_chars
 
-# Nodemailer / Gmail SMTP Credentials
-EMAIL_USER=crbwebake@gmail.com
-EMAIL_PASS=your_gmail_16_digit_app_password
+# Nodemailer / Gmail SMTP Credentials (for OTPs and Digital Receipts)
+GMAIL_USER=crbwebake@gmail.com
+GMAIL_APP_PASS=your_gmail_16_digit_app_password
 ```
 
 ---
@@ -288,7 +333,7 @@ EMAIL_PASS=your_gmail_16_digit_app_password
 ### Prerequisites
 * Node.js $\ge$ 18.0.0
 * Git
-* Access to Supabase PostgreSQL instance
+* Access to a Supabase PostgreSQL instance
 
 ### 1. Clone the Repository
 ```bash
@@ -300,37 +345,67 @@ cd WeBake-CRBSystem
 ```bash
 npm install
 ```
+> [!NOTE]
+> If your environment is behind corporate SSL proxy inspection, use `npm install --strict-ssl=false`.
 
 ### 3. Configure Environment Variables
-Create a `.env` file inside `backend/.env` with your Supabase database and email credentials (see [Environment Variables](#environment-variables)).
-
-### 4. Run Schema Migrations
-Execute the migration script against your PostgreSQL database:
+Copy `backend/.env.example` to `backend/.env` and update with your actual Supabase database connection and Gmail credentials:
 ```bash
-psql -d "$DATABASE_URL" -f backend/database/migrations/001_align_schema.sql
+cp backend/.env.example backend/.env
+```
+
+### 4. Database Setup & Migrations
+Always initialize the base schema before running migrations:
+
+1. **Base Schema**: Run `backend/database/schema.sql` to initialize all baseline tables, enums, and foreign keys:
+   ```bash
+   psql -d "$DATABASE_URL" -f backend/database/schema.sql
+   ```
+2. **Schema Migration**: Run `backend/database/migrations/001_align_schema.sql` to ensure idempotent column alignments, audit tables, and constraint adjustments:
+   ```bash
+   psql -d "$DATABASE_URL" -f backend/database/migrations/001_align_schema.sql
+   ```
+3. **(Optional) Seed Default Products**: Populate the product catalog bundles:
+   ```bash
+   npm run seed
+   ```
+
+### 5. Start Local Express Server
+Run the local Express server on port 5000 (which mounts the tested `/api/*` handlers with 100% parity):
+```bash
+npm run dev
 ```
 
 ---
 
 ## Automated Test Suites
 
-The project includes 3 comprehensive acceptance test suites covering 97 automated assertions against live PostgreSQL:
+The project includes acceptance and integration test suites covering **131 automated assertions** against live PostgreSQL:
 
 ```bash
-# 1. Test Authentication, PBKDF2 (210k rounds), Sessions & Proof Tokens
-node scratch/test_phase2.js
+# Run all acceptance test suites (107 checks)
+npm test
 
-# 2. Test Orders, Server-Side Pricing, Idempotency & Rate Limiting
-node scratch/test_phase3.js
+# Run individual acceptance suites
+npm run test:auth      # Security, PBKDF2 (210k rounds), Sessions & Proof Tokens (24/24)
+npm run test:orders    # Orders, Catalog Pricing, Idempotency & Rate Limiting (24/24)
+npm run test:platform  # Health, Cart Merge, XSS Escaping & Vercel Function Budget (50/50)
+npm run test:partner   # Wholesale Reseller Applications & Reference Codes (9/9)
 
-# 3. Test Health, Cart Merge, XSS Escaping & Vercel Configuration
-node scratch/test_phase4_5.js
+# Run the Express Adapter Parity integration suite (24 checks)
+npm run test:parity
+
+# Run the static reference integrity checker (205 checks)
+npm run check
 ```
 
 ### Test Gate Coverage:
-* **24 / 24 Tests Passed**: PBKDF2 upgrades, timing-safe verification, proof token purposes, session cookies, tracking authorization, and cancellation table rows.
-* **24 / 24 Tests Passed**: Live catalog loading, unknown product rejection, price tampering immunity, idempotency deduplication, receipt resend rate limiting (429), and partner integrity.
-* **49 / 49 Tests Passed**: Health endpoint contract, authenticated cart sync, guest cart merge logic, zero plaintext passwords, XSS entity escaping, central config validation, CSP security headers, and Vercel serverless function budget ($\le 12$).
+* **24 / 24 Tests Passed** (`test:auth`): PBKDF2 upgrades, timing-safe verification, proof token purposes, session cookies, tracking authorization, and cancellation table rows.
+* **24 / 24 Tests Passed** (`test:orders`): Live catalog loading, unknown product rejection, price tampering immunity, idempotency deduplication, receipt resend rate limiting (429), and partner integrity.
+* **50 / 50 Tests Passed** (`test:platform`): Health endpoint contract, authenticated cart sync, guest cart merge logic, zero plaintext passwords, XSS entity escaping, central config validation, CSP security headers, and Vercel serverless function budget ($\le 12$).
+* **9 / 9 Tests Passed** (`test:partner`): Partner creation, unique reference code generation, status preservation, and anti-downgrade validation.
+* **24 / 24 Tests Passed** (`test:parity`): Full HTTP end-to-end parity testing of Express mounting `/api/*` serverless handlers.
+* **205 / 205 Checks Passed** (`check`): Static verification of all HTML `<script>` and `<link>` tags, JS imports, and asset paths.
 
 ---
 
@@ -339,9 +414,9 @@ node scratch/test_phase4_5.js
 The application is optimized for zero-configuration deployment on **Vercel**:
 
 1. Link your GitHub repository to Vercel.
-2. In **Project Settings** $\rightarrow$ **Environment Variables**, add the production keys (`DATABASE_URL`, `SESSION_SECRET`, `OTP_SECRET`, `EMAIL_USER`, `EMAIL_PASS`).
+2. In **Project Settings** $\rightarrow$ **Environment Variables**, add the production keys (`DATABASE_URL`, `SESSION_SECRET`, `OTP_SECRET`, `GMAIL_USER`, `GMAIL_APP_PASS`).
 3. Deploy! Vercel automatically:
-   * Maps serverless endpoints in `/api/*`.
+   * Maps serverless endpoints in `/api/*` (11 functions, safely within the 12-function Hobby limit).
    * Enforces security headers from `vercel.json` (`Content-Security-Policy`, `nosniff`, `SAMEORIGIN`).
    * Ignores test suites, documentation, and the backend directory via `.vercelignore`.
 

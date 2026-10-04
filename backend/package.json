@@ -11,7 +11,7 @@
     "bakery",
     "otp",
     "nodemailer",
-    "render"
+    "vercel"
   ],
   "author": "Crumbs N' Rolls Bakery",
   "license": "ISC",
