@@ -1,8 +1,8 @@
 const { getPool } = require('../_lib/db');
 const { handleCors, sendJson, sendError } = require('../_lib/http');
-const { hashPassword, verifyPassword } = require('../_lib/authHelper');
+const { hashPassword, verifyPassword } = require('../_lib/password-hasher');
 const { createSessionToken, setSessionCookie } = require('../_lib/session');
-const { fetchUserProfile } = require('../_lib/userProfile');
+const { fetchUserProfile } = require('../_lib/user-profile');
 
 module.exports = async function handler(req, res) {
   if (handleCors(req, res, 'POST, OPTIONS')) return;

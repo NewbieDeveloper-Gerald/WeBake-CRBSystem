@@ -6,7 +6,7 @@ const path = require('path');
 require('../backend/node_modules/dotenv').config({ path: path.resolve(__dirname, '../backend/.env') });
 const { getPool } = require('../api/_lib/db');
 const { createSessionToken, createProofToken, verifyProofToken } = require('../api/_lib/session');
-const { hashPassword, verifyPassword } = require('../api/_lib/authHelper');
+const { hashPassword, verifyPassword } = require('../api/_lib/password-hasher');
 
 const pool = getPool();
 

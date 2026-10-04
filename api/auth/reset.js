@@ -1,6 +1,6 @@
 const { getPool } = require('../_lib/db');
 const { handleCors, sendJson, sendError } = require('../_lib/http');
-const { hashPassword } = require('../_lib/authHelper');
+const { hashPassword } = require('../_lib/password-hasher');
 const { verifyProofToken } = require('../_lib/session');
 
 module.exports = async function handler(req, res) {

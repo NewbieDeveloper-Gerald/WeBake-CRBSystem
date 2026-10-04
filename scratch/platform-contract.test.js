@@ -209,10 +209,10 @@ async function runTests() {
   console.log('\n--- Test Group 5: XSS Escaping Verification ---');
   {
     const utilsContent = fs.readFileSync(
-      path.resolve(__dirname, '../frontend/customer/js/utils.js'),
+      path.resolve(__dirname, '../frontend/customer/js/formatters.js'),
       'utf8'
     );
-    assert(utilsContent.includes('escapeHtml'), 'utils.js exports escapeHtml function');
+    assert(utilsContent.includes('escapeHtml'), 'formatters.js exports escapeHtml function');
 
     // Test escapeHtml implementation
     function escapeHtml(str) {
@@ -271,7 +271,7 @@ async function runTests() {
       'partner.js',
       'tracking.js',
       'dashboard.js',
-      'main.js'
+      'storefront.js'
     ];
 
     filesCheckingConfig.forEach(file => {
