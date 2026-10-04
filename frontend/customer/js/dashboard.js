@@ -302,9 +302,10 @@ document.addEventListener('DOMContentLoaded', () => {
           const action = e.currentTarget.getAttribute('data-action');
           const currentItem = currentUser.savedCart[idx];
           if (!currentItem) return;
-          let newQty = currentItem.qty;
-          if (action === 'minus') newQty = Math.max(1, newQty - 1);
-          if (action === 'plus') newQty += 1;
+          const currentQty = parseInt(currentItem.qty, 10) || 1;
+          let newQty = currentQty;
+          if (action === 'minus') newQty = Math.max(1, currentQty - 1);
+          if (action === 'plus') newQty = Math.min(99, currentQty + 1);
           this.updateItemQty(idx, newQty);
         });
       });
@@ -322,7 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const allUsers = DashboardStore.getUsers();
       const userIndex = allUsers.findIndex(u => DashboardStore.sameEmail(u.email, currentUser.email));
       if (userIndex !== -1 && allUsers[userIndex].savedCart) {
-        allUsers[userIndex].savedCart[index].qty = newQty;
+        allUsers[userIndex].savedCart[index].qty = Math.max(1, Math.min(99, parseInt(newQty, 10) || 1));
         DashboardStore.saveUsers(allUsers);
         currentUser.savedCart = allUsers[userIndex].savedCart;
         this.render();

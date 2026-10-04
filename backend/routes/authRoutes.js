@@ -138,7 +138,7 @@ router.post('/login', async (req, res) => {
     // 1. Query user by email
     const userQuery = `
       SELECT u.id, u.role_id, u.full_name, u.email_address, u.contact_number,
-             u.password_hash, u.partner_status, u.is_active,
+             u.password_hash, u.partner_status, u.is_active, u.saved_cart,
              a.address_line1 AS address
       FROM users u
       LEFT JOIN user_addresses a ON a.user_id = u.id AND a.is_default = TRUE
@@ -289,7 +289,7 @@ router.post('/login', async (req, res) => {
         partnerStatus: partnerStatus,
         partnerAppId: partnerAppId,
         partnerDetails: partnerDetails,
-        savedCart: [],
+        savedCart: user.saved_cart || [],
         orderHistory: orderHistory
       }
     });
@@ -404,7 +404,7 @@ router.all('/sync', async (req, res) => {
 
     const userRes = await db.query(`
       SELECT u.id, u.role_id, u.full_name, u.email_address, u.contact_number,
-             u.partner_status, u.is_active,
+             u.partner_status, u.is_active, u.saved_cart,
              a.address_line1 AS address
       FROM users u
       LEFT JOIN user_addresses a ON a.user_id = u.id AND a.is_default = TRUE
@@ -525,6 +525,7 @@ router.all('/sync', async (req, res) => {
         partnerStatus: partnerStatus,
         partnerAppId: partnerAppId,
         partnerDetails: partnerDetails,
+        savedCart: user.saved_cart || [],
         orderHistory: orderHistory
       }
     });

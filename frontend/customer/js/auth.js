@@ -128,6 +128,7 @@
     getSession: () => JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'),
     clearSession: () => {
       localStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem('weBakeGuestCart');
       try { window.dispatchEvent(new CustomEvent('weBakeAuthChange')); } catch (e) {}
     }
   };

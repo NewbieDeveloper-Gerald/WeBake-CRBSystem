@@ -151,7 +151,13 @@ document.addEventListener('DOMContentLoaded', () => {
   function syncCartToStore() {
     try {
       const s = JSON.parse(localStorage.getItem('weBakeSession'));
-      if (!s) return;
+      if (!s) {
+        // Guest user: save to guest cart storage
+        localStorage.setItem('weBakeGuestCart', JSON.stringify(cart));
+        return;
+      }
+
+      // Logged-in user: save to user profile in localStorage
       const all = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
       const sEmail = (s.email || '').trim().toLowerCase();
       const u = all.find(u => (u.email || '').trim().toLowerCase() === sEmail);
@@ -162,7 +168,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Asynchronously persist cart to Supabase cloud database
       if (sEmail) {
-        const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || '/api';
+        const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
+          window.location.protocol === 'file:' ||
+          window.location.hostname === 'localhost' ||
+          window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:5000/api'
+            : '/api'
+        );
         fetch(`${apiBase}/cart/sync`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -176,21 +188,50 @@ document.addEventListener('DOMContentLoaded', () => {
   function loadCartFromStore() {
     try {
       const s = JSON.parse(localStorage.getItem('weBakeSession'));
-      if (!s) return;
+      if (!s) {
+        // Guest user: load from guest cart storage
+        const guestData = JSON.parse(localStorage.getItem('weBakeGuestCart') || '[]');
+        cart = Array.isArray(guestData) ? guestData : [];
+        updateCartUI();
+        return;
+      }
+
       const all = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
       const sEmail = (s.email || '').trim().toLowerCase();
       const u = all.find(u => (u.email || '').trim().toLowerCase() === sEmail);
-      const guestCart = [...cart];
 
-      if (u && Array.isArray(u.savedCart)) {
-        cart = mergeCarts(u.savedCart, guestCart);
-        u.savedCart = cart;
-        localStorage.setItem('weBakeUsers', JSON.stringify(all));
+      // Check if there is an unmerged guest cart from before logging in
+      let guestCart = [];
+      try {
+        guestCart = JSON.parse(localStorage.getItem('weBakeGuestCart') || '[]');
+      } catch (e) { guestCart = []; }
+
+      if (Array.isArray(guestCart) && guestCart.length > 0) {
+        // Transition from guest to logged in: merge guest cart into account cart ONCE
+        const saved = (u && Array.isArray(u.savedCart)) ? u.savedCart : [];
+        cart = mergeCarts(saved, guestCart);
+        if (u) {
+          u.savedCart = cart;
+          localStorage.setItem('weBakeUsers', JSON.stringify(all));
+        }
+        localStorage.removeItem('weBakeGuestCart');
+        syncCartToStore();
+      } else {
+        // Normal logged-in load: use the user's saved cart directly (do NOT duplicate quantities)
+        cart = (u && Array.isArray(u.savedCart)) ? u.savedCart.map(it => ({ ...it })) : [];
       }
+
+      updateCartUI();
 
       // Asynchronously fetch latest cart from Supabase cloud database
       if (sEmail) {
-        const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || '/api';
+        const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
+          window.location.protocol === 'file:' ||
+          window.location.hostname === 'localhost' ||
+          window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:5000/api'
+            : '/api'
+        );
         fetch(`${apiBase}/cart/sync?email=${encodeURIComponent(sEmail)}`, {
           method: 'GET',
           credentials: 'include',
@@ -199,13 +240,35 @@ document.addEventListener('DOMContentLoaded', () => {
           .then(res => res.json())
           .then(data => {
             if (data && data.success && Array.isArray(data.cart)) {
-              cart = mergeCarts(data.cart, cart);
-              if (u) {
-                u.savedCart = cart;
-                localStorage.setItem('weBakeUsers', JSON.stringify(all));
+              if (cart.length === 0) {
+                // Local cart was empty: load directly from cloud
+                cart = data.cart.map(it => ({ ...it }));
+                if (u) {
+                  u.savedCart = cart;
+                  localStorage.setItem('weBakeUsers', JSON.stringify(all));
+                }
+                updateCartUI();
+              } else {
+                // Reconcile: append any cloud items not present locally (do NOT add duplicate quantities!)
+                let changed = false;
+                data.cart.forEach(cloudItem => {
+                  const cId = parseInt(cloudItem.productId || cloudItem.id || 0, 10);
+                  if (!cId) return;
+                  const localItem = cart.find(c => parseInt(c.productId || c.id || 0, 10) === cId);
+                  if (!localItem) {
+                    cart.push({ ...cloudItem });
+                    changed = true;
+                  }
+                });
+                if (changed) {
+                  if (u) {
+                    u.savedCart = cart;
+                    localStorage.setItem('weBakeUsers', JSON.stringify(all));
+                  }
+                  updateCartUI();
+                  syncCartToStore();
+                }
               }
-              updateCartUI();
-              syncCartToStore();
             }
           })
           .catch(err => console.warn('[Cloud Cart Load Notice]:', err));
@@ -297,10 +360,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   ['modal-close', 'modal-overlay'].forEach(id => document.getElementById(id)?.addEventListener('click', closeModal));
   document.getElementById('qty-minus')?.addEventListener('click', () => {
-    qtyInput.value = Math.max(1, +qtyInput.value - 1);
+    if (!qtyInput) return;
+    const cur = parseInt(qtyInput.value, 10) || 1;
+    qtyInput.value = Math.max(1, cur - 1);
   });
   document.getElementById('qty-plus')?.addEventListener('click', () => {
-    qtyInput.value = +qtyInput.value + 1;
+    if (!qtyInput) return;
+    const cur = parseInt(qtyInput.value, 10) || 1;
+    qtyInput.value = Math.min(99, cur + 1);
+  });
+  qtyInput?.addEventListener('input', (e) => {
+    let val = parseInt(e.target.value, 10);
+    if (isNaN(val) || val < 1) val = 1;
+    if (val > 99) val = 99;
+    e.target.value = val;
   });
 
   /* --------------------------------------------------------------------------
@@ -362,7 +435,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       itemsEl.querySelectorAll('.cart-qty-btn').forEach(b => b.addEventListener('click', () => {
         const i = +b.dataset.i;
-        cart[i].qty = b.dataset.action === 'minus' ? Math.max(1, cart[i].qty - 1) : cart[i].qty + 1;
+        if (!cart[i]) return;
+        const currentQty = parseInt(cart[i].qty, 10) || 1;
+        cart[i].qty = b.dataset.action === 'minus' ? Math.max(1, currentQty - 1) : Math.min(99, currentQty + 1);
         updateCartUI();
         syncCartToStore();
       }));
@@ -398,10 +473,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // Add to Cart
   document.getElementById('add-to-cart-btn')?.addEventListener('click', () => {
     if (!currentProduct) return;
-    const qty = +qtyInput.value;
-    const existing = cart.find(c => c.id === currentProduct.id);
-    if (existing) existing.qty += qty;
-    else cart.push({ ...currentProduct, qty });
+    const qty = Math.max(1, Math.min(99, parseInt(qtyInput ? qtyInput.value : 1, 10) || 1));
+    const targetId = parseInt(currentProduct.id || currentProduct.productId || 0, 10);
+    const existing = cart.find(c => parseInt(c.productId || c.id || 0, 10) === targetId);
+    if (existing) {
+      existing.qty = Math.min(99, (parseInt(existing.qty, 10) || 1) + qty);
+    } else {
+      cart.push({ ...currentProduct, id: targetId, productId: targetId, qty });
+    }
     const name = currentProduct.name;
     closeModal();
     updateCartUI();
@@ -412,7 +491,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Buy Now (skip cart directly to checkout)
   document.getElementById('buy-now-btn')?.addEventListener('click', () => {
     if (!currentProduct) return;
-    checkoutItems = [{ ...currentProduct, qty: +qtyInput.value }];
+    const targetId = parseInt(currentProduct.id || currentProduct.productId || 0, 10);
+    const qty = Math.max(1, Math.min(99, parseInt(qtyInput ? qtyInput.value : 1, 10) || 1));
+    checkoutItems = [{ ...currentProduct, id: targetId, productId: targetId, qty }];
     closeModal();
     startCheckout();
   });
@@ -1358,7 +1439,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Re-synchronize cloud cart whenever authentication state changes
   window.addEventListener('weBakeAuthChange', () => {
-    loadCartFromStore();
+    const s = JSON.parse(localStorage.getItem('weBakeSession'));
+    if (!s) {
+      // User signed out: clear in-memory cart and guest cart
+      cart = [];
+      localStorage.removeItem('weBakeGuestCart');
+      updateCartUI();
+    } else {
+      // User signed in: load user cart (and merge any guest items)
+      loadCartFromStore();
+    }
   });
 
   // Auto-checkout from Dashboard URL query parameters (?checkout=true&items=0,1)
