@@ -3,8 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "description": "WeBake Customer Frontend and Vercel Serverless Functions",
+  "scripts": {
+    "test": "node scratch/test_phase2.js && node scratch/test_phase3.js && node scratch/test_phase4_5.js && node scratch/test_partner_submission.js",
+    "check": "node tools/check-references.js"
+  },
   "dependencies": {
     "nodemailer": "^6.9.13",
     "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "dotenv": "^18.0.5"
   }
 }

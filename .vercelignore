@@ -5,6 +5,7 @@ backend/
 scratch/
 tests/
 test/
+tools/
 
 # Ignore documentation, planning files, and logs
 *.md
