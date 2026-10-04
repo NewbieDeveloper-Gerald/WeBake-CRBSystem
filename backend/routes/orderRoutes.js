@@ -52,8 +52,8 @@ router.post('/', async (req, res) => {
     const specialNotes = customer.notes || '';
 
     const grandTotal = parseFloat(order.total || 0);
-    const deliveryFee = 50.00;
-    const subtotal = Math.max(0, grandTotal - deliveryFee);
+    const deliveryFee = 0.00;
+    const subtotal = grandTotal;
     const downpaymentRequired = parseFloat(order.downpayment || (grandTotal * 0.5));
     const balanceDue = parseFloat(order.balance || (grandTotal - downpaymentRequired));
     const paymentMethod = normalizePaymentChannel(order.paymentMethod);

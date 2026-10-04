@@ -147,17 +147,16 @@ async function handleCreateOrder(req, res, pool) {
   `);
   const activeBundles = bundlesRes.rows;
 
-  // Fetch store delivery fee & downpayment rate
+  // Fetch store downpayment rate (delivery fee is handled outside system)
   const settingsRes = await pool.query(`
     SELECT setting_key, setting_value FROM store_settings 
-    WHERE setting_key IN ('standard_delivery_fee', 'downpayment_percentage');
+    WHERE setting_key = 'downpayment_percentage';
   `);
-  let deliveryFee = 50.00;
   let downpaymentRate = 0.50;
   settingsRes.rows.forEach(s => {
-    if (s.setting_key === 'standard_delivery_fee') deliveryFee = parseFloat(s.setting_value) || 50.00;
     if (s.setting_key === 'downpayment_percentage') downpaymentRate = (parseFloat(s.setting_value) || 50) / 100;
   });
+  const deliveryFee = 0.00;
 
   let subtotal = 0;
   const validatedItems = [];
@@ -201,7 +200,7 @@ async function handleCreateOrder(req, res, pool) {
   }
 
   subtotal = Math.round(subtotal * 100) / 100;
-  const grandTotal = Math.round((subtotal + deliveryFee) * 100) / 100;
+  const grandTotal = subtotal; // Delivery fee is negotiated/handled outside system
   const downpaymentRequired = Math.round((grandTotal * downpaymentRate) * 100) / 100;
   const balanceDue = Math.round((grandTotal - downpaymentRequired) * 100) / 100;
   const paymentMethod = normalizePaymentChannel(bodyMethod || order?.paymentMethod);
@@ -356,11 +355,9 @@ async function handleCreateOrder(req, res, pool) {
             <p>Thank you for choosing <strong>Crumbs N' Rolls Bakery</strong>! Your wholesale bread order has been successfully recorded in our system.</p>
             <div style="background:#FAF6F0; padding:15px; border-radius:8px; margin:20px 0;">
               <p style="margin:5px 0;"><strong>Order ID:</strong> ${escapeHtml(orderCode)}</p>
-              <p style="margin:5px 0;"><strong>Subtotal:</strong> &#8369;${subtotal.toFixed(2)}</p>
-              <p style="margin:5px 0;"><strong>Delivery Fee:</strong> &#8369;${deliveryFee.toFixed(2)}</p>
-              <p style="margin:5px 0;"><strong>Total Value:</strong> &#8369;${grandTotal.toFixed(2)}</p>
+              <p style="margin:5px 0;"><strong>Total Order Value:</strong> &#8369;${grandTotal.toFixed(2)}</p>
               <p style="margin:5px 0; color:#28a745;"><strong>50% Downpayment (Pending verification):</strong> &#8369;${downpaymentRequired.toFixed(2)} (${escapeHtml(paymentMethod.toUpperCase())})</p>
-              <p style="margin:5px 0; color:#A0522D;"><strong>Balance Upon Delivery:</strong> &#8369;${balanceDue.toFixed(2)}</p>
+              <p style="margin:5px 0; color:#A0522D;"><strong>Remaining Balance Upon Delivery:</strong> &#8369;${balanceDue.toFixed(2)}</p>
             </div>
             <p style="font-size:12px; color:#888; text-align:center;">1356 Cordero St., Lambakin, Marilao, Bulacan &bull; &copy; 2026 WeBake</p>
           </div>

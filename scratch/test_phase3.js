@@ -116,7 +116,7 @@ async function runPhase3Tests() {
   assert(guestNoProofReq.getStatus() === 401, 'Guest checkout without proof token returns 401');
 
   // 2c. Tampered price & total in body is ignored, server computes authoritative totals
-  // 2 bundles of Mamon (₱105 each) = ₱210 subtotal + ₱50 delivery fee = ₱260 grand total, ₱130 downpayment, ₱130 balance
+  // 2 bundles of Mamon (₱105 each) = ₱210 subtotal (delivery fee is handled outside system: grand total = ₱210, ₱105 downpayment, ₱105 balance)
   const testIdempKey = `idemp_key_${Date.now()}_abc`;
   const tamperedOrderReq = mockReqRes({
     method: 'POST',
@@ -143,10 +143,10 @@ async function runPhase3Tests() {
 
   assert(tamperedOrderReq.getStatus() === 201, 'Valid order creation returns 201');
   assert(createdOrder?.subtotal === 210.00, 'Server computed correct subtotal (₱210) ignoring tampered client price');
-  assert(createdOrder?.deliveryFee === 50.00, 'Server applied store delivery fee (₱50)');
-  assert(createdOrder?.grandTotal === 260.00, 'Server computed grand total = subtotal + delivery fee (₱260)');
-  assert(createdOrder?.downpaymentRequired === 130.00, 'Server computed 50% downpayment (₱130)');
-  assert(createdOrder?.balanceDue === 130.00, 'Server computed balance due (₱130)');
+  assert(createdOrder?.deliveryFee === 0.00, 'Server delivery fee is 0.00 (handled outside system)');
+  assert(createdOrder?.grandTotal === 210.00, 'Server computed grand total = subtotal (₱210, no delivery fee)');
+  assert(createdOrder?.downpaymentRequired === 105.00, 'Server computed 50% downpayment (₱105)');
+  assert(createdOrder?.balanceDue === 105.00, 'Server computed balance due (₱105)');
 
   const createdOrderCode = createdOrder?.orderId;
   const createdDbId = createdOrder?.databaseId;
@@ -253,7 +253,7 @@ async function runPhase3Tests() {
 
   // Verify cancellation_requests row in DB
   const cancelRowRes = await pool.query('SELECT order_id, refund_channel, eligible_refund_amount, status FROM cancellation_requests WHERE order_id = $1;', [createdDbId]);
-  assert(cancelRowRes.rows.length === 1 && parseFloat(cancelRowRes.rows[0].eligible_refund_amount) === 130.00, 'Row created in cancellation_requests table with server-side downpayment (₱130)');
+  assert(cancelRowRes.rows.length === 1 && parseFloat(cancelRowRes.rows[0].eligible_refund_amount) === 105.00, 'Row created in cancellation_requests table with server-side downpayment (₱105)');
 
   // 5c. Second cancellation request on same order => 400
   const cancelDuplicate = mockReqRes({

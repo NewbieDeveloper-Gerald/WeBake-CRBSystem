@@ -36,7 +36,7 @@ The platform is designed to run entirely on **Vercel Serverless Functions** back
 * **Catalog Protection**: All pricing is calculated server-side from live database catalog bundles. Any tampered prices, subtotal overrides, or fake discounts submitted in HTTP payloads are completely ignored.
 * **Pricing Model**:
   $$\text{Subtotal} = \sum (\text{Catalog Bundle Price} \times \text{Quantity})$$
-  $$\text{Grand Total} = \text{Subtotal} + ₱50.00\text{ (Standard Delivery Fee)}$$
+  $$\text{Grand Total} = \text{Subtotal} \quad \text{(Delivery fee is communicated & settled outside the system)}$$
   $$\text{50\% Downpayment Required} = \text{Round}(\text{Grand Total} \times 0.50)$$
   $$\text{Balance Due upon Delivery} = \text{Grand Total} - \text{Downpayment Required}$$
 * **Order Idempotency**: Prevents accidental duplicate charges and orders caused by network retries or rapid double-clicks through unique client-generated `Idempotency-Key` headers.

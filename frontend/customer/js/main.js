@@ -1084,8 +1084,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // ON SUCCESS: Use the SERVER's authoritative order code and totals (Fixes C5)
       const orderId = result.orderId;
       const subtotal = result.subtotal || checkoutItems.reduce((s, i) => s + i.price * i.qty, 0);
-      const deliveryFee = result.deliveryFee !== undefined ? result.deliveryFee : 50.00;
-      const totalAmt = result.grandTotal || (subtotal + deliveryFee);
+      const deliveryFee = 0;
+      const totalAmt = result.grandTotal || subtotal;
       const downpayment = result.downpaymentRequired || Math.round(totalAmt * 0.5);
       const balance = result.balanceDue || (totalAmt - downpayment);
 
@@ -1094,7 +1094,6 @@ document.addEventListener('DOMContentLoaded', () => {
         date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
         items: [...checkoutItems],
         subtotal: subtotal,
-        deliveryFee: deliveryFee,
         total: totalAmt,
         downpayment: downpayment,
         balance: balance,
@@ -1193,14 +1192,6 @@ document.addEventListener('DOMContentLoaded', () => {
         successSummary.innerHTML = `
           <div class="downpayment-breakdown-box" style="text-align:left;">
             <div class="downpayment-breakdown-row">
-              <span>Subtotal:</span>
-              <strong>\u20B1${subtotal.toLocaleString()}</strong>
-            </div>
-            <div class="downpayment-breakdown-row">
-              <span>Delivery Fee:</span>
-              <strong>\u20B1${deliveryFee.toFixed(2)}</strong>
-            </div>
-            <div class="downpayment-breakdown-row" style="border-top:1px solid #eee; padding-top:4px;">
               <span>Total Order Value:</span>
               <strong>\u20B1${totalAmt.toLocaleString()}</strong>
             </div>
