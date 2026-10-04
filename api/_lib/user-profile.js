@@ -1,6 +1,6 @@
 /**
  * ====================================================================
- * WeBake - User Profile & Data Aggregator Helper (userProfile.js)
+ * WeBake - User Profile & Data Aggregator Helper (user-profile.js)
  * Shared profile, orders history, and partner application data mapping
  * Consolidates duplicate logic across login and session endpoints
  * ====================================================================

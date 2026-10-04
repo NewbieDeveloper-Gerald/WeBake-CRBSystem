@@ -3,9 +3,9 @@
  * Tests Products catalog, Order creation & pricing integrity, Idempotency, Cancellation table, Receipt resend, and Partner integrity
  */
 const path = require('path');
-require('../backend/node_modules/dotenv').config({ path: path.resolve(__dirname, '../backend/.env') });
-const { getPool } = require('../api/_lib/db');
-const { createSessionToken, createProofToken } = require('../api/_lib/session');
+require('../helpers/load-env');
+const { getPool } = require('../../api/_lib/db');
+const { createSessionToken, createProofToken } = require('../../api/_lib/session');
 
 const pool = getPool();
 
@@ -53,9 +53,9 @@ async function runPhase3Tests() {
     }
   }
 
-  const productsHandler = require('../api/products/index');
-  const ordersHandler = require('../api/orders/index');
-  const partnerHandler = require('../api/partner/index');
+  const productsHandler = require('../../api/products/index');
+  const ordersHandler = require('../../api/orders/index');
+  const partnerHandler = require('../../api/partner/index');
 
   // --- TEST 1: Products Catalog & Settings ---
   console.log('1. Read-Only Products Catalog & Store Settings (Step 3.1)');

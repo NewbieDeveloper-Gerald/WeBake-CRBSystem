@@ -15,8 +15,7 @@
 const path = require('path');
 const http = require('http');
 
-require('dotenv').config({ path: path.resolve(__dirname, '../../backend/.env') });
-require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+require('../helpers/load-env');
 
 const app = require('../../backend/server');
 const { getPool } = require('../../api/_lib/db');

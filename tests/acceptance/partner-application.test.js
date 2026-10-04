@@ -1,10 +1,10 @@
 const path = require('path');
-require('../backend/node_modules/dotenv').config({ path: path.resolve(__dirname, '../backend/.env') });
-const { getPool } = require('../api/_lib/db');
-const partnerHandler = require('../api/partner/index');
-const syncHandler = require('../api/auth/sync');
+require('../helpers/load-env');
+const { getPool } = require('../../api/_lib/db');
+const partnerHandler = require('../../api/partner/index');
+const syncHandler = require('../../api/auth/sync');
 
-const { createSessionToken } = require('../api/_lib/session');
+const { createSessionToken } = require('../../api/_lib/session');
 
 function mockReqRes(options) {
   const req = {

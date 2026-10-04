@@ -3,10 +3,10 @@
  * Tests OTP hardening, Auth hardening, Data protection, and Tracking proof of ownership
  */
 const path = require('path');
-require('../backend/node_modules/dotenv').config({ path: path.resolve(__dirname, '../backend/.env') });
-const { getPool } = require('../api/_lib/db');
-const { createSessionToken, createProofToken, verifyProofToken } = require('../api/_lib/session');
-const { hashPassword, verifyPassword } = require('../api/_lib/password-hasher');
+require('../helpers/load-env');
+const { getPool } = require('../../api/_lib/db');
+const { createSessionToken, createProofToken, verifyProofToken } = require('../../api/_lib/session');
+const { hashPassword, verifyPassword } = require('../../api/_lib/password-hasher');
 
 const pool = getPool();
 
@@ -84,9 +84,9 @@ async function runTests() {
 
   // --- TEST 3: Auth Endpoints Hardening ---
   console.log('\n3. Register / Reset / Login Hardening');
-  const registerHandler = require('../api/auth/register');
-  const loginHandler = require('../api/auth/login');
-  const resetHandler = require('../api/auth/reset');
+  const registerHandler = require('../../api/auth/register');
+  const loginHandler = require('../../api/auth/login');
+  const resetHandler = require('../../api/auth/reset');
 
   // 3a. Register without proof token => rejected (Fixes C2)
   const regNoProof = mockReqRes({
@@ -172,8 +172,8 @@ async function runTests() {
 
   // --- TEST 4: Protect User Data (auth/sync, cart/sync, partner) ---
   console.log('\n4. Protect User Data (Session Guarding)');
-  const syncHandler = require('../api/auth/sync');
-  const cartSyncHandler = require('../api/cart/sync');
+  const syncHandler = require('../../api/auth/sync');
+  const cartSyncHandler = require('../../api/cart/sync');
 
   // 4a. Sync without session => 401
   const syncNoSession = mockReqRes({ method: 'GET' });
@@ -204,7 +204,7 @@ async function runTests() {
 
   // --- TEST 5: Tracking Requires Proof of Ownership (orders/track) ---
   console.log('\n5. Tracking Proof of Ownership (Fixes C3)');
-  const ordersHandler = require('../api/orders/index');
+  const ordersHandler = require('../../api/orders/index');
 
   // Seed an order for testEmail
   const testOrderCode = `WB-TEST-${Math.floor(10000 + Math.random() * 90000)}`;

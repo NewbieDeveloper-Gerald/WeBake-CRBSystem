@@ -1,5 +1,5 @@
 /* ==========================================================================
-   WeBake — Main Customer Portal Script (main.js)
+   WeBake — Main Customer Portal Script (storefront.js)
    Handles navigation, scroll-spy, product catalog, cart sidebar, and
    the 5-step wholesale ordering & checkout flow.
    ========================================================================== */

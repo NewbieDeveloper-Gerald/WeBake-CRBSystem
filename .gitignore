@@ -15,3 +15,6 @@ yarn-debug.log*
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Vercel project directory
+.vercel/

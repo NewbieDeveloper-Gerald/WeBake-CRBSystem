@@ -4,7 +4,8 @@
   "private": true,
   "description": "WeBake Customer Frontend and Vercel Serverless Functions",
   "scripts": {
-    "test": "node scratch/security-and-auth.test.js && node scratch/orders-and-pricing.test.js && node scratch/platform-contract.test.js && node scratch/partner-application.test.js",
+    "test": "node tests/acceptance/security-and-auth.test.js && node tests/acceptance/orders-and-pricing.test.js && node tests/acceptance/platform-contract.test.js && node tests/acceptance/partner-application.test.js",
+    "test:parity": "node tests/integration/express-parity.test.js",
     "check": "node tools/check-references.js"
   },
   "dependencies": {

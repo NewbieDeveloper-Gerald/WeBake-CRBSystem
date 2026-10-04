@@ -1,6 +1,6 @@
 /**
  * ====================================================================
- * WeBake - Client Security & Utility Helper (utils.js)
+ * WeBake - Client Security & Utility Helper (formatters.js)
  * Provides HTML escaping and sanitization to prevent Cross-Site Scripting (XSS)
  * ====================================================================
  */

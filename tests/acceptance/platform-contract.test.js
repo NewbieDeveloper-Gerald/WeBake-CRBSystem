@@ -6,7 +6,7 @@
  * 2. Authenticated cart sync (`api/cart/sync.js`) with DB persistence.
  * 3. Frontend cart merge logic by productId with quantity limits.
  * 4. AuthStore and user profile sanitation (zero plaintext passwords in client storage).
- * 5. HTML escaping across frontend modules (`utils.js`, `tracking.js`, `dashboard.js`, `partner.js`).
+ * 5. HTML escaping across frontend modules (`formatters.js`, `tracking.js`, `dashboard.js`, `partner.js`).
  * 6. Central configuration integrity (`config.js`) across all frontend JS files.
  * 7. Vercel deployment hygiene (`vercel.json`, `.vercelignore`, and serverless function count <= 12).
  */
@@ -14,14 +14,12 @@
 const path = require('path');
 const fs = require('fs');
 
-require(path.resolve(__dirname, '../backend/node_modules/dotenv')).config({
-  path: path.resolve(__dirname, '../backend/.env')
-});
+require('../helpers/load-env');
 
-const { getPool } = require('../api/_lib/db');
-const { createSessionToken } = require('../api/_lib/session');
-const healthHandler = require('../api/health');
-const cartSyncHandler = require('../api/cart/sync');
+const { getPool } = require('../../api/_lib/db');
+const { createSessionToken } = require('../../api/_lib/session');
+const healthHandler = require('../../api/health');
+const cartSyncHandler = require('../../api/cart/sync');
 
 let passedTests = 0;
 let totalTests = 0;
@@ -153,7 +151,7 @@ async function runTests() {
   // ----------------------------------------------------
   console.log('\n--- Test Group 3: Cart Merge Logic ---');
   {
-    // Mirror of mergeCarts function in main.js
+    // Mirror of mergeCarts function in storefront.js
     function mergeCarts(baseCart, incomingCart) {
       const result = (baseCart || []).map(item => ({ ...item }));
       (incomingCart || []).forEach(incoming => {
@@ -192,7 +190,7 @@ async function runTests() {
   console.log('\n--- Test Group 4: Client Password Store Hygiene ---');
   {
     const authJsContent = fs.readFileSync(
-      path.resolve(__dirname, '../frontend/customer/js/auth.js'),
+      path.resolve(__dirname, '../../frontend/customer/js/features/auth.js'),
       'utf8'
     );
 
@@ -209,7 +207,7 @@ async function runTests() {
   console.log('\n--- Test Group 5: XSS Escaping Verification ---');
   {
     const utilsContent = fs.readFileSync(
-      path.resolve(__dirname, '../frontend/customer/js/formatters.js'),
+      path.resolve(__dirname, '../../frontend/customer/js/shared/formatters.js'),
       'utf8'
     );
     assert(utilsContent.includes('escapeHtml'), 'formatters.js exports escapeHtml function');
@@ -235,15 +233,15 @@ async function runTests() {
 
     // Verify usage in tracking.js, dashboard.js, and partner.js
     const trackingContent = fs.readFileSync(
-      path.resolve(__dirname, '../frontend/customer/js/tracking.js'),
+      path.resolve(__dirname, '../../frontend/customer/js/features/tracking.js'),
       'utf8'
     );
     const dashboardContent = fs.readFileSync(
-      path.resolve(__dirname, '../frontend/customer/js/dashboard.js'),
+      path.resolve(__dirname, '../../frontend/customer/js/features/dashboard.js'),
       'utf8'
     );
     const partnerContent = fs.readFileSync(
-      path.resolve(__dirname, '../frontend/customer/js/partner.js'),
+      path.resolve(__dirname, '../../frontend/customer/js/features/partner.js'),
       'utf8'
     );
 
@@ -258,7 +256,7 @@ async function runTests() {
   console.log('\n--- Test Group 6: Centralized Configuration ---');
   {
     const configContent = fs.readFileSync(
-      path.resolve(__dirname, '../frontend/customer/js/config.js'),
+      path.resolve(__dirname, '../../frontend/customer/js/shared/config.js'),
       'utf8'
     );
     assert(configContent.includes('WEBAKE_CONFIG'), 'config.js defines WEBAKE_CONFIG');
@@ -266,17 +264,17 @@ async function runTests() {
     assert(configContent.includes('DOWNPAYMENT_PERCENTAGE: 50'), 'Downpayment percentage defined in config');
 
     const filesCheckingConfig = [
-      'auth.js',
-      'otp.js',
-      'partner.js',
-      'tracking.js',
-      'dashboard.js',
-      'storefront.js'
+      'features/auth.js',
+      'shared/otp.js',
+      'features/partner.js',
+      'features/tracking.js',
+      'features/dashboard.js',
+      'features/storefront.js'
     ];
 
     filesCheckingConfig.forEach(file => {
       const content = fs.readFileSync(
-        path.resolve(__dirname, `../frontend/customer/js/${file}`),
+        path.resolve(__dirname, `../../frontend/customer/js/${file}`),
         'utf8'
       );
       assert(content.includes('WEBAKE_CONFIG'), `${file} references WEBAKE_CONFIG`);
@@ -288,7 +286,7 @@ async function runTests() {
   // ----------------------------------------------------
   console.log('\n--- Test Group 7: Vercel Configuration & Function Limits ---');
   {
-    const vercelJsonPath = path.resolve(__dirname, '../vercel.json');
+    const vercelJsonPath = path.resolve(__dirname, '../../vercel.json');
     assert(fs.existsSync(vercelJsonPath), 'vercel.json exists');
 
     const vercelConfig = JSON.parse(fs.readFileSync(vercelJsonPath, 'utf8'));
@@ -312,11 +310,12 @@ async function runTests() {
     assert(!hasRenderRewrite, 'No onrender.com rewrites remain in vercel.json');
 
     // Verify .vercelignore
-    const vercelIgnorePath = path.resolve(__dirname, '../.vercelignore');
+    const vercelIgnorePath = path.resolve(__dirname, '../../.vercelignore');
     assert(fs.existsSync(vercelIgnorePath), '.vercelignore exists');
     const ignoreContent = fs.readFileSync(vercelIgnorePath, 'utf8');
     assert(ignoreContent.includes('backend/'), '.vercelignore ignores backend/');
-    assert(ignoreContent.includes('scratch/'), '.vercelignore ignores scratch/');
+    assert(ignoreContent.includes('tests/'), '.vercelignore ignores tests/');
+    assert(ignoreContent.includes('tools/'), '.vercelignore ignores tools/');
     assert(ignoreContent.includes('*.md'), '.vercelignore ignores *.md');
 
     // Count serverless functions under api/
@@ -335,7 +334,7 @@ async function runTests() {
       return count;
     }
 
-    const apiDir = path.resolve(__dirname, '../api');
+    const apiDir = path.resolve(__dirname, '../../api');
     const totalFunctions = countServerlessFunctions(apiDir);
     console.log(`  ℹ Total Serverless Functions in api/: ${totalFunctions}`);
     assert(totalFunctions <= 12, `Total functions (${totalFunctions}) <= 12 (Vercel Hobby Limit)`);
