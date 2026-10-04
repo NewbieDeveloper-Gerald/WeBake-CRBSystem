@@ -276,49 +276,6 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {}
   }
 
-  function addOrderToStore(totalAmt, paymentDetails) {
-    try {
-      const s = JSON.parse(localStorage.getItem('weBakeSession'));
-      const all = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
-      const sEmail = s ? (s.email || '').trim().toLowerCase() : '';
-      const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-      const downpayment = paymentDetails?.downpayment ?? Math.round(totalAmt * 0.5);
-      const balance = paymentDetails?.balance ?? (totalAmt - downpayment);
-      const orderId = 'WB-' + Math.floor(10000 + Math.random() * 90000);
-
-      const orderObj = {
-        orderId: orderId,
-        date: date,
-        items: [...checkoutItems],
-        total: totalAmt,
-        downpayment: downpayment,
-        balance: balance,
-        paymentMethod: paymentDetails?.method || 'GCash',
-        referenceNumber: paymentDetails?.referenceNumber || '',
-        customer: { ...customerInfo },
-        status: 'pending'
-      };
-
-      if (s) {
-        const u = all.find(u => (u.email || '').trim().toLowerCase() === sEmail);
-        if (u) {
-          u.orderHistory = u.orderHistory || [];
-          u.orderHistory.unshift(orderObj);
-          localStorage.setItem('weBakeUsers', JSON.stringify(all));
-        }
-      }
-
-      // Always save in global order tracking registry
-      const allOrders = JSON.parse(localStorage.getItem('weBakeAllOrders') || '[]');
-      allOrders.unshift(orderObj);
-      localStorage.setItem('weBakeAllOrders', JSON.stringify(allOrders));
-
-      return orderObj;
-    } catch (e) {
-      return null;
-    }
-  }
-
   /* --------------------------------------------------------------------------
      5. Product Grid & Product Modal Rendering
      -------------------------------------------------------------------------- */
