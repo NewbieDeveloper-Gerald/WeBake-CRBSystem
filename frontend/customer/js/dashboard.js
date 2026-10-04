@@ -834,25 +834,57 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const sess = DashboardStore.getSession();
       if (!sess || !sess.email) return;
-      const apiBase = window.WEBAKE_API_BASE || (
+      const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
         window.location.protocol === 'file:' ||
         window.location.hostname === 'localhost' ||
         window.location.hostname === '127.0.0.1'
           ? 'http://localhost:5000/api'
           : '/api'
       );
-      const res = await fetch(`${apiBase}/auth/sync?email=${encodeURIComponent(sess.email)}`);
+      const res = await fetch(`${apiBase}/auth/sync?email=${encodeURIComponent(sess.email)}`, {
+        credentials: 'include'
+      });
       const data = await res.json();
       if (data && data.success && data.user) {
         const allUsers = DashboardStore.getUsers();
         const idx = allUsers.findIndex(u => DashboardStore.sameEmail(u.email, sess.email));
         if (idx !== -1) {
+          if (data.user.partnerStatus === 'none' && allUsers[idx].partnerStatus === 'pending' && allUsers[idx].partnerAppId) {
+            // Keep local pending application if backend sync hasn't propagated yet
+            delete data.user.partnerStatus;
+            delete data.user.partnerAppId;
+            delete data.user.partnerDetails;
+          }
           allUsers[idx] = Object.assign(allUsers[idx], data.user);
         } else {
           allUsers.push(data.user);
         }
         DashboardStore.saveUsers(allUsers);
         currentUser = allUsers[idx !== -1 ? idx : allUsers.length - 1];
+
+        // Also sync to weBakePartnerApplications so edit & tracking modals find it
+        if (currentUser.partnerAppId) {
+          const allApps = DashboardStore.getApplications();
+          let app = allApps.find(a => a.appId && a.appId.toUpperCase() === currentUser.partnerAppId.toUpperCase());
+          if (!app) {
+            app = {
+              appId: currentUser.partnerAppId,
+              email: currentUser.email,
+              phone: currentUser.contact || '',
+              date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+              status: currentUser.partnerStatus || 'pending',
+              details: currentUser.partnerDetails || {}
+            };
+            allApps.unshift(app);
+          } else {
+            app.status = currentUser.partnerStatus || app.status;
+            if (currentUser.partnerDetails) {
+              app.details = { ...(app.details || {}), ...currentUser.partnerDetails };
+            }
+          }
+          DashboardStore.saveApplications(allApps);
+        }
+
         DashboardProfile.init();
         DashboardCart.render();
         DashboardOrders.render();

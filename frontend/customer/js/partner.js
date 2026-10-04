@@ -479,10 +479,39 @@
      -------------------------------------------------------------------------- */
   function populatePartnerFields(data, rootApp) {
     if (!data) return;
-    ['bakery-name', 'owner-name', 'type', 'address', 'notes'].forEach(key => {
-      const el = document.getElementById(`partner-${key}`);
-      if (el && data[key] !== undefined) el.value = data[key];
-    });
+    const bakeryEl = document.getElementById('partner-bakery-name');
+    if (bakeryEl) {
+      const bName = data['bakery-name'] || data['business-name'] || data.businessName || data.business_name || (rootApp && (rootApp.businessName || rootApp['bakery-name']));
+      if (bName) bakeryEl.value = bName;
+    }
+    const ownerEl = document.getElementById('partner-owner-name');
+    if (ownerEl) {
+      const oName = data['owner-name'] || data.ownerName || data.fullName || data.full_name || (rootApp && (rootApp.name || rootApp.fullName));
+      if (oName) ownerEl.value = oName;
+    }
+    const typeEl = document.getElementById('partner-type');
+    if (typeEl) {
+      const tVal = data.type || data['business-type'] || data.businessType || data.business_type;
+      if (tVal) {
+        const opts = Array.from(typeEl.options);
+        const matchIdx = opts.findIndex(o => o.value.toLowerCase() === tVal.toLowerCase() || o.value.toLowerCase().includes(tVal.toLowerCase()) || tVal.toLowerCase().includes(o.value.toLowerCase()));
+        if (matchIdx >= 0) {
+          typeEl.selectedIndex = matchIdx;
+        } else {
+          typeEl.value = tVal;
+        }
+      }
+    }
+    const addrEl = document.getElementById('partner-address');
+    if (addrEl) {
+      const aVal = data.address || (rootApp && rootApp.address);
+      if (aVal) addrEl.value = aVal;
+    }
+    const notesEl = document.getElementById('partner-notes');
+    if (notesEl) {
+      const nVal = data.notes || (rootApp && rootApp.notes);
+      if (nVal) notesEl.value = nVal;
+    }
 
     // Populate Contact Details for Guest Edit mode
     const savedEmail = (data.email || (rootApp && rootApp.email) || '').trim();
@@ -502,15 +531,17 @@
       phoneEl.value = savedPhone;
     }
 
-    if (data.years) {
-      PartnerYears.setValue(data.years);
+    const yearsVal = data.years || data.yearsInOperation || data.years_in_operation;
+    if (yearsVal) {
+      PartnerYears.setValue(yearsVal);
     }
 
-    if (Array.isArray(data.products)) {
+    const prodList = data.products || data.products_of_interest;
+    if (Array.isArray(prodList)) {
       const partnerForm = document.getElementById('partner-form');
       const checkboxes = partnerForm?.querySelectorAll('input[type="checkbox"]');
       checkboxes?.forEach(cb => {
-        cb.checked = data.products.includes(cb.value);
+        cb.checked = prodList.includes(cb.value);
       });
     }
   }
@@ -540,11 +571,8 @@
         partnerEmailVerified = true;
         verifiedPartnerEmail = ((u && u.email) || s.email || '').trim().toLowerCase();
 
-        // Hide contact input section and ensure NO hidden inputs retain required
-        if (contactSection) {
-          contactSection.style.display = 'none';
-          contactSection.querySelectorAll('input, select').forEach(el => el.removeAttribute('required'));
-        }
+        const userPhone = ((u && (u.contact || u.phone)) || s.contact || s.phone || '').replace(/\D/g, '');
+        const hasValidPhone = userPhone.length === 11 && userPhone.startsWith('09');
 
         if (loggedInBadge) {
           loggedInBadge.style.display = 'block';
@@ -553,7 +581,23 @@
           const badgePhone = document.getElementById('partner-badge-phone');
           if (badgeName) badgeName.textContent = (u && u.name) || s.name || 'Account Holder';
           if (badgeEmail) badgeEmail.textContent = (u && u.email) || s.email || '';
-          if (badgePhone) badgePhone.textContent = (u && u.contact) || 'Not provided in profile';
+          if (badgePhone) badgePhone.textContent = hasValidPhone ? userPhone : 'Not provided in profile';
+        }
+
+        if (contactSection) {
+          if (!hasValidPhone) {
+            contactSection.style.display = 'block';
+            const emailGroup = partnerEmailEl?.closest('.form-group');
+            if (emailGroup) emailGroup.style.display = 'none';
+            if (partnerEmailEl) partnerEmailEl.removeAttribute('required');
+            if (partnerPhoneEl) {
+              partnerPhoneEl.setAttribute('required', '');
+              if (userPhone) partnerPhoneEl.value = userPhone;
+            }
+          } else {
+            contactSection.style.display = 'none';
+            contactSection.querySelectorAll('input, select').forEach(el => el.removeAttribute('required'));
+          }
         }
 
         // Auto-fill representative name if empty
@@ -561,7 +605,7 @@
           partnerOwnerEl.value = (u && u.name) || s.name;
         }
 
-        if (u && (u.partnerStatus === 'pending' || u.partnerStatus === 'active')) {
+        if (u && (u.partnerStatus === 'pending' || u.partnerStatus === 'active' || u.partnerStatus === 'under_review' || u.partnerStatus === 'approved')) {
           const intro = document.querySelector('.partner-intro');
           if (intro) {
             intro.innerHTML = `<div style="background:#e3f2fd; color:#0c5460; padding:1rem; border-radius:8px; margin-bottom:1rem; font-weight:bold;"><i class="fas fa-info-circle"></i> You have already submitted an application. You can update your existing details below.</div>`;
@@ -630,7 +674,7 @@
   /* --------------------------------------------------------------------------
      7. Form Submission Handler
      -------------------------------------------------------------------------- */
-  function handlePartnerSubmit(e) {
+  async function handlePartnerSubmit(e) {
     e.preventDefault();
     const partnerForm = document.getElementById('partner-form');
     if (!partnerForm) return;
@@ -651,6 +695,12 @@
       if (el) details[key] = el.value.trim();
     });
 
+    // Synchronize aliases so both frontend & backend conventions match
+    details['business-name'] = details['bakery-name'] || '';
+    details['business-type'] = details['type'] || 'Bakery';
+    details.businessName = details['business-name'];
+    details.businessType = details['business-type'];
+
     // Handle years of operation
     const yearsValue = PartnerYears.getValue();
     if (yearsValue === null) return; // Validation failed inside PartnerYears.getValue()
@@ -659,12 +709,51 @@
     // Products of interest
     details.products = Array.from(partnerForm.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
 
+    // Validate business fields
+    if (!details['business-name']) {
+      toast('Please enter your bakery or business name.');
+      document.getElementById('partner-bakery-name')?.focus();
+      return;
+    }
+    if (!details['type']) {
+      toast('Please select a business type.');
+      document.getElementById('partner-type')?.focus();
+      return;
+    }
+    if (!details.address) {
+      toast('Please enter your business address.');
+      document.getElementById('partner-address')?.focus();
+      return;
+    }
+
     if (currentUser) {
       // Logged in: auto-attach verified user account details
       details.email = currentUser.email || s.email;
-      details.phone = (currentUser.contact || '').replace(/\D/g, '');
-      if (!details['owner-name'] && (currentUser.name || s.name)) {
-        details['owner-name'] = currentUser.name || s.name;
+      let userPhone = ((currentUser.contact || currentUser.phone || s.contact || s.phone || '')).replace(/\D/g, '');
+      const phoneInput = document.getElementById('partner-phone');
+      const inputPhone = (phoneInput?.value || '').replace(/\D/g, '');
+
+      if (inputPhone.length === 11 && inputPhone.startsWith('09')) {
+        userPhone = inputPhone;
+        currentUser.contact = userPhone;
+        currentUser.phone = userPhone;
+        PartnerStore.saveUsers(allUsers);
+      }
+
+      if (userPhone.length !== 11 || !userPhone.startsWith('09')) {
+        toast('Please enter a valid 11-digit mobile number starting with 09 in the contact field.');
+        const contactSection = document.getElementById('partner-contact-section');
+        if (contactSection) {
+          contactSection.style.display = 'block';
+          const emailGroup = document.getElementById('partner-email')?.closest('.form-group');
+          if (emailGroup) emailGroup.style.display = 'none';
+        }
+        phoneInput?.focus();
+        return;
+      }
+      details.phone = userPhone;
+      if (!details['owner-name']) {
+        details['owner-name'] = currentUser.name || s.name || '';
       }
     } else {
       // Guest mode: validate input fields
@@ -739,11 +828,80 @@
       }
     }
 
+    const submitBtn = partnerForm.querySelector('button[type="submit"]');
+    const origBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+    }
+
+    const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
+      window.location.protocol === 'file:' ||
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:5000/api'
+        : '/api'
+    );
+
+    const payload = {
+      fullName: details['owner-name'] || (currentUser && currentUser.name) || '',
+      email: details.email,
+      phone: details.phone,
+      businessName: details['bakery-name'] || details['business-name'] || '',
+      businessType: details['type'] || details['business-type'] || 'Bakery',
+      yearsInOperation: details.years || '1-2 years',
+      weeklyVolume: details.volume || '50-100 bundles',
+      address: details.address || '',
+      products: details.products || [],
+      notes: details.notes || ''
+    };
+
+    let serverSuccess = false;
+    let returnedAppId = null;
+    let returnedStatus = 'pending';
+
+    try {
+      const res = await fetch(`${apiBase}/partner/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data || !data.success) {
+        const errorMsg = (data && data.error) || 'Failed to submit application. Please check your details and try again.';
+        toast(errorMsg);
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = origBtnHtml;
+        }
+        return;
+      }
+
+      serverSuccess = true;
+      returnedAppId = data.applicationCode || data.applicationId;
+      returnedStatus = data.status || 'pending';
+    } catch (netErr) {
+      console.warn('[Partner API Network Error, falling back to local save]:', netErr);
+      serverSuccess = true;
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = origBtnHtml;
+      }
+    }
+
+    if (!serverSuccess) return;
+
     // Save to global weBakePartnerApplications
     const allApps = PartnerStore.getApplications();
     let targetApp = null;
     if (editingAppId) {
       targetApp = allApps.find(a => a.appId && a.appId.toUpperCase() === editingAppId.toUpperCase());
+    }
+    if (!targetApp && currentUser && currentUser.partnerAppId) {
+      targetApp = allApps.find(a => a.appId && a.appId.toUpperCase() === currentUser.partnerAppId.toUpperCase());
     }
     if (!targetApp) {
       targetApp = allApps.find(a =>
@@ -755,13 +913,15 @@
       );
     }
 
-    const appId = targetApp ? targetApp.appId : ('WB-PRT-' + Math.floor(10000 + Math.random() * 90000));
+    const appId = returnedAppId || (targetApp ? targetApp.appId : ('WB-PRT-' + Math.floor(10000 + Math.random() * 90000)));
 
     // Fully synchronize root and details properties
     if (targetApp) {
       isUpdate = true;
+      targetApp.appId = appId;
       targetApp.email = details.email;
       targetApp.phone = details.phone;
+      targetApp.status = returnedStatus || targetApp.status || 'pending';
       targetApp.details = { ...(targetApp.details || {}), ...details, email: details.email, phone: details.phone };
       targetApp.updatedAt = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
     } else {
@@ -770,7 +930,7 @@
         email: details.email,
         phone: details.phone,
         date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-        status: 'pending',
+        status: returnedStatus || 'pending',
         details: { ...details, email: details.email, phone: details.phone }
       });
     }
@@ -782,61 +942,11 @@
 
     // Link to logged-in user if session exists
     if (currentUser) {
-      currentUser.partnerStatus = currentUser.partnerStatus === 'active' ? 'active' : 'pending';
-      currentUser.partnerDetails = details;
+      currentUser.partnerStatus = returnedStatus || (currentUser.partnerStatus === 'active' ? 'active' : 'pending');
+      currentUser.partnerDetails = { ...details, email: details.email, phone: details.phone };
       currentUser.partnerAppId = appId;
       PartnerStore.saveUsers(allUsers);
     }
-
-    // Asynchronously dispatch application to Supabase backend API
-    const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
-      window.location.protocol === 'file:' ||
-      window.location.hostname === 'localhost' ||
-      window.location.hostname === '127.0.0.1'
-        ? 'http://localhost:5000/api'
-        : '/api'
-    );
-
-    const submitBtn = partnerForm.querySelector('button[type="submit"]');
-    const origBtnHtml = submitBtn ? submitBtn.innerHTML : '';
-    if (submitBtn) {
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting to cloud...';
-    }
-
-    fetch(`${apiBase}/partner/apply`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fullName: details['owner-name'] || (currentUser && currentUser.name) || '',
-        email: details.email,
-        phone: details.phone,
-        businessName: details['business-name'] || '',
-        businessType: details['business-type'] || 'sari_sari',
-        yearsInOperation: details.years || '1-2 years',
-        weeklyVolume: details.volume || '50-100 bundles',
-        address: details.address || '',
-        products: details.products || [],
-        notes: details.notes || ''
-      })
-    })
-    .then(r => r.json())
-    .then(data => {
-      if (data && data.success) {
-        if (currentUser) {
-          currentUser.partnerAppId = data.applicationCode || appId;
-          currentUser.partnerStatus = data.status || 'pending';
-          PartnerStore.saveUsers(allUsers);
-        }
-      }
-    })
-    .catch(e => console.warn('[Partner API Sync]:', e.message))
-    .finally(() => {
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = origBtnHtml;
-      }
-    });
 
     toast(isUpdate ? 'Partnership application updated successfully!' : 'Partnership application submitted successfully!');
 

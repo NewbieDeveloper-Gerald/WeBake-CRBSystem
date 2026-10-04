@@ -21,12 +21,12 @@ async function handleApply(req, res, pool) {
     const applicantName = (data.fullName || data.name || (session?.name) || '').trim();
     const applicantEmail = (session?.email || data.email || '').trim().toLowerCase();
     const applicantPhone = (data.phone || data.contact || '').trim().replace(/\D/g, '');
-    const businessName = (data.businessName || data.storeName || '').trim();
-    const businessType = normalizeBusinessType(data.businessType);
-    const yearsInOp = (data.yearsInOperation || data.experience || '').trim();
-    const weeklyVol = (data.weeklyVolume || '').trim();
-    const deliveryAddress = (data.address || '').trim();
-    const products = Array.isArray(data.products) && data.products.length > 0 ? data.products : [];
+    const businessName = (data.businessName || data.storeName || data['business-name'] || data['bakery-name'] || '').trim();
+    const businessType = normalizeBusinessType(data.businessType || data['business-type'] || data.type);
+    const yearsInOp = (data.yearsInOperation || data.experience || data.years || '1-2 years').trim();
+    const weeklyVol = (data.weeklyVolume || data.volume || '50-100 bundles').trim();
+    const deliveryAddress = (data.address || data.deliveryAddress || '').trim();
+    const products = Array.isArray(data.products) && data.products.length > 0 ? data.products : ['Mamon', 'Otap'];
     const notes = data.notes || '';
 
     if (!applicantName || !applicantEmail || !applicantPhone || !businessName || !deliveryAddress) {
@@ -101,12 +101,12 @@ async function handleApply(req, res, pool) {
         SET applicant_name = $1, business_name = $2, business_type = $3,
             years_in_operation = $4, estimated_weekly_volume = $5,
             delivery_address = $6, products_of_interest = $7,
-            additional_notes = $8, updated_at = NOW()
-        WHERE id = $9;
+            additional_notes = $8, user_id = COALESCE(user_id, $9), updated_at = NOW()
+        WHERE id = $10;
       `, [
         applicantName, businessName, businessType,
         yearsInOp, weeklyVol,
-        deliveryAddress, products, notes, existing.id
+        deliveryAddress, products, notes, userId, existing.id
       ]);
     } else {
       // Insert new application with retry loop on application_code collision (Fixes H8)

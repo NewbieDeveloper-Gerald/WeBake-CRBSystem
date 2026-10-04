@@ -239,15 +239,43 @@ router.post('/login', async (req, res) => {
 
     // 6. Check partner application status
     let partnerStatus = user.partner_status || 'none';
+    let partnerAppId = null;
+    let partnerDetails = null;
+
     try {
       const partnerRes = await db.query(
-        'SELECT status FROM wholesale_partner_applications WHERE user_id = $1 OR LOWER(contact_email) = $2 ORDER BY id DESC LIMIT 1;',
+        `SELECT application_code, business_name, business_type, years_in_operation,
+                estimated_weekly_volume, delivery_address, products_of_interest, additional_notes, status
+         FROM partner_applications
+         WHERE user_id = $1 OR LOWER(applicant_email) = $2
+         ORDER BY 
+           CASE WHEN status IN ('pending', 'under_review', 'approved') THEN 1 ELSE 2 END ASC,
+           id DESC 
+         LIMIT 1;`,
         [user.id, cleanEmail]
       );
       if (partnerRes.rows.length > 0) {
-        partnerStatus = partnerRes.rows[0].status;
+        const app = partnerRes.rows[0];
+        partnerStatus = app.status;
+        partnerAppId = app.application_code;
+        partnerDetails = {
+          'business-name': app.business_name,
+          'bakery-name': app.business_name,
+          'business-type': app.business_type,
+          'type': app.business_type,
+          'owner-name': user.full_name,
+          email: user.email_address,
+          phone: user.contact_number,
+          years: app.years_in_operation,
+          volume: app.estimated_weekly_volume,
+          address: app.delivery_address,
+          products: app.products_of_interest || [],
+          notes: app.additional_notes || ''
+        };
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[Partner App Login Query Warning]:', e.message);
+    }
 
     return res.status(200).json({
       success: true,
@@ -259,6 +287,8 @@ router.post('/login', async (req, res) => {
         contact: user.contact_number,
         address: user.address || '',
         partnerStatus: partnerStatus,
+        partnerAppId: partnerAppId,
+        partnerDetails: partnerDetails,
         savedCart: [],
         orderHistory: orderHistory
       }
@@ -446,15 +476,43 @@ router.all('/sync', async (req, res) => {
     }
 
     let partnerStatus = user.partner_status || 'none';
+    let partnerAppId = null;
+    let partnerDetails = null;
+
     try {
       const partnerRes = await db.query(
-        'SELECT status FROM wholesale_partner_applications WHERE user_id = $1 OR LOWER(contact_email) = $2 ORDER BY id DESC LIMIT 1;',
+        `SELECT application_code, business_name, business_type, years_in_operation,
+                estimated_weekly_volume, delivery_address, products_of_interest, additional_notes, status
+         FROM partner_applications
+         WHERE user_id = $1 OR LOWER(applicant_email) = $2
+         ORDER BY 
+           CASE WHEN status IN ('pending', 'under_review', 'approved') THEN 1 ELSE 2 END ASC,
+           id DESC 
+         LIMIT 1;`,
         [user.id, cleanEmail]
       );
       if (partnerRes.rows.length > 0) {
-        partnerStatus = partnerRes.rows[0].status;
+        const app = partnerRes.rows[0];
+        partnerStatus = app.status;
+        partnerAppId = app.application_code;
+        partnerDetails = {
+          'business-name': app.business_name,
+          'bakery-name': app.business_name,
+          'business-type': app.business_type,
+          'type': app.business_type,
+          'owner-name': user.full_name,
+          email: user.email_address,
+          phone: user.contact_number,
+          years: app.years_in_operation,
+          volume: app.estimated_weekly_volume,
+          address: app.delivery_address,
+          products: app.products_of_interest || [],
+          notes: app.additional_notes || ''
+        };
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[Partner App Sync Query Warning]:', e.message);
+    }
 
     return res.status(200).json({
       success: true,
@@ -465,6 +523,8 @@ router.all('/sync', async (req, res) => {
         contact: user.contact_number,
         address: user.address || '',
         partnerStatus: partnerStatus,
+        partnerAppId: partnerAppId,
+        partnerDetails: partnerDetails,
         orderHistory: orderHistory
       }
     });

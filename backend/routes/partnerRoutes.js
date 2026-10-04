@@ -30,15 +30,14 @@ router.post('/apply', async (req, res) => {
 
     const applicantName = (data.fullName || data.name || '').trim();
     const applicantEmail = (data.email || '').trim().toLowerCase();
-    const applicantPhone = (data.phone || data.contact || '').trim();
-    const businessName = (data.businessName || data.storeName || '').trim();
-    const businessType = normalizeBusinessType(data.businessType);
-    const yearsInOp = data.yearsInOperation || data.experience || '1-2 years';
-    const weeklyVol = data.weeklyVolume || '50-100 bundles';
+    const applicantPhone = (data.phone || data.contact || '').trim().replace(/\D/g, '');
+    const businessName = (data.businessName || data.storeName || data['business-name'] || data['bakery-name'] || '').trim();
+    const businessType = normalizeBusinessType(data.businessType || data['business-type'] || data.type);
+    const yearsInOp = data.yearsInOperation || data.experience || data.years || '1-2 years';
+    const weeklyVol = data.weeklyVolume || data.volume || '50-100 bundles';
     const deliveryAddress = (data.address || 'Marilao, Bulacan').trim();
-    const products = Array.isArray(data.products) ? data.products : ['Mamon', 'Otap'];
+    const products = Array.isArray(data.products) && data.products.length > 0 ? data.products : ['Mamon', 'Otap'];
     const notes = data.notes || '';
-    const applicationCode = `WB-PRT-${Math.floor(10000 + Math.random() * 90000)}`;
 
     if (!applicantName || !applicantEmail || !applicantPhone || !businessName) {
       return res.status(400).json({
@@ -49,37 +48,64 @@ router.post('/apply', async (req, res) => {
 
     // Check if applicant is an existing user
     let userId = null;
-    const userRes = await db.query('SELECT id FROM users WHERE email_address = $1;', [applicantEmail]);
+    const userRes = await db.query('SELECT id FROM users WHERE LOWER(email_address) = $1;', [applicantEmail]);
     if (userRes.rows.length > 0) {
       userId = userRes.rows[0].id;
     }
 
-    const insertSql = `
-      INSERT INTO partner_applications (
-        application_code, user_id, applicant_name, applicant_email, applicant_phone,
-        business_name, business_type, years_in_operation, estimated_weekly_volume,
-        delivery_address, products_of_interest, additional_notes, agreed_to_terms, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, true, 'pending')
-      RETURNING id, application_code, status, submitted_at;
-    `;
+    // Check if active application already exists
+    const existingRes = await db.query(
+      `SELECT id, application_code, status FROM partner_applications 
+       WHERE (user_id = $1 OR LOWER(applicant_email) = $2 OR applicant_phone = $3)
+         AND status NOT IN ('cancelled', 'rejected')
+       ORDER BY id DESC LIMIT 1;`,
+      [userId || 0, applicantEmail, applicantPhone]
+    );
 
-    const { rows } = await db.query(insertSql, [
-      applicationCode, userId, applicantName, applicantEmail, applicantPhone,
-      businessName, businessType, yearsInOp, weeklyVol, deliveryAddress,
-      products, notes
-    ]);
+    let applicationCode = null;
+    let status = 'pending';
 
-    // Also update users.partner_status if user exists
+    if (existingRes.rows.length > 0) {
+      const existing = existingRes.rows[0];
+      applicationCode = existing.application_code;
+      status = existing.status;
+      await db.query(`
+        UPDATE partner_applications
+        SET applicant_name = $1, business_name = $2, business_type = $3,
+            years_in_operation = $4, estimated_weekly_volume = $5,
+            delivery_address = $6, products_of_interest = $7,
+            additional_notes = $8, user_id = COALESCE(user_id, $9), updated_at = NOW()
+        WHERE id = $10;
+      `, [
+        applicantName, businessName, businessType, yearsInOp, weeklyVol,
+        deliveryAddress, products, notes, userId, existing.id
+      ]);
+    } else {
+      applicationCode = `WB-PRT-${Math.floor(10000 + Math.random() * 90000)}`;
+      const insertSql = `
+        INSERT INTO partner_applications (
+          application_code, user_id, applicant_name, applicant_email, applicant_phone,
+          business_name, business_type, years_in_operation, estimated_weekly_volume,
+          delivery_address, products_of_interest, additional_notes, agreed_to_terms, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, true, 'pending');
+      `;
+      await db.query(insertSql, [
+        applicationCode, userId, applicantName, applicantEmail, applicantPhone,
+        businessName, businessType, yearsInOp, weeklyVol, deliveryAddress,
+        products, notes
+      ]);
+    }
+
+    // Also update users.partner_status if user exists and not approved
     if (userId) {
-      await db.query(`UPDATE users SET partner_status = 'pending' WHERE id = $1;`, [userId]);
+      await db.query(`UPDATE users SET partner_status = $1 WHERE id = $2 AND partner_status NOT IN ('active', 'approved');`, [status, userId]);
     }
 
     return res.status(201).json({
       success: true,
       message: 'Wholesale partner application submitted successfully.',
-      applicationCode: rows[0].application_code,
-      status: rows[0].status,
-      submittedAt: rows[0].submitted_at
+      applicationCode: applicationCode,
+      status: status
     });
   } catch (error) {
     console.error('[Partner Apply Error]:', error);

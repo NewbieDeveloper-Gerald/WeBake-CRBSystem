@@ -95,7 +95,10 @@ async function fetchUserProfile(pool, userId, cleanEmail) {
               estimated_weekly_volume, delivery_address, products_of_interest, additional_notes, status
        FROM partner_applications
        WHERE user_id = $1 OR LOWER(applicant_email) = $2
-       ORDER BY id DESC LIMIT 1;`,
+       ORDER BY 
+         CASE WHEN status IN ('pending', 'under_review', 'approved') THEN 1 ELSE 2 END ASC,
+         id DESC 
+       LIMIT 1;`,
       [user.id, user.email_address.toLowerCase()]
     );
     if (partnerRes.rows.length > 0) {
@@ -104,7 +107,9 @@ async function fetchUserProfile(pool, userId, cleanEmail) {
       partnerAppId = app.application_code;
       partnerDetails = {
         'business-name': app.business_name,
+        'bakery-name': app.business_name,
         'business-type': app.business_type,
+        'type': app.business_type,
         'owner-name': user.full_name,
         email: user.email_address,
         phone: user.contact_number,
