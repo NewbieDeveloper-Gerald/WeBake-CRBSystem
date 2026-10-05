@@ -99,6 +99,29 @@
   }
 
   function findPartnerRecord(enteredId, enteredContact) {
+    // 1. Check active guest application cache first
+    try {
+      const guestApp = JSON.parse(localStorage.getItem('weBakeGuestPartnerApp') || 'null');
+      if (guestApp && guestApp.appId) {
+        const matchesId = enteredId && guestApp.appId.toUpperCase() === enteredId.toUpperCase();
+        const guestEmail = (guestApp.email || guestApp.details?.email || '').toLowerCase();
+        const guestPhone = (guestApp.phone || guestApp.details?.phone || '').replace(/\D/g, '');
+        const cleanEntered = (enteredContact || '').replace(/\D/g, '');
+        const matchesEmail = enteredContact && guestEmail === enteredContact.toLowerCase();
+        const matchesPhone = cleanEntered.length >= 7 && guestPhone.includes(cleanEntered);
+        if (matchesId || matchesEmail || matchesPhone) {
+          return {
+            appId: guestApp.appId,
+            email: guestEmail,
+            phone: guestPhone,
+            date: guestApp.submittedAt ? new Date(guestApp.submittedAt).toLocaleDateString() : 'Recently Submitted',
+            status: guestApp.status || 'pending',
+            details: guestApp.details || {}
+          };
+        }
+      }
+    } catch (e) {}
+
     const allApps = JSON.parse(localStorage.getItem('weBakePartnerApplications') || '[]');
     let foundApp = allApps.find(a => a.appId && a.appId.toUpperCase() === enteredId);
 
@@ -588,6 +611,16 @@
           localStorage.setItem('weBakePartnerApplications', JSON.stringify(allApps));
         }
 
+        // Sync into guest app cache if matching
+        try {
+          const guestApp = JSON.parse(localStorage.getItem('weBakeGuestPartnerApp') || 'null');
+          if (guestApp && guestApp.appId && guestApp.appId.toUpperCase() === app.appId.toUpperCase()) {
+            guestApp.status = 'cancelled';
+            guestApp.cancelledAt = new Date().toISOString();
+            localStorage.setItem('weBakeGuestPartnerApp', JSON.stringify(guestApp));
+          }
+        } catch (e) {}
+
         const allUsers = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
         let usersChanged = false;
         allUsers.forEach(u => {
@@ -648,23 +681,30 @@
       }
     });
 
-    // Start 10s status polling for this application while tracking result is active
-    startTrackPartnerPolling(app.appId, app.details?.email || app.email || '', resBox);
+    // Start near-real-time status polling for this application while tracking result is active
+    if (!trackPartnerPollTimer || currentTrackedAppId !== app.appId) {
+      currentTrackedAppId = app.appId;
+      startTrackPartnerPolling(app.appId, app.details?.email || app.email || '', resBox);
+    }
   }
 
   let trackPartnerPollTimer = null;
+  let currentTrackedAppId = null;
   let lastKnownTrackState = { status: null, updatedAt: null, notes: null };
 
   function stopTrackPartnerPolling() {
     if (trackPartnerPollTimer) {
       clearInterval(trackPartnerPollTimer);
       trackPartnerPollTimer = null;
+      currentTrackedAppId = null;
     }
   }
 
   function startTrackPartnerPolling(appId, appEmail, resBox) {
     stopTrackPartnerPolling();
     if (!appId) return;
+
+    currentTrackedAppId = appId;
 
     async function checkTrackStatus() {
       if (document.visibilityState === 'hidden') return;
@@ -683,15 +723,19 @@
       );
 
       try {
-        const url = `${apiBase}/partner/my-status?code=${encodeURIComponent(appId)}&email=${encodeURIComponent(appEmail || '')}`;
-        const res = await fetch(url, { headers: { 'x-user-email': appEmail || '' } });
+        const cleanPhone = (appEmail || '').replace(/\D/g, '');
+        const isPhone = cleanPhone.length === 11 && cleanPhone.startsWith('09');
+        const emailParam = !isPhone ? (appEmail || '') : '';
+        const phoneParam = isPhone ? cleanPhone : '';
+        const url = `${apiBase}/partner/my-status?code=${encodeURIComponent(appId)}&email=${encodeURIComponent(emailParam)}&phone=${encodeURIComponent(phoneParam)}`;
+        const res = await fetch(url, { headers: { 'x-user-email': emailParam } });
         if (!res.ok) return;
         const data = await res.json();
         if (!data || !data.success || !data.application) return;
 
         const current = data.application;
         const st = (current.status || '').toLowerCase();
-        const upd = current.updatedAt || current.reviewedAt || '';
+        const upd = current.updatedAt || current.reviewedAt || current.submittedAt || '';
         const nts = current.adminNotes || current.staffNotes || '';
 
         if (lastKnownTrackState.status !== st ||
@@ -700,16 +744,46 @@
           lastKnownTrackState = { status: st, updatedAt: upd, notes: nts };
           const updatedApp = {
             appId: current.applicationCode || appId,
-            email: appEmail,
+            email: current.applicantEmail || appEmail,
+            phone: current.applicantPhone || '',
             status: st,
             date: current.submittedAt ? new Date(current.submittedAt).toLocaleDateString() : 'Recent',
             details: {
               'business-name': current.businessName,
               'owner-name': current.applicantName,
+              'type': current.businessType,
+              years: current.yearsInOperation,
+              address: current.deliveryAddress,
+              products: current.products || [],
               notes: nts,
-              email: appEmail
+              email: current.applicantEmail || appEmail,
+              phone: current.applicantPhone || ''
             }
           };
+
+          // Sync into localStorage weBakePartnerApplications
+          const allApps = JSON.parse(localStorage.getItem('weBakePartnerApplications') || '[]');
+          const targetIdx = allApps.findIndex(a => a.appId && a.appId.toUpperCase() === appId.toUpperCase());
+          if (targetIdx !== -1) {
+            allApps[targetIdx].status = st;
+            allApps[targetIdx].staffNotes = nts;
+            allApps[targetIdx].updatedAt = upd;
+            localStorage.setItem('weBakePartnerApplications', JSON.stringify(allApps));
+          }
+
+          // Sync into weBakeGuestPartnerApp
+          try {
+            const guestApp = JSON.parse(localStorage.getItem('weBakeGuestPartnerApp') || 'null');
+            if (guestApp && guestApp.appId && guestApp.appId.toUpperCase() === appId.toUpperCase()) {
+              guestApp.status = st;
+              guestApp.adminNotes = nts;
+              guestApp.staffNotes = nts;
+              guestApp.updatedAt = upd;
+              localStorage.setItem('weBakeGuestPartnerApp', JSON.stringify(guestApp));
+            }
+          } catch (e) {}
+
+          window.dispatchEvent(new CustomEvent('weBakePartnerChange'));
           renderTrackPartnerResult(updatedApp, resBox);
         }
 
@@ -719,7 +793,9 @@
       } catch (err) {}
     }
 
-    trackPartnerPollTimer = setInterval(checkTrackStatus, 10000);
+    // Run immediate check first so user does not wait 5-10s!
+    checkTrackStatus();
+    trackPartnerPollTimer = setInterval(checkTrackStatus, 5000);
   }
 
   document.addEventListener('visibilitychange', () => {

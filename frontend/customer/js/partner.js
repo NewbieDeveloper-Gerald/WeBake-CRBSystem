@@ -15,7 +15,8 @@
       USERS: 'weBakeUsers',
       SESSION: 'weBakeSession',
       APPS: 'weBakePartnerApplications',
-      EDIT_ID: 'weBakeEditPartnerId'
+      EDIT_ID: 'weBakeEditPartnerId',
+      GUEST_APP: 'weBakeGuestPartnerApp'
     },
 
     getUsers() {
@@ -54,8 +55,36 @@
       return sessionStorage.getItem(this.KEYS.EDIT_ID);
     },
 
+    setEditAppId(id) {
+      if (id) {
+        sessionStorage.setItem(this.KEYS.EDIT_ID, id);
+      } else {
+        sessionStorage.removeItem(this.KEYS.EDIT_ID);
+      }
+    },
+
     clearEditAppId() {
       sessionStorage.removeItem(this.KEYS.EDIT_ID);
+    },
+
+    getGuestApp() {
+      try {
+        return JSON.parse(localStorage.getItem(this.KEYS.GUEST_APP));
+      } catch (e) {
+        return null;
+      }
+    },
+
+    saveGuestApp(app) {
+      if (!app) {
+        localStorage.removeItem(this.KEYS.GUEST_APP);
+      } else {
+        localStorage.setItem(this.KEYS.GUEST_APP, JSON.stringify(app));
+      }
+    },
+
+    clearGuestApp() {
+      localStorage.removeItem(this.KEYS.GUEST_APP);
     }
   };
 
@@ -576,7 +605,18 @@
     }
   }
 
+  let originalFormHtml = '';
   let editStatusPollTimer = null;
+  let guestStatusPollTimer = null;
+  let lastKnownGuestState = { status: null, updatedAt: null, notes: null };
+
+  function stopGuestStatusPolling() {
+    if (guestStatusPollTimer) {
+      clearInterval(guestStatusPollTimer);
+      guestStatusPollTimer = null;
+    }
+  }
+
   function startEditStatusPolling(targetCode, targetEmail) {
     if (editStatusPollTimer) clearInterval(editStatusPollTimer);
     if (!targetCode && !targetEmail) return;
@@ -611,26 +651,468 @@
       } catch (e) {}
     }
 
-    editStatusPollTimer = setInterval(checkCurrentEditStatus, 10000);
+    editStatusPollTimer = setInterval(checkCurrentEditStatus, 5000);
+  }
+
+  function startGuestStatusPolling(appId, email, phone) {
+    stopGuestStatusPolling();
+    if (!appId) return;
+
+    const guestApp = PartnerStore.getGuestApp();
+    if (guestApp) {
+      lastKnownGuestState = {
+        status: (guestApp.status || '').toLowerCase(),
+        updatedAt: guestApp.updatedAt || '',
+        notes: guestApp.adminNotes || guestApp.staffNotes || ''
+      };
+    }
+
+    async function pollGuestStatus() {
+      if (document.visibilityState === 'hidden') return;
+      const editingId = PartnerStore.getEditAppId();
+      if (editingId) return; // Do not overwrite while customer is editing
+
+      const currentGuestApp = PartnerStore.getGuestApp();
+      if (!currentGuestApp || !currentGuestApp.appId) {
+        stopGuestStatusPolling();
+        return;
+      }
+
+      const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
+        window.location.protocol === 'file:' ||
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1'
+          ? 'http://localhost:5000/api'
+          : '/api'
+      );
+
+      try {
+        const cleanPhone = (phone || currentGuestApp.phone || '').replace(/\D/g, '');
+        const targetEmail = (email || currentGuestApp.email || '').trim().toLowerCase();
+        const url = `${apiBase}/partner/my-status?code=${encodeURIComponent(appId)}&email=${encodeURIComponent(targetEmail)}&phone=${encodeURIComponent(cleanPhone)}`;
+        const res = await fetch(url, {
+          headers: { 'x-user-email': targetEmail }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data || !data.success || !data.application) return;
+
+        const current = data.application;
+        const st = (current.status || '').toLowerCase();
+        const upd = current.updatedAt || current.reviewedAt || current.submittedAt || '';
+        const nts = current.adminNotes || current.staffNotes || '';
+
+        if (lastKnownGuestState.status !== st ||
+            lastKnownGuestState.updatedAt !== upd ||
+            lastKnownGuestState.notes !== nts) {
+
+          lastKnownGuestState = { status: st, updatedAt: upd, notes: nts };
+
+          currentGuestApp.status = st;
+          currentGuestApp.updatedAt = upd;
+          currentGuestApp.adminNotes = nts;
+          currentGuestApp.staffNotes = nts;
+          if (current.businessName) currentGuestApp.businessName = current.businessName;
+          if (current.applicantName) currentGuestApp.applicantName = current.applicantName;
+          PartnerStore.saveGuestApp(currentGuestApp);
+
+          // Synchronize weBakePartnerApplications
+          const allApps = PartnerStore.getApplications();
+          const targetApp = allApps.find(a => a.appId && a.appId.toUpperCase() === appId.toUpperCase());
+          if (targetApp) {
+            targetApp.status = st;
+            targetApp.staffNotes = nts;
+            targetApp.adminNotes = nts;
+            targetApp.updatedAt = upd;
+            PartnerStore.saveApplications(allApps);
+          }
+
+          let label = 'Application Pending for Review';
+          if (st === 'under_review') label = 'Under Review / Contacted';
+          else if (st === 'approved' || st === 'active') label = 'Approved Wholesale Partner (Priority Partner)';
+          else if (st === 'rejected' || st === 'declined') label = 'Application Declined';
+          else if (st === 'cancelled') label = 'Cancelled Partnership';
+
+          toast(`Partnership status updated: ${label}`);
+          renderGuestLiveStatusView(currentGuestApp);
+        }
+
+        if (st === 'rejected' || st === 'declined' || st === 'cancelled') {
+          stopGuestStatusPolling();
+        }
+      } catch (e) {
+        // Keep last known state on transient network error
+      }
+    }
+
+    // Run immediate check (0ms), then poll every 5000ms
+    pollGuestStatus();
+    guestStatusPollTimer = setInterval(pollGuestStatus, 5000);
   }
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && editStatusPollTimer) {
-      // immediate check
-      const s = PartnerStore.getSession();
-      const editingId = PartnerStore.getEditAppId();
-      if (editingId || (s && s.email)) {
-        startEditStatusPolling(editingId || s?.partnerAppId, s?.email);
+    if (document.visibilityState === 'visible') {
+      if (editStatusPollTimer) {
+        const s = PartnerStore.getSession();
+        const editingId = PartnerStore.getEditAppId();
+        if (editingId || (s && s.email)) {
+          startEditStatusPolling(editingId || s?.partnerAppId, s?.email);
+        }
+      }
+      if (guestStatusPollTimer) {
+        const guestApp = PartnerStore.getGuestApp();
+        if (guestApp && guestApp.appId) {
+          startGuestStatusPolling(guestApp.appId, guestApp.email, guestApp.phone);
+        }
       }
     }
   });
 
+  function restorePartnerFormHtml() {
+    stopGuestStatusPolling();
+    const formContainer = document.querySelector('.partner-form-container');
+    if (!formContainer || !originalFormHtml) return;
+    formContainer.innerHTML = originalFormHtml;
+    initPartnerFormEvents();
+    syncPartnerFormState();
+  }
+
+  function renderGuestLiveStatusView(appData) {
+    const formContainer = document.querySelector('.partner-form-container');
+    if (!formContainer) return;
+
+    const esc = (typeof window.escapeHtml === 'function')
+      ? window.escapeHtml
+      : (str) => String(str || '').replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c] || c));
+
+    const appId = esc(appData.appId || appData.applicationCode || 'WB-PRT-00000');
+    const appStatus = (appData.status || 'pending').toLowerCase();
+    const details = appData.details || {};
+    const businessName = esc(details['business-name'] || details['bakery-name'] || details.businessName || appData.businessName || 'Your Business');
+    const ownerName = esc(details['owner-name'] || details.ownerName || appData.applicantName || 'Applicant');
+    const bType = esc(details['type'] || details['business-type'] || details.businessType || appData.businessType || 'Bakery');
+    const years = esc(details.years || details.yearsInOperation || appData.yearsInOperation || '1-2 years');
+    const address = esc(details.address || appData.deliveryAddress || 'N/A');
+    const phone = esc(details.phone || appData.phone || appData.applicantPhone || 'N/A');
+    const email = esc(details.email || appData.email || appData.applicantEmail || 'N/A');
+    const notes = esc(details.notes || appData.notes || '');
+    const staffNotes = esc(appData.adminNotes || appData.staffNotes || details.adminNotes || details.staffNotes || '');
+    const products = Array.isArray(details.products)
+      ? details.products.map(p => esc(p)).join(', ')
+      : (Array.isArray(appData.products) ? appData.products.map(p => esc(p)).join(', ') : 'All Products');
+
+    let statusBadgeHtml = '';
+    let statusBannerHtml = '';
+    let actionsHtml = '';
+
+    if (appStatus === 'approved' || appStatus === 'active') {
+      statusBadgeHtml = `
+        <span class="partner-badge badge-priority-partner partner-status-pulse">
+          <i class="fas fa-crown"></i> Approved Wholesale Partner (Priority Partner)
+        </span>
+      `;
+      statusBannerHtml = `
+        <div style="background:#fffbeb; border-left:4px solid #f59e0b; padding:1.1rem 1.25rem; border-radius:8px; margin-bottom:1.25rem; color:#92400e; font-size:0.92rem; line-height:1.6;">
+          <div style="font-weight:700; font-size:1.05rem; margin-bottom:0.35rem; color:#78350f;">
+            <i class="fas fa-crown"></i> Congratulations! Your Wholesale Partnership is Approved
+          </div>
+          <div>
+            You are officially registered as an authorized wholesale reseller for <strong>${businessName}</strong>! As an authorized <strong>Priority Partner</strong>, your orders receive top baking queue priority, guaranteed morning delivery scheduling, priority stock allocation, and 50% reservation terms.
+          </div>
+        </div>
+      `;
+      actionsHtml = `
+        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.25rem; flex-wrap:wrap; border-top:1px solid #f0e7dc; padding-top:1rem;">
+          <button type="button" class="btn btn-outline" id="guest-btn-track-trans" style="padding:0.5rem 1.2rem; font-size:0.88rem;">
+            <i class="fas fa-search-dollar"></i> Track Transactions
+          </button>
+          <button type="button" class="btn btn-primary" id="guest-btn-cancel-partner" style="padding:0.5rem 1.2rem; font-size:0.88rem; background:#dc3545; border-color:#dc3545;">
+            <i class="fas fa-ban"></i> Cancel Partnership
+          </button>
+        </div>
+      `;
+    } else if (appStatus === 'under_review' || appStatus === 'reviewing' || appStatus === 'contacted') {
+      statusBadgeHtml = `
+        <span class="partner-badge badge-under_review">
+          <i class="fas fa-user-clock"></i> Under Review / Contacted
+        </span>
+      `;
+      statusBannerHtml = `
+        <div style="background:#f0f9ff; border-left:4px solid #0284c7; padding:1.1rem 1.25rem; border-radius:8px; margin-bottom:1.25rem; color:#0369a1; font-size:0.92rem; line-height:1.6;">
+          <div style="font-weight:700; font-size:1.02rem; margin-bottom:0.35rem;">
+            <i class="fas fa-user-clock"></i> Application Under Review / Store Contacted
+          </div>
+          <div>
+            Bakery management is actively reviewing your store location and evaluating delivery logistics. Our team may reach out to you directly via phone or email to confirm weekly order volumes and schedule details.
+          </div>
+          <div class="partner-locked-note" style="margin-top:0.75rem;">
+            <i class="fas fa-lock"></i> Editing is locked while your application is being reviewed.
+          </div>
+        </div>
+      `;
+      actionsHtml = `
+        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.25rem; flex-wrap:wrap; border-top:1px solid #f0e7dc; padding-top:1rem;">
+          <button type="button" class="btn btn-outline" id="guest-btn-track-trans" style="padding:0.5rem 1.2rem; font-size:0.88rem;">
+            <i class="fas fa-search-dollar"></i> Track Transactions
+          </button>
+          <button type="button" class="btn btn-primary" id="guest-btn-cancel-partner" style="padding:0.5rem 1.2rem; font-size:0.88rem; background:#dc3545; border-color:#dc3545;">
+            <i class="fas fa-ban"></i> Cancel Request
+          </button>
+        </div>
+      `;
+    } else if (appStatus === 'rejected' || appStatus === 'declined') {
+      statusBadgeHtml = `
+        <span class="partner-badge badge-rejected">
+          <i class="fas fa-times-circle"></i> Application Declined
+        </span>
+      `;
+      statusBannerHtml = `
+        <div style="background:#f8d7da; border-left:4px solid #dc3545; padding:1.1rem 1.25rem; border-radius:8px; margin-bottom:1.25rem; color:#721c24; font-size:0.92rem; line-height:1.6;">
+          <div style="font-weight:700; font-size:1.02rem; margin-bottom:0.35rem;">
+            <i class="fas fa-times-circle"></i> Application Notice: Declined
+          </div>
+          <div>
+            Thank you for your interest in partnering with Crumbs N' Rolls Bakery. Unfortunately, your wholesale application was declined at this time. You may review your business profile and submit a revised application below.
+          </div>
+        </div>
+      `;
+      actionsHtml = `
+        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.25rem; flex-wrap:wrap; border-top:1px solid #f0e7dc; padding-top:1rem;">
+          <button type="button" class="btn btn-primary" id="guest-btn-reapply" style="padding:0.5rem 1.4rem; font-size:0.88rem;">
+            <i class="fas fa-redo"></i> Apply Again
+          </button>
+        </div>
+      `;
+    } else if (appStatus === 'cancelled') {
+      statusBadgeHtml = `
+        <span class="partner-badge badge-cancelled">
+          <i class="fas fa-ban"></i> Cancelled Partnership
+        </span>
+      `;
+      statusBannerHtml = `
+        <div style="background:#f8f9fa; border-left:4px solid #6c757d; padding:1.1rem 1.25rem; border-radius:8px; margin-bottom:1.25rem; color:#495057; font-size:0.92rem; line-height:1.6;">
+          <div style="font-weight:700; font-size:1.02rem; margin-bottom:0.35rem;">
+            <i class="fas fa-ban"></i> Partnership Cancelled
+          </div>
+          <div>
+            This wholesale partnership application has been cancelled. If you wish to apply again, you may submit a new wholesale application at any time.
+          </div>
+        </div>
+      `;
+      actionsHtml = `
+        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.25rem; flex-wrap:wrap; border-top:1px solid #f0e7dc; padding-top:1rem;">
+          <button type="button" class="btn btn-primary" id="guest-btn-reapply" style="padding:0.5rem 1.4rem; font-size:0.88rem;">
+            <i class="fas fa-paper-plane"></i> Submit New Application
+          </button>
+        </div>
+      `;
+    } else {
+      // Default: Pending
+      statusBadgeHtml = `
+        <span class="partner-badge badge-pending">
+          <i class="fas fa-clock"></i> Application Pending for Review
+        </span>
+      `;
+      statusBannerHtml = `
+        <div style="background:#fff3cd; border-left:4px solid #ffc107; padding:1.1rem 1.25rem; border-radius:8px; margin-bottom:1.25rem; color:#856404; font-size:0.92rem; line-height:1.6;">
+          <div style="font-weight:700; font-size:1.02rem; margin-bottom:0.35rem;">
+            <i class="fas fa-clock"></i> Application Pending for Review
+          </div>
+          <div>
+            Your wholesale partnership application has been submitted and is pending initial review by bakery management. Our team usually reviews applications within 24–48 hours. You may edit your submitted details below while pending.
+          </div>
+        </div>
+      `;
+      actionsHtml = `
+        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.25rem; flex-wrap:wrap; border-top:1px solid #f0e7dc; padding-top:1rem;">
+          <button type="button" class="btn btn-outline" id="guest-btn-edit-app" style="padding:0.5rem 1.2rem; font-size:0.88rem;">
+            <i class="fas fa-edit"></i> Edit Application
+          </button>
+          <button type="button" class="btn btn-outline" id="guest-btn-track-trans" style="padding:0.5rem 1.2rem; font-size:0.88rem;">
+            <i class="fas fa-search-dollar"></i> Track Transactions
+          </button>
+          <button type="button" class="btn btn-primary" id="guest-btn-cancel-partner" style="padding:0.5rem 1.2rem; font-size:0.88rem; background:#dc3545; border-color:#dc3545;">
+            <i class="fas fa-ban"></i> Cancel Request
+          </button>
+        </div>
+      `;
+    }
+
+    const staffNotesHtml = staffNotes ? `
+      <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; padding:0.85rem 1.15rem; margin-bottom:1.25rem; font-size:0.88rem; color:#0369a1; line-height:1.5;">
+        <strong><i class="fas fa-comment-dots"></i> Bakery Staff Remarks:</strong> "${staffNotes}"
+      </div>
+    ` : '';
+
+    formContainer.innerHTML = `
+      <div class="partner-live-card" style="padding:0.5rem 0;">
+        <!-- Top Reference & Status Badge Header -->
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; margin-bottom:1.25rem; padding-bottom:1rem; border-bottom:1px solid #eee;">
+          <div>
+            <span style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:#888; display:block; letter-spacing:0.5px;">Application Reference ID</span>
+            <div style="display:flex; align-items:center; gap:0.6rem; margin-top:0.2rem;">
+              <span style="font-size:1.6rem; font-weight:800; color:var(--primary);" id="guest-ref-id">${appId}</span>
+              <button type="button" class="btn btn-sm btn-outline" id="guest-btn-copy-id" style="padding:0.25rem 0.65rem; font-size:0.75rem;">
+                <i class="far fa-copy"></i> <span id="guest-copy-txt">Copy</span>
+              </button>
+            </div>
+          </div>
+          <div>
+            ${statusBadgeHtml}
+          </div>
+        </div>
+
+        <!-- Live Status Banner -->
+        ${statusBannerHtml}
+
+        <!-- Bakery Staff Remarks (if any) -->
+        ${staffNotesHtml}
+
+        <!-- Submitted Information Details Box -->
+        <div style="background:#faf6f0; border:1px solid #ebd9c8; border-radius:8px; padding:1.15rem 1.25rem; margin-bottom:1rem; font-size:0.86rem; line-height:1.7;">
+          <div style="font-weight:700; color:var(--primary); font-size:0.95rem; margin-bottom:0.5rem; border-bottom:1px solid #ebd9c8; padding-bottom:0.35rem;">
+            <i class="fas fa-store"></i> Submitted Business Details
+          </div>
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:0.4rem 1.5rem;">
+            <div><strong>Business Name:</strong> ${businessName}</div>
+            <div><strong>Representative:</strong> ${ownerName}</div>
+            <div><strong>Business Type:</strong> ${bType}</div>
+            <div><strong>Years in Operation:</strong> ${years}</div>
+            <div><strong>Delivery Address:</strong> ${address}</div>
+            <div><strong>Contact Phone:</strong> ${phone}</div>
+            <div><strong>Verified Gmail:</strong> ${email}</div>
+            <div><strong>Products of Interest:</strong> ${products}</div>
+          </div>
+          ${notes ? `<div style="margin-top:0.5rem; padding-top:0.35rem; border-top:1px dashed #ebd9c8;"><strong>Additional Notes:</strong> ${notes}</div>` : ''}
+        </div>
+
+        <!-- Live Sync Status Indicator -->
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.78rem; color:#888; margin-top:0.5rem;">
+          <span style="display:inline-flex; align-items:center; gap:0.35rem;">
+            <i class="fas fa-sync ${appStatus === 'rejected' || appStatus === 'cancelled' ? '' : 'fa-spin'}" style="color:var(--primary);"></i>
+            ${appStatus === 'rejected' || appStatus === 'cancelled' ? 'Status Finalized' : 'Near-Real-Time Sync Active (checks every 5s)'}
+          </span>
+          <span>Submitted: ${esc(appData.submittedAt ? new Date(appData.submittedAt).toLocaleDateString() : 'Recent')}</span>
+        </div>
+
+        <!-- Action Buttons -->
+        ${actionsHtml}
+      </div>
+    `;
+
+    // Wire buttons
+    document.getElementById('guest-btn-copy-id')?.addEventListener('click', () => {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(appData.appId || appId).then(() => {
+          const txt = document.getElementById('guest-copy-txt');
+          if (txt) txt.textContent = 'Copied!';
+          toast('Reference ID copied: ' + (appData.appId || appId));
+          setTimeout(() => { if (txt) txt.textContent = 'Copy'; }, 2000);
+        });
+      } else {
+        toast('Reference ID: ' + (appData.appId || appId));
+      }
+    });
+
+    document.getElementById('guest-btn-track-trans')?.addEventListener('click', () => {
+      if (window.openTrackOrderModal) {
+        window.openTrackOrderModal(appData.appId || appId, email || phone || '', 'partner');
+      }
+    });
+
+    document.getElementById('guest-btn-edit-app')?.addEventListener('click', () => {
+      PartnerStore.setEditAppId(appData.appId || appId);
+      restorePartnerFormHtml();
+    });
+
+    document.getElementById('guest-btn-reapply')?.addEventListener('click', () => {
+      PartnerStore.clearGuestApp();
+      PartnerStore.clearEditAppId();
+      restorePartnerFormHtml();
+      toast('You may now fill out and submit a new application.');
+    });
+
+    document.getElementById('guest-btn-cancel-partner')?.addEventListener('click', () => {
+      const isApproved = (appStatus === 'approved' || appStatus === 'active');
+      const promptMsg = isApproved
+        ? 'Are you sure you want to cancel your wholesale partnership? Priority partner privileges will end immediately.'
+        : 'Are you sure you want to cancel your partnership request? This action cannot be undone.';
+
+      const doCancel = async () => {
+        appData.status = 'cancelled';
+        appData.cancelledAt = new Date().toISOString();
+        PartnerStore.saveGuestApp(appData);
+
+        const allApps = PartnerStore.getApplications();
+        const target = allApps.find(a => a.appId && a.appId.toUpperCase() === (appData.appId || appId).toUpperCase());
+        if (target) {
+          target.status = 'cancelled';
+          target.cancelledAt = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+          PartnerStore.saveApplications(allApps);
+        }
+
+        stopGuestStatusPolling();
+
+        const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
+          window.location.protocol === 'file:' ||
+          window.location.hostname === 'localhost' ||
+          window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:5000/api'
+            : '/api'
+        );
+
+        try {
+          await fetch(`${apiBase}/partner/cancel`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: email,
+              appId: appData.appId || appId,
+              phone: phone
+            })
+          });
+        } catch (e) {
+          console.warn('[Cloud Partner Cancel Network Notice]:', e);
+        }
+
+        toast('Partnership request cancelled.');
+        renderGuestLiveStatusView(appData);
+        window.dispatchEvent(new CustomEvent('weBakePartnerChange'));
+      };
+
+      if (window.WeBakeModals && typeof window.WeBakeModals.confirmCancelPartner === 'function') {
+        window.WeBakeModals.confirmCancelPartner({ onConfirm: doCancel });
+      } else if (confirm(promptMsg)) {
+        doCancel();
+      }
+    });
+  }
+
   function syncPartnerFormState() {
-    const partnerForm = document.getElementById('partner-form');
-    if (!partnerForm) return;
+    const s = PartnerStore.getSession();
+    const guestApp = PartnerStore.getGuestApp();
+    const editPartnerId = PartnerStore.getEditAppId();
+
+    // 1. If guest has active application and not in edit mode, render live status view
+    if (!s || !s.email) {
+      if (guestApp && guestApp.appId && !editPartnerId) {
+        renderGuestLiveStatusView(guestApp);
+        startGuestStatusPolling(guestApp.appId, guestApp.email, guestApp.phone);
+        return;
+      }
+    }
+
+    // 2. Form mode (logged-in, guest editing, or blank guest form)
+    let partnerForm = document.getElementById('partner-form');
+    if (!partnerForm) {
+      if (originalFormHtml) {
+        restorePartnerFormHtml();
+        return;
+      }
+      return;
+    }
 
     try {
-      const s = PartnerStore.getSession();
       const contactSection = document.getElementById('partner-contact-section');
       const loggedInBadge = document.getElementById('partner-logged-in-badge');
       const partnerEmailEl = document.getElementById('partner-email');
@@ -729,7 +1211,16 @@
           setFormFieldsLocked(false);
         }
       } else {
-        // Guest mode: ensure contact inputs are displayed and required
+        // Guest mode: check if guest has an active application
+        const guestApp = PartnerStore.getGuestApp();
+        const editPartnerId = PartnerStore.getEditAppId();
+        if (guestApp && guestApp.appId && !editPartnerId) {
+          renderGuestLiveStatusView(guestApp);
+          startGuestStatusPolling(guestApp.appId, guestApp.email, guestApp.phone);
+          return;
+        }
+
+        // Guest application form view
         if (contactSection) contactSection.style.display = 'block';
         if (loggedInBadge) loggedInBadge.style.display = 'none';
         if (partnerEmailEl) partnerEmailEl.setAttribute('required', '');
@@ -737,11 +1228,14 @@
         setFormFieldsLocked(false);
       }
 
-      // Check if user is editing a specific application (e.g. from Track Transaction modal)
-      const editPartnerId = PartnerStore.getEditAppId();
+      // Check if user is editing a specific application (e.g. from Track Transaction modal or Guest Live View)
       if (editPartnerId) {
+        const guestApp = PartnerStore.getGuestApp();
         const allApps = PartnerStore.getApplications();
-        const editApp = allApps.find(a => a.appId && a.appId.toUpperCase() === editPartnerId.toUpperCase());
+        let editApp = (guestApp && guestApp.appId && guestApp.appId.toUpperCase() === editPartnerId.toUpperCase()) ? guestApp : null;
+        if (!editApp) {
+          editApp = allApps.find(a => a.appId && a.appId.toUpperCase() === editPartnerId.toUpperCase());
+        }
         if (editApp && editApp.status !== 'cancelled') {
           populatePartnerFields(editApp.details || {}, editApp);
 
@@ -765,6 +1259,13 @@
             cancelEditBtn.onclick = function () {
               PartnerStore.clearEditAppId();
               if (editBanner) editBanner.style.display = 'none';
+              const currentGuest = PartnerStore.getGuestApp();
+              if (currentGuest && currentGuest.appId && (!s || !s.email)) {
+                renderGuestLiveStatusView(currentGuest);
+                startGuestStatusPolling(currentGuest.appId, currentGuest.email, currentGuest.phone);
+                toast('Edit mode cancelled.');
+                return;
+              }
               partnerForm.reset();
               partnerEmailVerified = false;
               verifiedPartnerEmail = '';
@@ -1129,60 +1630,25 @@
     if (currentUser) {
       setTimeout(() => { window.location.href = 'dashboard.html'; }, 1000);
     } else {
-      // Guest applicant: Render confirmation card with Reference ID & direct Track link
+      // Guest applicant: update guest store and render live status view with real-time polling
+      const guestApp = {
+        appId: appId,
+        email: details.email,
+        phone: details.phone,
+        status: returnedStatus || 'pending',
+        adminNotes: '',
+        staffNotes: '',
+        submittedAt: (targetApp && targetApp.date) ? targetApp.date : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        details: { ...details }
+      };
+      PartnerStore.saveGuestApp(guestApp);
+      PartnerStore.clearEditAppId();
+
+      renderGuestLiveStatusView(guestApp);
+      startGuestStatusPolling(appId, details.email, details.phone);
       const formContainer = document.querySelector('.partner-form-container');
       if (formContainer) {
-        const esc = (typeof window.escapeHtml === 'function') ? window.escapeHtml : (str) => String(str || '').replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c] || c));
-        formContainer.innerHTML = `
-          <div style="text-align:center; padding:1.5rem 0; animation: fadeIn 0.4s ease;">
-            <div style="font-size:3.5rem; color:#28a745; margin-bottom:1rem;"><i class="fas fa-check-circle"></i></div>
-            <h3 style="color:var(--primary); font-size:1.6rem; font-weight:700; margin-bottom:0.5rem;">${isUpdate ? 'Partnership Application Updated!' : 'Partnership Application Submitted!'}</h3>
-            <p style="color:var(--gray); font-size:0.95rem; max-width:540px; margin:0 auto 1.75rem; line-height:1.6;">
-              ${isUpdate ? 'Your wholesale partner details have been successfully updated in our system. You can review and track your application anytime.' : "Thank you for applying to be an authorized wholesale partner with Crumbs N' Rolls Bakery. Our wholesale team reviews business applications within 24–48 hours."}
-            </p>
-
-            <div style="background:#FAF6F0; border:1px dashed #ebd9c8; border-radius:10px; padding:1.25rem 1.5rem; max-width:440px; margin:0 auto 1.5rem;">
-              <span style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:#888; display:block; letter-spacing:0.5px;">Your Application Reference ID</span>
-              <div style="font-size:1.85rem; font-weight:800; color:var(--primary); margin:0.35rem 0;" id="app-reference-id">${esc(appId)}</div>
-              <button type="button" class="btn btn-sm btn-outline" id="btn-copy-partner-id" style="padding:0.35rem 1rem; font-size:0.8rem;">
-                <i class="far fa-copy"></i> <span id="copy-partner-text">Copy Reference ID</span>
-              </button>
-            </div>
-
-            <div style="background:#e8f4fd; border:1px solid #b8daff; border-radius:8px; padding:0.85rem 1rem; max-width:480px; margin:0 auto 1.75rem; font-size:0.85rem; color:#004085;">
-              <i class="fas fa-info-circle"></i> Keep this Reference ID safe. You can track your application review status, edit details, or cancel anytime via <strong>Track Transactions</strong>.
-            </div>
-
-            <div style="display:flex; justify-content:center; gap:0.75rem; flex-wrap:wrap;">
-              <button type="button" class="btn btn-primary" id="btn-track-partner-now" style="padding:0.75rem 1.75rem;">
-                <i class="fas fa-search-dollar"></i> Track This Application
-              </button>
-              <a href="home.html" class="btn btn-outline" style="padding:0.75rem 1.5rem;">
-                <i class="fas fa-home"></i> Return to Home
-              </a>
-            </div>
-          </div>
-        `;
-
-        document.getElementById('btn-copy-partner-id')?.addEventListener('click', () => {
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(appId).then(() => {
-              const txt = document.getElementById('copy-partner-text');
-              if (txt) txt.textContent = 'Copied!';
-              toast('Application ID copied: ' + appId);
-              setTimeout(() => { if (txt) txt.textContent = 'Copy Reference ID'; }, 2000);
-            });
-          } else {
-            toast('Application ID: ' + appId);
-          }
-        });
-
-        document.getElementById('btn-track-partner-now')?.addEventListener('click', () => {
-          if (window.openTrackOrderModal) {
-            window.openTrackOrderModal(appId, details.email || details.phone || '', 'partner');
-          }
-        });
-
         window.scrollTo({ top: formContainer.offsetTop - 100, behavior: 'smooth' });
       }
     }
@@ -1191,7 +1657,7 @@
   /* --------------------------------------------------------------------------
      8. Initialization & Event Wiring
      -------------------------------------------------------------------------- */
-  function initPartner() {
+  function initPartnerFormEvents() {
     const partnerForm = document.getElementById('partner-form');
     if (!partnerForm) return;
 
@@ -1239,14 +1705,48 @@
 
     // Form submit listener
     partnerForm.addEventListener('submit', handlePartnerSubmit);
+  }
+
+  function initPartner() {
+    const formContainer = document.querySelector('.partner-form-container');
+    if (formContainer && !originalFormHtml) {
+      originalFormHtml = formContainer.innerHTML;
+    }
+
+    initPartnerFormEvents();
 
     // Initial sync
     syncPartnerFormState();
   }
 
+  // Cross-tab and external sync listeners
+  window.addEventListener('weBakePartnerChange', () => {
+    const s = PartnerStore.getSession();
+    if (!s || !s.email) {
+      const guestApp = PartnerStore.getGuestApp();
+      if (guestApp && !PartnerStore.getEditAppId()) {
+        renderGuestLiveStatusView(guestApp);
+      }
+    }
+  });
+
+  window.addEventListener('storage', (e) => {
+    if (e.key === PartnerStore.KEYS.GUEST_APP || e.key === PartnerStore.KEYS.APPS) {
+      const s = PartnerStore.getSession();
+      if (!s || !s.email) {
+        const guestApp = PartnerStore.getGuestApp();
+        if (guestApp && !PartnerStore.getEditAppId()) {
+          renderGuestLiveStatusView(guestApp);
+        }
+      }
+    }
+  });
+
   // Expose global methods for external hooks (tracking.js, auth.js)
   window.syncPartnerFormState = syncPartnerFormState;
-  window.addEventListener('weBakeAuthChange', syncPartnerFormState);
+  window.addEventListener('weBakeAuthChange', () => {
+    restorePartnerFormHtml();
+  });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initPartner);

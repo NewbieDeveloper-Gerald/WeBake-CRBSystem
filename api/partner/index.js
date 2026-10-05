@@ -274,28 +274,36 @@ async function handleMyStatus(req, res, pool) {
   const session = readSession(req);
   const callerEmail = (req.headers['x-user-email'] || req.query?.email || session?.email || '').trim().toLowerCase();
   const callerCode = (req.query?.code || req.query?.appId || '').trim();
+  const callerPhone = (req.query?.phone || req.query?.contact || '').trim().replace(/\D/g, '');
 
-  if (!callerEmail && !callerCode) {
-    return sendJson(res, 400, { success: false, message: 'Authentication email or reference code is required.' });
+  if (!callerEmail && !callerCode && !callerPhone) {
+    return sendJson(res, 400, { success: false, message: 'Authentication email, phone, or reference code is required.' });
   }
 
   try {
     let query = `
-      SELECT id, application_code, applicant_name, applicant_email, business_name,
-             business_type, status, admin_notes, submitted_at, updated_at, reviewed_at
+      SELECT id, application_code, applicant_name, applicant_email, applicant_phone, business_name,
+             business_type, years_in_operation, estimated_weekly_volume, delivery_address,
+             products_of_interest, additional_notes, status, admin_notes, submitted_at, updated_at, reviewed_at
       FROM partner_applications
       WHERE 1=1
     `;
     const params = [];
     if (callerCode && callerEmail) {
       params.push(callerCode, callerEmail);
-      query += ` AND application_code ILIKE $1 AND LOWER(applicant_email) = $2`;
+      query += ` AND application_code ILIKE $1 AND (LOWER(applicant_email) = $2 OR applicant_phone = $2)`;
+    } else if (callerCode && callerPhone) {
+      params.push(callerCode, callerPhone);
+      query += ` AND application_code ILIKE $1 AND applicant_phone = $2`;
+    } else if (callerCode) {
+      params.push(callerCode);
+      query += ` AND application_code ILIKE $1`;
     } else if (callerEmail) {
       params.push(callerEmail);
       query += ` AND LOWER(applicant_email) = $1`;
-    } else {
-      params.push(callerCode);
-      query += ` AND application_code ILIKE $1`;
+    } else if (callerPhone) {
+      params.push(callerPhone);
+      query += ` AND applicant_phone = $1`;
     }
     query += ` ORDER BY updated_at DESC, id DESC LIMIT 1;`;
 
@@ -310,8 +318,15 @@ async function handleMyStatus(req, res, pool) {
       application: {
         applicationCode: app.application_code,
         applicantName: app.applicant_name,
+        applicantEmail: app.applicant_email,
+        applicantPhone: app.applicant_phone,
         businessName: app.business_name,
         businessType: app.business_type,
+        yearsInOperation: app.years_in_operation,
+        weeklyVolume: app.estimated_weekly_volume,
+        deliveryAddress: app.delivery_address,
+        products: app.products_of_interest || [],
+        notes: app.additional_notes || '',
         status: app.status,
         adminNotes: app.admin_notes || '',
         staffNotes: app.admin_notes || '',

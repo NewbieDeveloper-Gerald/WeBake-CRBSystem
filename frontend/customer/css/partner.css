@@ -311,3 +311,55 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* --- Partnership Badges & Real-time Status Card Styles --- */
+.partner-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 1.15rem;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  transition: all 0.25s ease;
+}
+.badge-none { background: var(--light); color: var(--gray); }
+.badge-pending { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+.badge-reviewing,
+.badge-under_review { background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; }
+.badge-active,
+.badge-approved { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; font-weight: 700; box-shadow: 0 1px 3px rgba(217, 119, 6, 0.12); }
+.badge-priority-partner { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; font-weight: 700; box-shadow: 0 1px 3px rgba(217, 119, 6, 0.12); }
+.badge-rejected,
+.badge-declined { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+.badge-cancelled { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
+.partner-locked-note {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.82rem;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.partner-live-card {
+  animation: fadeIn 0.35s ease;
+  background: #FFFFFF;
+  border-radius: 10px;
+}
+
+@keyframes pulseGlow {
+  0% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.02); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.9; }
+}
+
+.partner-status-pulse {
+  animation: pulseGlow 1.5s infinite ease-in-out;
+}
+
