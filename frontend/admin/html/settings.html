@@ -51,7 +51,7 @@
           <i class="fas fa-tags"></i>
           <span>Product Catalog</span>
         </a>
-        <a href="settings.html" class="nav-item-link restricted-owner active">
+        <a href="settings.html" class="nav-item-link active">
           <i class="fas fa-cog"></i>
           <span>Bakery Settings</span>
         </a>
@@ -62,16 +62,12 @@
           <div class="staff-avatar">GV</div>
           <div class="staff-details">
             <div class="staff-name">Gerald V.</div>
-            <div class="staff-role-badge">Owner / Admin</div>
           </div>
         </div>
         <div class="sidebar-actions">
           <a href="../../customer/html/home.html" target="_blank" class="btn-sidebar" title="Open Customer Storefront">
             <i class="fas fa-external-link-alt"></i> Store
           </a>
-          <button type="button" class="btn-sidebar" id="btn-switch-role" title="Switch Staff Role">
-            <i class="fas fa-user-shield"></i> Role
-          </button>
         </div>
       </div>
     </aside>
@@ -86,7 +82,7 @@
           </button>
           <div class="page-headline">
             <h1>Bakery Settings &amp; Payment Credentials</h1>
-            <p>Update e-wallet receiver numbers, QR code images, operating hours &amp; staff roles</p>
+            <p>Update e-wallet receiver numbers, QR code images, and operating hours</p>
           </div>
         </div>
 
@@ -95,9 +91,6 @@
             <span class="pulse-dot"></span>
             <span>Live Sync Active</span>
           </div>
-          <button type="button" class="role-switcher-btn" id="role-switch-text">
-            Role: Owner (Admin)
-          </button>
         </div>
       </header>
 
@@ -181,32 +174,6 @@
                 <label class="form-label">Standard Delivery Areas Covered</label>
                 <input type="text" id="set-delivery-areas" class="form-input" placeholder="Marilao, Meycauayan, Bocaue, Caloocan, Valenzuela, QC">
                 <p class="form-hint">Shown in customer delivery terms during checkout</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Card 3: Role-Based Access Control (RBAC) -->
-          <div class="admin-card">
-            <div class="card-header">
-              <div class="card-title-group">
-                <h3><i class="fas fa-users-cog text-primary"></i> Staff Access Control (RBAC)</h3>
-                <p>Role permissions: Owner / Admin (Full Access) vs Cashier Staff (POS &amp; Orders)</p>
-              </div>
-            </div>
-            <div class="card-body">
-              <div class="detail-section-box">
-                <div class="detail-data-row">
-                  <span>Current Active Staff:</span>
-                  <strong>Gerald V. (Owner / Admin)</strong>
-                </div>
-                <div class="detail-data-row">
-                  <span>Owner Role Capabilities:</span>
-                  <span>Full access to POS, verification, payouts, inventory, catalog, orders, and settings.</span>
-                </div>
-                <div class="detail-data-row">
-                  <span>Cashier Staff Capabilities:</span>
-                  <span>Restricted to Walk-In POS sales, viewing orders, and order status updates only.</span>
-                </div>
               </div>
             </div>
             <div class="card-footer">

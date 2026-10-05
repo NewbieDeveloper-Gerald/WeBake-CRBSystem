@@ -22,22 +22,17 @@
       'Accept': 'application/json'
     };
 
-    // Attach admin session token or user email header if available
+    // Attach admin session user email header if available
     try {
       const sess = JSON.parse(localStorage.getItem('weBakeAdminSession') || 'null');
       if (sess && sess.email) {
         defaultHeaders['X-User-Email'] = sess.email;
-        defaultHeaders['X-Admin-Role'] = sess.role || sess.roleName || 'admin';
       } else {
         const cust = JSON.parse(localStorage.getItem('weBakeSession') || 'null');
         if (cust && cust.email) {
           defaultHeaders['X-User-Email'] = cust.email;
-          if (cust.role === 'admin' || cust.role === 'staff' || cust.email === 'geraldvelasco550@gmail.com') {
-            defaultHeaders['X-Admin-Role'] = 'admin';
-          }
         } else {
           defaultHeaders['X-User-Email'] = 'geraldvelasco550@gmail.com';
-          defaultHeaders['X-Admin-Role'] = 'owner';
         }
       }
     } catch (e) {}
