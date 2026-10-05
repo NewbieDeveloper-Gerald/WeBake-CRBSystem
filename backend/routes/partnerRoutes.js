@@ -338,31 +338,35 @@ router.post('/cancel', async (req, res) => {
     const appRes = await client.query(query, params);
 
     let app = null;
+    const cancelNote = reason ? ` [Cancelled by customer: ${reason}]` : ' [Cancelled by customer]';
+
     if (appRes.rows.length > 0) {
       app = appRes.rows[0];
-      const cancelNote = reason ? ` [Cancelled by customer: ${reason}]` : ' [Cancelled by customer]';
-      await client.query(`
-        UPDATE partner_applications
-        SET status = 'cancelled',
-            admin_notes = COALESCE(admin_notes, '') || $1,
-            reviewed_at = NOW(),
-            updated_at = NOW()
-        WHERE id = $2;
-      `, [cancelNote, app.id]);
     }
 
-    // 2. Synchronize user in users table
     const userTargetEmail = cleanEmail || (app ? app.applicant_email : '');
     const userTargetId = app ? app.user_id : null;
+    const targetAppCode = cleanAppId || (app ? app.application_code : '');
 
+    // Cancel all matching applications for this applicant/code
+    await client.query(`
+      UPDATE partner_applications
+      SET status = 'cancelled',
+          admin_notes = COALESCE(admin_notes, '') || $1,
+          reviewed_at = NOW(),
+          updated_at = NOW()
+      WHERE (application_code ILIKE $2 OR LOWER(applicant_email) = $3 OR user_id = $4)
+        AND status NOT IN ('cancelled');
+    `, [cancelNote, targetAppCode, userTargetEmail, userTargetId || 0]);
+
+    // 2. Synchronize user in users table
     if (userTargetEmail || userTargetId) {
       await client.query(`
         UPDATE users
         SET partner_status = 'cancelled',
-            role_id = 1,
+            role_id = CASE WHEN role_id = 4 THEN 4 ELSE 1 END,
             updated_at = NOW()
-        WHERE (id = $1 OR LOWER(email_address) = $2)
-          AND role_id != 4;
+        WHERE id = $1 OR LOWER(email_address) = $2;
       `, [userTargetId || 0, userTargetEmail]);
     }
 

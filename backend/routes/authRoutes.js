@@ -251,15 +251,17 @@ router.post('/login', async (req, res) => {
                 admin_notes
          FROM partner_applications
          WHERE user_id = $1 OR LOWER(applicant_email) = $2
-         ORDER BY 
-           CASE WHEN status IN ('pending', 'under_review', 'approved') THEN 1 ELSE 2 END ASC,
-           id DESC 
+         ORDER BY updated_at DESC, id DESC 
          LIMIT 1;`,
         [user.id, cleanEmail]
       );
       if (partnerRes.rows.length > 0) {
         const app = partnerRes.rows[0];
-        partnerStatus = app.status;
+        if (user.partner_status === 'cancelled' || user.partner_status === 'none') {
+          partnerStatus = user.partner_status;
+        } else {
+          partnerStatus = app.status;
+        }
         partnerAppId = app.application_code;
         partnerDetails = {
           'business-name': app.business_name,
@@ -496,15 +498,17 @@ router.all('/sync', async (req, res) => {
                 admin_notes
          FROM partner_applications
          WHERE user_id = $1 OR LOWER(applicant_email) = $2
-         ORDER BY 
-           CASE WHEN status IN ('pending', 'under_review', 'approved') THEN 1 ELSE 2 END ASC,
-           id DESC 
+         ORDER BY updated_at DESC, id DESC 
          LIMIT 1;`,
         [user.id, cleanEmail]
       );
       if (partnerRes.rows.length > 0) {
         const app = partnerRes.rows[0];
-        partnerStatus = app.status;
+        if (user.partner_status === 'cancelled' || user.partner_status === 'none') {
+          partnerStatus = user.partner_status;
+        } else {
+          partnerStatus = app.status;
+        }
         partnerAppId = app.application_code;
         partnerDetails = {
           'business-name': app.business_name,

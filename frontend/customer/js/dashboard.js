@@ -753,9 +753,13 @@ document.addEventListener('DOMContentLoaded', () => {
         (a.details && DashboardStore.sameEmail(a.details.email, session.email))
       );
 
-      // Determine effective partner status
-      let status = (freshUser.partnerStatus || session.partnerStatus || myApp?.status || 'none').toLowerCase();
-      if ((status === 'none' || status === '') && myApp && myApp.status) {
+      // Determine effective partner status: user/session status always takes precedence over cached applications
+      let status = 'none';
+      if (freshUser.partnerStatus && freshUser.partnerStatus !== 'none') {
+        status = freshUser.partnerStatus.toLowerCase();
+      } else if (session.partnerStatus && session.partnerStatus !== 'none') {
+        status = session.partnerStatus.toLowerCase();
+      } else if (myApp && myApp.status) {
         status = myApp.status.toLowerCase();
       }
 
@@ -842,7 +846,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const doCancel = async () => {
             const freshAll = DashboardStore.getUsers();
             const target = freshAll.find(u => DashboardStore.sameEmail(u.email, session.email));
-            const savedAppId = target?.partnerAppId || session.partnerAppId;
+            const savedAppId = target?.partnerAppId || session.partnerAppId || myApp?.appId;
 
             if (target) {
               target.partnerStatus = 'cancelled';
@@ -874,7 +878,12 @@ document.addEventListener('DOMContentLoaded', () => {
               DashboardStore.saveApplications(allApps);
             }
 
-            // Asynchronously cancel in Supabase cloud database
+            // Immediately re-render cancelled UI
+            this.render();
+            toast('Partnership request cancelled.');
+            window.dispatchEvent(new CustomEvent('weBakePartnerChange'));
+
+            // Persist to Supabase cloud database
             const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
               window.location.protocol === 'file:' ||
               window.location.hostname === 'localhost' ||
@@ -888,14 +897,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: session.email, appId: savedAppId })
               });
+              // Perform cloud sync so all state is verified and remains cancelled
+              await syncFromCloud();
             } catch (e) {
               console.warn('[Cloud Partner Cancel Notice]:', e);
             }
-
-            this.render();
-            toast('Partnership request cancelled.');
-            window.dispatchEvent(new CustomEvent('weBakePartnerChange'));
-            window.dispatchEvent(new Event('storage'));
           };
 
           if (window.WeBakeModals && typeof window.WeBakeModals.confirmCancelPartner === 'function') {
