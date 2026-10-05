@@ -236,7 +236,7 @@ input::-ms-clear {
   .section-title { font-size: 1.5rem; }
 }
 
-/* === TRACK TRANSACTIONS MODAL TABS === */
+/* === TRACK ORDER MODAL === */
 .track-tab-wrap {
   display: flex;
   gap: 0.5rem;

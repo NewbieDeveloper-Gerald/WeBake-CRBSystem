@@ -216,7 +216,7 @@ function buildOrderReceiptHtml(order, hasAccount = false) {
 
   const trackingNote = hasAccount
     ? `You can view this order, track production status, and manage past receipts directly in your <strong style="color:#B5523A;">WeBake Dashboard</strong>.`
-    : `Please keep your Order ID (<strong>${orderId}</strong>) safe. You can track your bakery production and delivery status anytime via <strong style="color:#B5523A;">Track Transactions</strong> on our website.`;
+    : `Please keep your Order ID (<strong>${orderId}</strong>) safe. You can track your bakery production and delivery status anytime via <strong style="color:#B5523A;">Track Order</strong> on our website.`;
 
   return `
 <!DOCTYPE html>
@@ -388,7 +388,7 @@ function buildOrderReceiptText(order, hasAccount = false) {
 
   const trackingLine = hasAccount
     ? 'You can view this order, track production status, and view past receipts directly in your WeBake Dashboard.'
-    : `Please keep your Order ID (${orderId}) safe. You can track your bakery production and delivery status anytime via Track Transactions on our website.`;
+    : `Please keep your Order ID (${orderId}) safe. You can track your bakery production and delivery status anytime via Track Order on our website.`;
 
   return [
     `CRUMBS N' ROLLS BAKERY (WeBake)`,

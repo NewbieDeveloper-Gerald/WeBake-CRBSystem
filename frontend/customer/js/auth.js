@@ -351,7 +351,7 @@
       m.querySelectorAll('.otp-input').forEach(i => i.value = '');
     });
 
-    // 6. Reset Track Transactions container if present
+    // 6. Reset Track Order container if present
     const trackRes = document.getElementById('track-result-container');
     if (trackRes) { trackRes.style.display = 'none'; trackRes.innerHTML = ''; }
     const trackErr = document.getElementById('track-error-msg');
@@ -374,14 +374,17 @@
   function updateNavState() {
     const s = AuthStore.getSession();
     const navLinks = document.getElementById('nav-links');
-    const footerTrackLinks = document.querySelectorAll('footer [data-track-order-open]');
+
+    // Remove any legacy/injected "Track Transactions" element
+    const legacyTrackNav = navLinks?.querySelector('#nav-track-order');
+    if (legacyTrackNav) legacyTrackNav.remove();
+
+    // All Track Order links (header nav, hero, CTA, footer)
+    const allTrackOrderElements = document.querySelectorAll('[data-track-order-open]');
 
     if (s) {
-      // LOGGED IN USER: Hide Track Transactions from Header & Footer
-      const trackNav = navLinks?.querySelector('#nav-track-order');
-      if (trackNav) trackNav.style.display = 'none';
-
-      footerTrackLinks.forEach(link => { link.style.display = 'none'; });
+      // CUSTOMER WITH ACCOUNT: Remove / Hide Track Order everywhere
+      allTrackOrderElements.forEach(el => { el.style.display = 'none'; });
 
       if (navLinks && !navLinks.querySelector('.nav-auth-mobile')) {
         navLinks.insertAdjacentHTML('beforeend', '<div class="nav-auth-divider"></div><div class="nav-auth-mobile"></div>');
@@ -393,30 +396,12 @@
       if (db) db.innerHTML = inner;
       if (mb) mb.innerHTML = inner.replace('id="logout-btn"', 'id="logout-btn-mobile"');
     } else {
-      // GUEST USER: Show Track Transactions in Header & Footer
-      if (navLinks) {
-        let trackNav = navLinks.querySelector('#nav-track-order');
-        if (!trackNav) {
-          trackNav = document.createElement('a');
-          trackNav.href = 'javascript:void(0)';
-          trackNav.id = 'nav-track-order';
-          trackNav.innerHTML = '<i class="fas fa-search-dollar"></i> Track Transactions';
-          trackNav.setAttribute('data-track-order-open', 'true');
-          const mobileDivider = navLinks.querySelector('.nav-auth-divider');
-          if (mobileDivider) {
-            navLinks.insertBefore(trackNav, mobileDivider);
-          } else {
-            navLinks.appendChild(trackNav);
-          }
-        }
-        trackNav.style.display = '';
+      // CUSTOMER WITH NO ACCOUNT (GUEST): Show standard Track Order, NO Track Transactions
+      allTrackOrderElements.forEach(el => { el.style.display = ''; });
 
-        if (!navLinks.querySelector('.nav-auth-mobile')) {
-          navLinks.insertAdjacentHTML('beforeend', '<div class="nav-auth-divider"></div><div class="nav-auth-mobile"></div>');
-        }
+      if (navLinks && !navLinks.querySelector('.nav-auth-mobile')) {
+        navLinks.insertAdjacentHTML('beforeend', '<div class="nav-auth-divider"></div><div class="nav-auth-mobile"></div>');
       }
-
-      footerTrackLinks.forEach(link => { link.style.display = ''; });
 
       const db = document.querySelector('.auth-buttons');
       const mb = document.querySelector('.nav-auth-mobile');
@@ -924,7 +909,7 @@
         return;
       }
 
-      // Track Transactions click delegation
+      // Track Order click delegation
       if (e.target.closest('[data-track-order-open]')) {
         if (window.WeBakeModals) return;
         e.preventDefault();

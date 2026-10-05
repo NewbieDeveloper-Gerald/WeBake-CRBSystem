@@ -1325,7 +1325,7 @@ document.addEventListener('DOMContentLoaded', () => {
               </button>
             </div>
             <div id="guest-declined-msg" style="display:none; margin-top:0.75rem; font-size:0.84rem; color:var(--gray); background:#f8f9fa; padding:0.6rem 0.85rem; border-radius:6px; border:1px solid #e9ecef;">
-              <i class="fas fa-info-circle" style="color:var(--primary);"></i> You can track this order anytime with your Order ID (<strong>${orderId}</strong>) via <strong>Track Transactions</strong>.
+              <i class="fas fa-info-circle" style="color:var(--primary);"></i> You can track this order anytime with your Order ID (<strong>${orderId}</strong>) via <strong>Track Order</strong>.
             </div>
           </div>
         `;
