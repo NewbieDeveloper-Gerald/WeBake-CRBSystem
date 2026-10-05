@@ -448,22 +448,17 @@ async function sendOrderReceiptEmail({ order, hasAccount = false }) {
 function buildPartnerStatusHtml({ applicantName, applicationCode, businessName, status, staffNotes }) {
   const isApproved = status === 'approved';
   const isCancelled = status === 'cancelled';
-  let badgeBg = isApproved ? '#E8F5E9' : '#FFEBEE';
-  let badgeColor = isApproved ? '#2E7D32' : '#C62828';
-  let badgeBorder = isApproved ? '#A5D6A7' : '#FFCDD2';
-  let badgeText = isApproved ? 'WHOLESALE PARTNERSHIP APPROVED' : 'APPLICATION REVIEW UPDATE';
-  let heading = isApproved ? 'Welcome to the WeBake Wholesale Family! 🎉' : 'Wholesale Application Status Update';
+  const isReviewing = status === 'under_review' || status === 'reviewing' || status === 'contacted';
 
-  if (isCancelled) {
-    badgeBg = '#F3F4F6';
-    badgeColor = '#4B5563';
-    badgeBorder = '#D1D5DB';
-    badgeText = 'PARTNERSHIP CANCELLED';
-    heading = 'Wholesale Partnership Request Cancelled';
-  }
-  
+  let badgeBg = isApproved ? '#E8F5E9' : isReviewing ? '#E0F2FE' : isCancelled ? '#F3F4F6' : '#FFEBEE';
+  let badgeColor = isApproved ? '#2E7D32' : isReviewing ? '#0369A1' : isCancelled ? '#4B5563' : '#C62828';
+  let badgeBorder = isApproved ? '#A5D6A7' : isReviewing ? '#BAE6FD' : isCancelled ? '#D1D5DB' : '#FFCDD2';
+  let badgeText = isApproved ? 'WHOLESALE PARTNERSHIP APPROVED' : isReviewing ? 'APPLICATION UNDER REVIEW / CONTACTED' : isCancelled ? 'PARTNERSHIP CANCELLED' : 'APPLICATION REVIEW UPDATE';
+  let heading = isApproved ? 'Welcome to the WeBake Wholesale Family! 🎉' : isReviewing ? 'Your Wholesale Application is Under Review 📋' : isCancelled ? 'Wholesale Partnership Request Cancelled' : 'Wholesale Application Status Update';
+
+  const notesBorder = isApproved ? '#28A745' : isReviewing ? '#0284C7' : isCancelled ? '#6B7280' : '#B5523A';
   const notesSection = staffNotes ? `
-    <div style="margin:24px 0; background-color:#FAF6F0; border-left:4px solid ${isApproved ? '#28A745' : isCancelled ? '#6B7280' : '#B5523A'}; border-radius:6px; padding:14px 18px; text-align:left;">
+    <div style="margin:24px 0; background-color:#FAF6F0; border-left:4px solid ${notesBorder}; border-radius:6px; padding:14px 18px; text-align:left;">
       <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#7A685D; margin-bottom:6px;">
         Remarks from Bakery Management:
       </div>
@@ -499,6 +494,31 @@ function buildPartnerStatusHtml({ applicantName, applicationCode, businessName, 
     ${notesSection}
     <p style="margin:24px 0 0; font-size:14px; line-height:1.6; color:#6B584E;">
       You can now log in to your <a href="http://localhost:5000/customer/html/dashboard.html" style="color:#B5523A; font-weight:700; text-decoration:none;">WeBake Customer Dashboard</a> to view your active partnership status and begin placing wholesale orders!
+    </p>
+  ` : isReviewing ? `
+    <p style="margin:0 0 16px; font-size:15px; line-height:1.6; color:#4A2E24;">
+      Dear <strong>${applicantName || 'Applicant'}</strong>,
+    </p>
+    <p style="margin:0 0 16px; font-size:14.5px; line-height:1.6; color:#6B584E;">
+      Thank you for submitting your wholesale reseller application for <strong style="color:#4A2E24;">${businessName || 'your business'}</strong> (Reference ID: <strong style="color:#0369A1;">${applicationCode}</strong>).
+    </p>
+    <p style="margin:0 0 16px; font-size:14px; line-height:1.6; color:#6B584E;">
+      Our wholesale management team is actively reviewing your store application and evaluating delivery logistics. We may contact you directly via phone or email to confirm weekly order volumes and schedule details.
+    </p>
+    ${notesSection}
+    <div style="background-color:#F0F9FF; border:1px solid #BAE6FD; border-radius:8px; padding:16px 20px; margin:20px 0; text-align:left;">
+      <div style="font-size:13px; font-weight:700; color:#0369A1; margin-bottom:6px;">
+        Next steps:
+      </div>
+      <p style="margin:0 0 8px; font-size:13px; line-height:1.6; color:#0c4a6e;">
+        &bull; <strong>Keep communication lines open:</strong> Our team will contact you if additional details are needed.
+      </p>
+      <p style="margin:0; font-size:13px; line-height:1.6; color:#0c4a6e;">
+        &bull; <strong>Track status online:</strong> You can check your application progress anytime in your customer dashboard.
+      </p>
+    </div>
+    <p style="margin:20px 0 0; font-size:14px; line-height:1.6; color:#6B584E;">
+      You can track your application live on the <a href="http://localhost:5000/customer/html/dashboard.html" style="color:#B5523A; font-weight:700; text-decoration:none;">WeBake Dashboard</a>.
     </p>
   ` : isCancelled ? `
     <p style="margin:0 0 16px; font-size:15px; line-height:1.6; color:#4A2E24;">
@@ -618,6 +638,7 @@ function buildPartnerStatusHtml({ applicantName, applicationCode, businessName, 
 function buildPartnerStatusText({ applicantName, applicationCode, businessName, status, staffNotes }) {
   const isApproved = status === 'approved';
   const isCancelled = status === 'cancelled';
+  const isReviewing = status === 'under_review' || status === 'reviewing' || status === 'contacted';
   const notesText = staffNotes ? `\nRemarks from Bakery Management:\n"${staffNotes}"\n` : '';
 
   if (isApproved) {
@@ -640,6 +661,25 @@ function buildPartnerStatusText({ applicantName, applicationCode, businessName, 
       `- Active Partner badge in your customer dashboard`,
       notesText,
       `You can now log in to your WeBake customer dashboard to track your partnership and start placing wholesale orders.`,
+      `-------------------------------------------------------`,
+      `For inquiries: crbwebake@gmail.com | 0917 123 4567`
+    ].filter(Boolean).join('\n');
+  } else if (isReviewing) {
+    return [
+      `CRUMBS N' ROLLS BAKERY (WeBake)`,
+      `1356 Cordero St., Lambakin, Marilao, Bulacan`,
+      `-------------------------------------------------------`,
+      `WHOLESALE APPLICATION UNDER REVIEW / CONTACTED`,
+      `Application Code: ${applicationCode}`,
+      `Business: ${businessName || 'Your Business'}`,
+      `-------------------------------------------------------`,
+      `Dear ${applicantName || 'Applicant'},`,
+      ``,
+      `Thank you for submitting your wholesale reseller application for ${businessName || 'your business'} (Reference ID: ${applicationCode}).`,
+      ``,
+      `Our management team is actively reviewing your store location and evaluating delivery logistics. We may contact you directly via phone or email to confirm weekly order volumes and schedule details.`,
+      notesText,
+      `You can track your application status anytime through your WeBake customer dashboard or via Track Transactions.`,
       `-------------------------------------------------------`,
       `For inquiries: crbwebake@gmail.com | 0917 123 4567`
     ].filter(Boolean).join('\n');
@@ -694,10 +734,13 @@ async function sendPartnerStatusEmail({ applicantName, applicantEmail, applicati
   const transporter = getTransporter();
   const isApproved = status === 'approved';
   const isCancelled = status === 'cancelled';
+  const isReviewing = status === 'under_review' || status === 'reviewing' || status === 'contacted';
   const subject = isApproved
     ? `Congratulations! Your WeBake Wholesale Partnership Has Been Approved - [${applicationCode}]`
     : isCancelled
     ? `Notice: Your WeBake Wholesale Partnership Has Been Cancelled - [${applicationCode}]`
+    : isReviewing
+    ? `Update: Your WeBake Wholesale Partnership Application is Under Review - [${applicationCode}]`
     : `Update on Your WeBake Wholesale Partnership Application - [${applicationCode}]`;
 
   const info = await transporter.sendMail({

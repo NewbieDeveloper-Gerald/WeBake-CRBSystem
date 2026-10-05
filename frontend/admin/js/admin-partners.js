@@ -173,7 +173,16 @@
     document.getElementById('review-b-address').textContent = app.address || d.address || 'N/A';
     document.getElementById('review-b-volume').textContent = app.weeklyVolume || d.volume || '50-100 bundles';
 
-    const statusVal = app.status === 'under_review' ? 'reviewing' : (app.status || 'pending');
+    let statusVal = 'reviewing';
+    if (app.status === 'approved' || app.status === 'active') {
+      statusVal = 'approved';
+    } else if (app.status === 'rejected' || app.status === 'declined') {
+      statusVal = 'rejected';
+    } else if (app.status === 'cancelled') {
+      statusVal = 'cancelled';
+    } else {
+      statusVal = 'reviewing';
+    }
     document.getElementById('review-status-select').value = statusVal;
     document.getElementById('review-discount-input').value = app.discountRate || (app.status === 'approved' ? 15 : 10);
     document.getElementById('review-staff-notes').value = app.staffNotes || '';

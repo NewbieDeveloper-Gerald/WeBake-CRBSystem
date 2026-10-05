@@ -772,6 +772,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (status === 'active' || status === 'approved' || status === 'accepted') {
         partnerBadge.className = 'partner-badge badge-active';
+        partnerBadge.removeAttribute('style');
         partnerBadge.innerHTML = '<i class="fas fa-check-circle"></i> Active Wholesale Partner';
         partnerCta.innerHTML = `
           <div style="background:#d4edda; border-left:4px solid #28a745; padding:12px 14px; border-radius:6px; margin-bottom:10px; color:#155724; font-size:0.875rem; line-height:1.5;">
@@ -790,6 +791,7 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
       } else if (status === 'rejected' || status === 'declined') {
         partnerBadge.className = 'partner-badge badge-rejected';
+        partnerBadge.removeAttribute('style');
         partnerBadge.innerHTML = '<i class="fas fa-times-circle"></i> Application Not Approved';
         partnerCta.innerHTML = `
           <div style="background:#f8d7da; border-left:4px solid #dc3545; padding:10px 14px; border-radius:6px; margin-bottom:10px; color:#721c24; font-size:0.875rem; line-height:1.5;">
@@ -802,21 +804,46 @@ document.addEventListener('DOMContentLoaded', () => {
         partnerActions.innerHTML = `
           <a href="partner.html" class="btn btn-primary" style="padding:0.4rem 1.25rem; font-size:0.85rem;"><i class="fas fa-redo"></i> Re-apply for Partnership</a>
         `;
-      } else if (status === 'pending' || status === 'under_review' || status === 'reviewing') {
-        partnerBadge.className = 'partner-badge badge-pending';
-        partnerBadge.innerHTML = '<i class="fas fa-clock"></i> Application Under Review';
+      } else if (status === 'under_review' || status === 'reviewing' || status === 'contacted') {
+        partnerBadge.className = 'partner-badge badge-reviewing';
+        partnerBadge.removeAttribute('style');
+        partnerBadge.innerHTML = '<i class="fas fa-user-clock"></i> Under Review / Contacted';
         partnerCta.innerHTML = `
-          <div style="background:#fff3cd; border-left:4px solid #ffc107; padding:10px 14px; border-radius:6px; margin-bottom:10px; color:#856404; font-size:0.875rem; line-height:1.5;">
-            Your wholesale partnership application is currently being reviewed by bakery management. You will receive an email confirmation once a decision is finalized.
+          <div style="background:#f0f9ff; border-left:4px solid #0284c7; padding:12px 14px; border-radius:6px; margin-bottom:10px; color:#0369a1; font-size:0.875rem; line-height:1.5;">
+            <div style="font-weight:700; font-size:0.95rem; margin-bottom:4px;">
+              <i class="fas fa-user-clock"></i> Application Under Review / Store Contacted
+            </div>
+            <div>Bakery management is actively reviewing your store details and evaluating delivery logistics. Our team may reach out to you directly to confirm requirements.</div>
+            ${appId ? `<div style="margin-top:6px; font-size:0.8rem; color:#0284c7;"><strong>Reference ID:</strong> <code>${appId}</code></div>` : ''}
+            ${staffNotes ? `<div style="margin-top:8px; font-style:italic; font-size:0.8rem; color:#0369a1; background:rgba(255,255,255,0.85); padding:6px 10px; border-radius:4px; border:1px solid #bae6fd;"><strong>Bakery Note:</strong> "${staffNotes}"</div>` : ''}
           </div>
         `;
         partnerCta.style.display = 'block';
         partnerActions.innerHTML = `
-          <a href="partner.html" class="btn btn-outline" style="padding:0.4rem 1rem; font-size:0.85rem;">Edit Application</a>
+          <a href="partner.html" class="btn btn-outline" style="padding:0.4rem 1rem; font-size:0.85rem;"><i class="fas fa-edit"></i> Edit Application</a>
+          <button id="cancel-partner-btn" class="btn btn-primary" style="padding:0.4rem 1rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545;">Cancel Request</button>
+        `;
+      } else if (status === 'pending') {
+        partnerBadge.className = 'partner-badge badge-pending';
+        partnerBadge.removeAttribute('style');
+        partnerBadge.innerHTML = '<i class="fas fa-clock"></i> Application Pending for Review';
+        partnerCta.innerHTML = `
+          <div style="background:#fff3cd; border-left:4px solid #ffc107; padding:12px 14px; border-radius:6px; margin-bottom:10px; color:#856404; font-size:0.875rem; line-height:1.5;">
+            <div style="font-weight:700; font-size:0.95rem; margin-bottom:4px;">
+              <i class="fas fa-clock"></i> Application Pending for Review
+            </div>
+            <div>Your wholesale partnership application has been submitted and is currently pending review by bakery management. Our team usually reviews applications within 24–48 hours.</div>
+            ${appId ? `<div style="margin-top:6px; font-size:0.8rem; color:#856404;"><strong>Reference ID:</strong> <code>${appId}</code></div>` : ''}
+          </div>
+        `;
+        partnerCta.style.display = 'block';
+        partnerActions.innerHTML = `
+          <a href="partner.html" class="btn btn-outline" style="padding:0.4rem 1rem; font-size:0.85rem;"><i class="fas fa-edit"></i> Edit Application</a>
           <button id="cancel-partner-btn" class="btn btn-primary" style="padding:0.4rem 1rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545;">Cancel Request</button>
         `;
       } else if (status === 'cancelled') {
         partnerBadge.className = 'partner-badge badge-cancelled';
+        partnerBadge.removeAttribute('style');
         partnerBadge.innerHTML = '<i class="fas fa-ban"></i> Partnership Cancelled';
         partnerCta.innerHTML = `
           <div style="background:#f8f9fa; border-left:4px solid #6c757d; padding:10px 14px; border-radius:6px; margin-bottom:10px; color:#495057; font-size:0.875rem; line-height:1.5;">
@@ -830,6 +857,7 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
       } else {
         partnerBadge.className = 'partner-badge badge-none';
+        partnerBadge.removeAttribute('style');
         partnerBadge.innerHTML = '<i class="fas fa-minus-circle"></i> No Partnership';
         partnerCta.innerHTML = 'Interested in wholesale? <a href="partner.html">Apply to be a partner today!</a>';
         partnerCta.style.display = 'block';
@@ -976,7 +1004,7 @@ document.addEventListener('DOMContentLoaded', () => {
               email: currentUser.email,
               phone: currentUser.contact || '',
               date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-              status: currentUser.partnerStatus || 'approved',
+              status: currentUser.partnerStatus || 'pending',
               details: currentUser.partnerDetails || {}
             };
             allApps.unshift(app);

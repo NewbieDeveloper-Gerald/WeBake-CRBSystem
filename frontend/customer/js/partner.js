@@ -615,10 +615,17 @@
           }
           if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-save"></i> Update Business Profile';
           if (effDetails) populatePartnerFields(effDetails, u || s);
-        } else if (effStatus === 'pending' || effStatus === 'under_review' || effStatus === 'reviewing') {
+        } else if (effStatus === 'under_review' || effStatus === 'reviewing' || effStatus === 'contacted') {
           const intro = document.querySelector('.partner-intro');
           if (intro) {
-            intro.innerHTML = `<div style="background:#fff3cd; border-left:4px solid #ffc107; padding:1rem; border-radius:8px; margin-bottom:1rem; color:#856404; font-weight:600;"><i class="fas fa-clock"></i> Your application is currently under review by bakery management. You may update your submitted details below.</div>`;
+            intro.innerHTML = `<div style="background:#e0f2fe; border-left:4px solid #0284c7; padding:1rem; border-radius:8px; margin-bottom:1rem; color:#0369a1; font-weight:600;"><i class="fas fa-user-clock"></i> <strong>Application Under Review / Contacted:</strong> Bakery management is actively reviewing your store application and checking delivery logistics. You may update your submitted details below.</div>`;
+          }
+          if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-save"></i> Update Application';
+          if (effDetails) populatePartnerFields(effDetails, u || s);
+        } else if (effStatus === 'pending') {
+          const intro = document.querySelector('.partner-intro');
+          if (intro) {
+            intro.innerHTML = `<div style="background:#fff3cd; border-left:4px solid #ffc107; padding:1rem; border-radius:8px; margin-bottom:1rem; color:#856404; font-weight:600;"><i class="fas fa-clock"></i> <strong>Application Pending for Review:</strong> Your wholesale application has been submitted and is pending initial review by bakery management. You may update your submitted details below.</div>`;
           }
           if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-save"></i> Update Application';
           if (effDetails) populatePartnerFields(effDetails, u || s);

@@ -435,40 +435,48 @@
   function renderTrackPartnerResult(app, resBox) {
     if (!resBox) return;
 
-    let statusText = 'Under Review (Pending)';
+    const appStatus = (app.status || 'pending').toLowerCase();
+    let statusText = 'Application Pending for Review';
     let statusBg = '#fff3cd';
     let statusColor = '#856404';
     let statusIcon = 'fa-clock';
 
-    if (app.status === 'approved' || app.status === 'active') {
+    if (appStatus === 'approved' || appStatus === 'active') {
       statusText = 'Approved — Wholesale Partner Active';
       statusBg = '#d4edda';
       statusColor = '#155724';
       statusIcon = 'fa-check-circle';
-    } else if (app.status === 'rejected' || app.status === 'declined') {
+    } else if (appStatus === 'under_review' || appStatus === 'reviewing' || appStatus === 'contacted') {
+      statusText = 'Under Review / Contacted';
+      statusBg = '#e0f2fe';
+      statusColor = '#0369a1';
+      statusIcon = 'fa-user-clock';
+    } else if (appStatus === 'rejected' || appStatus === 'declined') {
       statusText = 'Application Declined';
       statusBg = '#f8d7da';
       statusColor = '#721c24';
       statusIcon = 'fa-times-circle';
-    } else if (app.status === 'cancelled') {
+    } else if (appStatus === 'cancelled') {
       statusText = 'Application Cancelled';
-      statusBg = '#f8d7da';
-      statusColor = '#721c24';
+      statusBg = '#fee2e2';
+      statusColor = '#991b1b';
       statusIcon = 'fa-ban';
     }
 
     const esc = (typeof window.escapeHtml === 'function') ? window.escapeHtml : (str) => String(str || '').replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c] || c));
     const details = app.details || {};
     const productsList = (details.products && details.products.length) ? details.products.map(p => esc(p)).join(', ') : 'All Products';
-    const isApproved = (app.status === 'approved' || app.status === 'active');
-    const canModify = (app.status !== 'cancelled' && app.status !== 'rejected' && app.status !== 'declined');
+    const isApproved = (appStatus === 'approved' || appStatus === 'active');
+    const canModify = (appStatus !== 'cancelled' && appStatus !== 'rejected' && appStatus !== 'declined');
 
-    let nextStepsText = 'Our bakery management team is reviewing your business profile and location. We will contact you directly within 24–48 hours to finalize supply terms.';
+    let nextStepsText = 'Your wholesale partnership application has been received and is pending initial review by bakery management. We will contact you or update your status once our team begins vetting your business.';
     if (isApproved) {
       nextStepsText = 'Congratulations! Your wholesale partnership is active. You may now place orders with your partner privileges and bulk terms.';
-    } else if (app.status === 'cancelled') {
+    } else if (appStatus === 'under_review' || appStatus === 'reviewing' || appStatus === 'contacted') {
+      nextStepsText = 'Our bakery management team is actively reviewing your store location and evaluating delivery logistics. We may contact you directly via phone or email to confirm weekly order volumes and schedule details.';
+    } else if (appStatus === 'cancelled') {
       nextStepsText = 'This partnership application has been cancelled. If you wish to apply again, you may submit a new application through the Partner page.';
-    } else if (app.status === 'rejected' || app.status === 'declined') {
+    } else if (appStatus === 'rejected' || appStatus === 'declined') {
       nextStepsText = 'Thank you for your interest. Unfortunately, this application could not be approved at this time.';
     }
 

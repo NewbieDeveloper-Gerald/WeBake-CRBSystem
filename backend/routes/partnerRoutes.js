@@ -250,7 +250,13 @@ router.patch('/:code/status', async (req, res) => {
         SET partner_status = 'rejected', role_id = 1, updated_at = NOW()
         WHERE id = $1 OR LOWER(email_address) = $2;
       `, [app.user_id || 0, (app.applicant_email || '').toLowerCase()]);
-    } else if (status === 'pending' || status === 'under_review') {
+    } else if (status === 'under_review' || status === 'reviewing') {
+      await client.query(`
+        UPDATE users
+        SET partner_status = 'under_review', role_id = 1, updated_at = NOW()
+        WHERE id = $1 OR LOWER(email_address) = $2;
+      `, [app.user_id || 0, (app.applicant_email || '').toLowerCase()]);
+    } else if (status === 'pending') {
       await client.query(`
         UPDATE users
         SET partner_status = 'pending', role_id = 1, updated_at = NOW()
@@ -267,7 +273,7 @@ router.patch('/:code/status', async (req, res) => {
     await client.query('COMMIT');
 
     // Trigger transactional email notification asynchronously
-    if (app.applicant_email && (status === 'approved' || status === 'rejected' || status === 'cancelled')) {
+    if (app.applicant_email && (status === 'approved' || status === 'rejected' || status === 'cancelled' || status === 'under_review' || status === 'reviewing')) {
       sendPartnerStatusEmail({
         applicantName: app.applicant_name,
         applicantEmail: app.applicant_email,
