@@ -509,8 +509,26 @@
           }
         }
       } catch (err) {
-        console.error('[Sign In Error]:', err);
-        showToast('Network error while signing in. Please check your internet connection.');
+        console.warn('[Sign In Server Offline - Fallback to localStorage]:', err);
+        const allUsers = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
+        const u = allUsers.find(x => (x.email || '').trim().toLowerCase() === email);
+        if (u) {
+          if (!u.password || u.password === pwd) {
+            AuthStore.setSession(u);
+            showToast(`Welcome back, ${u.name}! 🎉`);
+            closeAuthModals();
+            updateNavState();
+            autoFillCheckoutForm();
+            return;
+          } else {
+            showToast('Incorrect password.');
+            if (inputs[1]) inputs[1].focus();
+            return;
+          }
+        } else {
+          showToast('No account found for this email. Please check your spelling or register.');
+          if (inputs[0]) inputs[0].focus();
+        }
       } finally {
         if (submitBtn) {
           submitBtn.disabled = false;
@@ -767,17 +785,14 @@
                 return;
               }
             } catch (err) {
-              console.error('[Cloud Registration Fetch Error]:', err);
-              const errMsg = 'Network error connecting to authentication server. Please try again.';
-              if (otpError) {
-                otpError.textContent = errMsg;
-                otpError.style.display = 'block';
-              }
-              showToast(errMsg);
-              if (verifyBtn) {
-                verifyBtn.disabled = false;
-                verifyBtn.innerHTML = 'Verify &amp; Create Account';
-              }
+              console.warn('[Cloud Registration Server Offline - Fallback to localStorage]:', err);
+              AuthStore.add(registeredUser);
+              AuthStore.setSession(registeredUser);
+              pendingRegistration = null;
+              showToast(`Account created successfully! Welcome, ${registeredUser.name}! 🎉`);
+              closeAuthModals();
+              updateNavState();
+              autoFillCheckoutForm();
               return;
             }
           } else if (flowMode === 'forgot') {

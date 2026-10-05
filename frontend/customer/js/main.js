@@ -117,12 +117,23 @@ document.addEventListener('DOMContentLoaded', () => {
   /* --------------------------------------------------------------------------
      3. Product Catalog Data & Modals
      -------------------------------------------------------------------------- */
-  const products = [
-    { id: 1, name: 'Mamon', desc: 'Soft and fluffy Filipino sponge cake, perfect for merienda or pasalubong. Light, airy, and melt-in-your-mouth delicious.', price: 105, min: 25, img: '' },
-    { id: 2, name: 'Otap', desc: 'Crispy, flaky oval-shaped puff pastry with a caramelized sugar coating. A beloved Visayan delicacy enjoyed by all ages.', price: 105, min: 25, img: '' },
-    { id: 3, name: 'Eggnog', desc: 'Sweet and crumbly meringue-based cookie, delicately baked to perfection. A classic Filipino bakery staple.', price: 105, min: 25, img: '' },
-    { id: 4, name: 'Buttertoast', desc: 'Golden, crunchy butter-toasted bread slices. Perfectly toasted with a rich, buttery flavor ideal for wholesale.', price: 105, min: 25, img: '' }
+  const defaultProducts = [
+    { id: 1, name: 'Mamon', desc: 'Soft and fluffy Filipino sponge cake, perfect for merienda or pasalubong. Light, airy, and melt-in-your-mouth delicious.', price: 105, min: 25, loosePrice: 5, status: 'in_stock', img: '' },
+    { id: 2, name: 'Otap', desc: 'Crispy, flaky oval-shaped puff pastry with a caramelized sugar coating. A beloved Visayan delicacy enjoyed by all ages.', price: 105, min: 25, loosePrice: 5, status: 'in_stock', img: '' },
+    { id: 3, name: 'Eggnog', desc: 'Sweet and crumbly meringue-based cookie, delicately baked to perfection. A classic Filipino bakery staple.', price: 105, min: 25, loosePrice: 5, status: 'in_stock', img: '' },
+    { id: 4, name: 'Buttertoast', desc: 'Golden, crunchy butter-toasted bread slices. Perfectly toasted with a rich, buttery flavor ideal for wholesale.', price: 105, min: 25, loosePrice: 5, status: 'in_stock', img: '' }
   ];
+  let storedProducts = null;
+  try {
+    storedProducts = JSON.parse(localStorage.getItem('weBakeProducts'));
+    if (!storedProducts || !storedProducts.length) {
+      localStorage.setItem('weBakeProducts', JSON.stringify(defaultProducts));
+      storedProducts = defaultProducts;
+    }
+  } catch(e) {
+    storedProducts = defaultProducts;
+  }
+  const products = storedProducts;
 
   let cart = [];
   let currentProduct = null;
@@ -295,8 +306,10 @@ document.addEventListener('DOMContentLoaded', () => {
         balance: balance,
         paymentMethod: paymentDetails?.method || 'GCash',
         referenceNumber: paymentDetails?.referenceNumber || '',
+        proofImage: paymentDetails?.proofImage || '',
         customer: { ...customerInfo },
-        status: 'pending'
+        status: 'pending',
+        orderType: 'online'
       };
 
       if (s) {
@@ -1104,10 +1117,23 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing Downpayment...';
     btn.disabled = true;
 
+<<<<<<< Updated upstream
     // Generate or maintain idempotency key across retries
     if (!window.currentCheckoutIdempotencyKey) {
       window.currentCheckoutIdempotencyKey = 'wb_chk_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
     }
+=======
+    const finalizePayment = (proofDataUrl) => {
+      setTimeout(() => {
+        const placedOrder = addOrderToStore(totalAmt, {
+          method: method,
+          referenceNumber: ref.value.trim(),
+          downpayment: downpayment,
+          balance: balance,
+          proofImage: proofDataUrl || ''
+        });
+        const orderId = placedOrder?.orderId || ('WB-' + Math.floor(10000 + Math.random() * 90000));
+>>>>>>> Stashed changes
 
     const apiBase = window.WEBAKE_API_BASE || (
       window.location.protocol === 'file:' ||
@@ -1372,6 +1398,7 @@ document.addEventListener('DOMContentLoaded', () => {
       showStep('step-success');
       btn.innerHTML = '<i class="fas fa-check-circle"></i> Confirm 50% Payment';
       btn.disabled = false;
+<<<<<<< Updated upstream
 
     } catch (networkErr) {
       btn.disabled = false;
@@ -1382,6 +1409,22 @@ document.addEventListener('DOMContentLoaded', () => {
         errBox.style.display = 'block';
       }
       showToast(netMsg);
+=======
+    }, 800);
+    };
+
+    if (proof && proof.files && proof.files[0]) {
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        finalizePayment(evt.target.result);
+      };
+      reader.onerror = function() {
+        finalizePayment('');
+      };
+      reader.readAsDataURL(proof.files[0]);
+    } else {
+      finalizePayment('');
+>>>>>>> Stashed changes
     }
   });
 
