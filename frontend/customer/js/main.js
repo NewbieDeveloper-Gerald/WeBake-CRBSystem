@@ -121,7 +121,11 @@ document.addEventListener('DOMContentLoaded', () => {
     { id: 1, name: 'Mamon', desc: 'Soft and fluffy Filipino sponge cake, perfect for merienda or pasalubong. Light, airy, and melt-in-your-mouth delicious.', price: 105, min: 25, img: '' },
     { id: 2, name: 'Otap', desc: 'Crispy, flaky oval-shaped puff pastry with a caramelized sugar coating. A beloved Visayan delicacy enjoyed by all ages.', price: 105, min: 25, img: '' },
     { id: 3, name: 'Eggnog', desc: 'Sweet and crumbly meringue-based cookie, delicately baked to perfection. A classic Filipino bakery staple.', price: 105, min: 25, img: '' },
-    { id: 4, name: 'Buttertoast', desc: 'Golden, crunchy butter-toasted bread slices. Perfectly toasted with a rich, buttery flavor ideal for wholesale.', price: 105, min: 25, img: '' }
+    { id: 4, name: 'Buttertoast', desc: 'Golden, crunchy butter-toasted bread slices. Perfectly toasted with a rich, buttery flavor ideal for wholesale.', price: 105, min: 25, img: '' },
+    { id: 7, name: 'Broas', desc: 'Light, crisp ladyfinger biscuits with a delicate sweetness. Perfect with coffee, tea, or as a classic Filipino merienda.', price: 105, min: 25, img: '' },
+    { id: 8, name: 'Butter Cookies', desc: 'Rich, buttery cookies with a crisp, melt-in-your-mouth texture. A classic sweet treat perfect for snacking.', price: 105, min: 25, img: '' },
+    { id: 9, name: 'Cracklets', desc: 'Light and crunchy crackers with a savory, satisfying flavor. A simple and delicious snack for any time of the day.', price: 105, min: 25, img: '' },
+    { id: 10, name: 'Jacobina', desc: 'Thin, crisp Filipino biscuits with a lightly sweet and buttery flavor. A classic merienda favorite, perfect with coffee or tea.', price: 105, min: 25, img: '' }
   ];
 
   let cart = [];
@@ -323,7 +327,8 @@ document.addEventListener('DOMContentLoaded', () => {
      5. Product Grid & Product Modal Rendering
      -------------------------------------------------------------------------- */
   const grid = document.getElementById('product-grid');
-  if (grid) {
+  function renderProductGrid() {
+    if (!grid) return;
     grid.innerHTML = products.map(p => `
       <div class="product-card" data-id="${p.id}">
         <div class="product-img">${p.img ? `<img src="${p.img}" alt="${p.name}">` : `<i class="fas fa-image"></i><span>No image added</span>`}</div>
@@ -332,10 +337,34 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="product-card-price">\u20B1${p.price.toLocaleString()} / 1 Bundle <div style="font-size: 0.75rem; color: #666; font-weight: normal; margin-top: 0.2rem;">(Note: 1 bundle = ${p.min} pcs)</div></div>
         </div>
       </div>`).join('');
+  }
+
+  if (grid) {
+    renderProductGrid();
     grid.addEventListener('click', e => {
       const c = e.target.closest('.product-card');
       if (c) openProduct(+c.dataset.id);
     });
+
+    try {
+      const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
+        window.location.protocol === 'file:' ||
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1'
+          ? 'http://localhost:5000/api'
+          : '/api'
+      );
+      fetch(`${apiBase}/products`)
+        .then(r => r.json())
+        .then(data => {
+          if (data && data.success && Array.isArray(data.products) && data.products.length > 0) {
+            products.length = 0;
+            data.products.forEach(p => products.push(p));
+            renderProductGrid();
+          }
+        })
+        .catch(() => {});
+    } catch (e) {}
   }
 
   const modal = document.getElementById('product-modal');

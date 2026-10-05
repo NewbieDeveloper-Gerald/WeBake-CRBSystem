@@ -24,7 +24,11 @@
     { id: 1, name: 'Mamon', desc: 'Soft and fluffy Filipino sponge cake, perfect for merienda or pasalubong.', price: 105, min: 25, loosePrice: 5, status: 'in_stock', img: '' },
     { id: 2, name: 'Otap', desc: 'Crispy, flaky oval-shaped puff pastry with a caramelized sugar coating.', price: 105, min: 25, loosePrice: 5, status: 'in_stock', img: '' },
     { id: 3, name: 'Eggnog', desc: 'Sweet and crumbly meringue-based cookie, delicately baked to perfection.', price: 105, min: 25, loosePrice: 5, status: 'in_stock', img: '' },
-    { id: 4, name: 'Buttertoast', desc: 'Golden, crunchy butter-toasted bread slices. Perfectly toasted with rich butter flavor.', price: 105, min: 25, loosePrice: 5, status: 'in_stock', img: '' }
+    { id: 4, name: 'Buttertoast', desc: 'Golden, crunchy butter-toasted bread slices. Perfectly toasted with rich butter flavor.', price: 105, min: 25, loosePrice: 5, status: 'in_stock', img: '' },
+    { id: 7, name: 'Broas', desc: 'Light, crisp ladyfinger biscuits with a delicate sweetness. Perfect with coffee, tea, or as a classic Filipino merienda.', price: 105, min: 25, loosePrice: 5, status: 'in_stock', img: '' },
+    { id: 8, name: 'Butter Cookies', desc: 'Rich, buttery cookies with a crisp, melt-in-your-mouth texture. A classic sweet treat perfect for snacking.', price: 105, min: 25, loosePrice: 5, status: 'in_stock', img: '' },
+    { id: 9, name: 'Cracklets', desc: 'Light and crunchy crackers with a savory, satisfying flavor. A simple and delicious snack for any time of the day.', price: 105, min: 25, loosePrice: 5, status: 'in_stock', img: '' },
+    { id: 10, name: 'Jacobina', desc: 'Thin, crisp Filipino biscuits with a lightly sweet and buttery flavor. A classic merienda favorite, perfect with coffee or tea.', price: 105, min: 25, loosePrice: 5, status: 'in_stock', img: '' }
   ];
 
   // --- Default Fallback Settings ---
@@ -59,8 +63,19 @@
 
   function getProducts() {
     try {
-      const stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.PRODUCTS));
+      let stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.PRODUCTS));
       if (stored && Array.isArray(stored) && stored.length > 0) {
+        let modified = false;
+        stored = stored.filter(p => p.name !== 'asdsdf' && p.id !== 5);
+        DEFAULT_PRODUCTS.forEach(def => {
+          if (!stored.some(p => (p.name || '').toLowerCase() === (def.name || '').toLowerCase() || p.id === def.id)) {
+            stored.push(def);
+            modified = true;
+          }
+        });
+        if (modified) {
+          localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(stored));
+        }
         return stored;
       }
       localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(DEFAULT_PRODUCTS));
@@ -90,7 +105,11 @@
           1: { morning: 0, carried: 0, spoilage: 0 },
           2: { morning: 0, carried: 0, spoilage: 0 },
           3: { morning: 0, carried: 0, spoilage: 0 },
-          4: { morning: 0, carried: 0, spoilage: 0 }
+          4: { morning: 0, carried: 0, spoilage: 0 },
+          7: { morning: 0, carried: 0, spoilage: 0 },
+          8: { morning: 0, carried: 0, spoilage: 0 },
+          9: { morning: 0, carried: 0, spoilage: 0 },
+          10: { morning: 0, carried: 0, spoilage: 0 }
         }
       };
       localStorage.setItem(STORAGE_KEYS.INVENTORY, JSON.stringify(initial));

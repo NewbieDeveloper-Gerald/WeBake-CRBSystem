@@ -50,6 +50,42 @@ async function seedProducts() {
         isFeatured: false,
         pieces: 25,
         price: 105.00
+      },
+      {
+        name: 'Broas',
+        slug: 'broas',
+        desc: 'Light, crisp ladyfinger biscuits with a delicate sweetness. Perfect with coffee, tea, or as a classic Filipino merienda.',
+        categorySlug: 'bestsellers',
+        isFeatured: false,
+        pieces: 25,
+        price: 105.00
+      },
+      {
+        name: 'Butter Cookies',
+        slug: 'butter-cookies',
+        desc: 'Rich, buttery cookies with a crisp, melt-in-your-mouth texture. A classic sweet treat perfect for snacking.',
+        categorySlug: 'bestsellers',
+        isFeatured: false,
+        pieces: 25,
+        price: 105.00
+      },
+      {
+        name: 'Cracklets',
+        slug: 'cracklets',
+        desc: 'Light and crunchy crackers with a savory, satisfying flavor. A simple and delicious snack for any time of the day.',
+        categorySlug: 'breads',
+        isFeatured: false,
+        pieces: 25,
+        price: 105.00
+      },
+      {
+        name: 'Jacobina',
+        slug: 'jacobina',
+        desc: 'Thin, crisp Filipino biscuits with a lightly sweet and buttery flavor. A classic merienda favorite, perfect with coffee or tea.',
+        categorySlug: 'breads',
+        isFeatured: false,
+        pieces: 25,
+        price: 105.00
       }
     ];
 
