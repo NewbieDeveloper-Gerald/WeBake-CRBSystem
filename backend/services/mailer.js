@@ -442,8 +442,235 @@ async function sendOrderReceiptEmail({ order, hasAccount = false }) {
   return info;
 }
 
+/**
+ * Builds HTML email template for Partner Application Status (Approved or Rejected)
+ */
+function buildPartnerStatusHtml({ applicantName, applicationCode, businessName, status, staffNotes }) {
+  const isApproved = status === 'approved';
+  const badgeBg = isApproved ? '#E8F5E9' : '#FFEBEE';
+  const badgeColor = isApproved ? '#2E7D32' : '#C62828';
+  const badgeBorder = isApproved ? '#A5D6A7' : '#FFCDD2';
+  const badgeText = isApproved ? 'WHOLESALE PARTNERSHIP APPROVED' : 'APPLICATION REVIEW UPDATE';
+  const heading = isApproved ? 'Welcome to the WeBake Wholesale Family! 🎉' : 'Wholesale Application Status Update';
+  
+  const notesSection = staffNotes ? `
+    <div style="margin:24px 0; background-color:#FAF6F0; border-left:4px solid ${isApproved ? '#28A745' : '#B5523A'}; border-radius:6px; padding:14px 18px; text-align:left;">
+      <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#7A685D; margin-bottom:6px;">
+        Remarks from Bakery Management:
+      </div>
+      <div style="font-size:13.5px; color:#4A2E24; line-height:1.6; font-style:italic;">
+        "${staffNotes}"
+      </div>
+    </div>
+  ` : '';
+
+  const mainContent = isApproved ? `
+    <p style="margin:0 0 16px; font-size:15px; line-height:1.6; color:#4A2E24;">
+      Dear <strong>${applicantName || 'Partner'}</strong>,
+    </p>
+    <p style="margin:0 0 16px; font-size:14.5px; line-height:1.6; color:#6B584E;">
+      We are delighted to inform you that your wholesale reseller partnership application for <strong style="color:#4A2E24;">${businessName || 'your bakery'}</strong> has been <strong style="color:#28A745;">APPROVED</strong> by Crumbs N' Rolls Bakery management!
+    </p>
+    <p style="margin:0 0 20px; font-size:14px; line-height:1.6; color:#6B584E;">
+      You are now officially registered as an active wholesale reseller partner. Your store account has been upgraded with exclusive wholesale partner privileges.
+    </p>
+
+    <!-- Perks List -->
+    <div style="background-color:#FDFBF7; border:1px solid #EEDBCE; border-radius:8px; padding:18px 20px; margin:20px 0; text-align:left;">
+      <div style="font-size:13px; font-weight:800; color:#4A2E24; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px;">
+        Your Wholesale Partner Benefits:
+      </div>
+      <ul style="margin:0; padding-left:20px; font-size:13.5px; line-height:1.8; color:#5C4B40;">
+        <li><strong>Wholesale Pricing:</strong> Exclusive discounted bulk rates on Mamon, Otap, Eggnog, and Buttertoast.</li>
+        <li><strong>Batch Delivery Priority:</strong> Morning production priority and scheduled direct deliveries to your shop.</li>
+        <li><strong>Flexible Payment Terms:</strong> 50% downpayment terms with remaining balance settlement on handover.</li>
+        <li><strong>Dashboard Management:</strong> View your active partner badge, past wholesale invoices, and order history anytime.</li>
+      </ul>
+    </div>
+    ${notesSection}
+    <p style="margin:24px 0 0; font-size:14px; line-height:1.6; color:#6B584E;">
+      You can now log in to your <a href="http://localhost:5000/customer/html/dashboard.html" style="color:#B5523A; font-weight:700; text-decoration:none;">WeBake Customer Dashboard</a> to view your active partnership status and begin placing wholesale orders!
+    </p>
+  ` : `
+    <p style="margin:0 0 16px; font-size:15px; line-height:1.6; color:#4A2E24;">
+      Dear <strong>${applicantName || 'Applicant'}</strong>,
+    </p>
+    <p style="margin:0 0 16px; font-size:14.5px; line-height:1.6; color:#6B584E;">
+      Thank you for your interest in partnering with Crumbs N' Rolls Bakery and submitting a wholesale application for <strong style="color:#4A2E24;">${businessName || 'your business'}</strong> (Reference ID: <strong style="color:#B5523A;">${applicationCode}</strong>).
+    </p>
+    <p style="margin:0 0 16px; font-size:14px; line-height:1.6; color:#6B584E;">
+      After careful review of our current production logistics, delivery routes, and scheduling capacity, we regret to inform you that we are unable to approve your wholesale partnership application at this time.
+    </p>
+    ${notesSection}
+    <div style="background-color:#FAF6F0; border:1px solid #EEDBCE; border-radius:8px; padding:16px 20px; margin:20px 0; text-align:left;">
+      <div style="font-size:13px; font-weight:700; color:#4A2E24; margin-bottom:6px;">
+        What you can do next:
+      </div>
+      <p style="margin:0 0 8px; font-size:13px; line-height:1.6; color:#6B584E;">
+        &bull; <strong>Re-apply in the future:</strong> As we expand our delivery coverage and weekly baking capacity, you are welcome to submit an updated application via your customer dashboard.
+      </p>
+      <p style="margin:0; font-size:13px; line-height:1.6; color:#6B584E;">
+        &bull; <strong>Retail Orders:</strong> You can continue ordering fresh bakery items through our website anytime.
+      </p>
+    </div>
+  `;
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${isApproved ? 'Partnership Approved' : 'Application Status Update'}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#F5EFE6; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#F5EFE6; padding:30px 15px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:540px; background-color:#FFFFFF; border-radius:12px; overflow:hidden; border:1px solid #E6D7C8; box-shadow:0 4px 20px rgba(74,46,36,0.06);">
+          
+          <!-- Brand Header -->
+          <tr>
+            <td style="padding:28px 32px 20px; text-align:center; background-color:#FAF6F0; border-bottom:1px solid #EEDBCE;">
+              <span style="display:inline-block; font-size:11px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#B5523A; margin-bottom:6px;">
+                Wholesale Bakery Since 2010
+              </span>
+              <div style="font-size:26px; font-weight:800; color:#4A2E24; letter-spacing:-0.5px;">
+                We<span style="color:#B5523A;">Bake</span>
+              </div>
+              <div style="font-size:13px; color:#7A685D; margin-top:2px;">
+                Crumbs N' Rolls Bakery
+              </div>
+            </td>
+          </tr>
+
+          <!-- Status Ribbon -->
+          <tr>
+            <td style="padding:20px 32px 0; text-align:center;">
+              <span style="display:inline-block; padding:6px 16px; background-color:${badgeBg}; color:${badgeColor}; border:1px solid ${badgeBorder}; border-radius:20px; font-size:12px; font-weight:700; letter-spacing:0.8px;">
+                ${badgeText}
+              </span>
+              <h2 style="margin:14px 0 6px; font-size:20px; font-weight:800; color:#2E1A14;">
+                ${heading}
+              </h2>
+              <div style="font-size:13px; color:#8C776D; margin-bottom:16px;">
+                Application Code: <strong>${applicationCode}</strong>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Main Body -->
+          <tr>
+            <td style="padding:0 32px 28px; text-align:center;">
+              ${mainContent}
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:20px 32px; background-color:#FAF6F0; border-top:1px solid #EEDBCE; text-align:center;">
+              <p style="margin:0 0 4px; font-size:12px; font-weight:700; color:#4A2E24;">
+                Crumbs N' Rolls Bakery
+              </p>
+              <p style="margin:0; font-size:11px; color:#8C776D; line-height:1.5;">
+                1356 Cordero St., Lambakin, Marilao, Bulacan<br>
+                Direct Support: crbwebake@gmail.com &bull; 0917 123 4567<br>
+                &copy; 2026 WeBake. All Rights Reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
+/**
+ * Builds plain-text fallback email for Partner Status
+ */
+function buildPartnerStatusText({ applicantName, applicationCode, businessName, status, staffNotes }) {
+  const isApproved = status === 'approved';
+  const notesText = staffNotes ? `\nRemarks from Bakery Management:\n"${staffNotes}"\n` : '';
+
+  if (isApproved) {
+    return [
+      `CRUMBS N' ROLLS BAKERY (WeBake)`,
+      `1356 Cordero St., Lambakin, Marilao, Bulacan`,
+      `-------------------------------------------------------`,
+      `WHOLESALE RESELLER PARTNERSHIP APPROVED! 🎉`,
+      `Application Code: ${applicationCode}`,
+      `Business: ${businessName || 'Your Bakery'}`,
+      `-------------------------------------------------------`,
+      `Dear ${applicantName || 'Partner'},`,
+      ``,
+      `We are pleased to inform you that your wholesale reseller partnership application has been officially APPROVED by bakery management!`,
+      ``,
+      `YOUR WHOLESALE PARTNER BENEFITS:`,
+      `- Exclusive bulk discount pricing on all bread and pastry bundles`,
+      `- Priority morning baking batch queue and direct scheduled delivery`,
+      `- 50% downpayment terms with balance settlement on delivery`,
+      `- Active Partner badge in your customer dashboard`,
+      notesText,
+      `You can now log in to your WeBake customer dashboard to track your partnership and start placing wholesale orders.`,
+      `-------------------------------------------------------`,
+      `For inquiries: crbwebake@gmail.com | 0917 123 4567`
+    ].filter(Boolean).join('\n');
+  } else {
+    return [
+      `CRUMBS N' ROLLS BAKERY (WeBake)`,
+      `1356 Cordero St., Lambakin, Marilao, Bulacan`,
+      `-------------------------------------------------------`,
+      `WHOLESALE PARTNERSHIP APPLICATION UPDATE`,
+      `Application Code: ${applicationCode}`,
+      `Business: ${businessName || 'Your Business'}`,
+      `-------------------------------------------------------`,
+      `Dear ${applicantName || 'Applicant'},`,
+      ``,
+      `Thank you for your interest in partnering with Crumbs N' Rolls Bakery. After reviewing your application, we regret to inform you that we are unable to approve your wholesale partnership at this time.`,
+      notesText,
+      `You are welcome to re-apply in the future through your customer dashboard, or continue ordering fresh bread products through retail checkout anytime.`,
+      `-------------------------------------------------------`,
+      `For inquiries: crbwebake@gmail.com | 0917 123 4567`
+    ].filter(Boolean).join('\n');
+  }
+}
+
+/**
+ * Sends Partner Application Status Notification Email via Gmail
+ */
+async function sendPartnerStatusEmail({ applicantName, applicantEmail, applicationCode, businessName, status, staffNotes }) {
+  const fromAddress = process.env.GMAIL_USER || 'crbwebake@gmail.com';
+  const recipientEmail = (applicantEmail || '').trim().toLowerCase();
+
+  if (!recipientEmail) {
+    throw new Error('Applicant email is required to send partner status notification.');
+  }
+
+  const transporter = getTransporter();
+  const isApproved = status === 'approved';
+  const subject = isApproved
+    ? `Congratulations! Your WeBake Wholesale Partnership Has Been Approved - [${applicationCode}]`
+    : `Update on Your WeBake Wholesale Partnership Application - [${applicationCode}]`;
+
+  const info = await transporter.sendMail({
+    from: `"WeBake Bakery" <${fromAddress}>`,
+    replyTo: fromAddress,
+    to: recipientEmail,
+    subject: subject,
+    text: buildPartnerStatusText({ applicantName, applicationCode, businessName, status, staffNotes }),
+    html: buildPartnerStatusHtml({ applicantName, applicationCode, businessName, status, staffNotes })
+  });
+
+  return info;
+}
+
 module.exports = {
   sendOtpEmail,
-  sendOrderReceiptEmail
+  sendOrderReceiptEmail,
+  sendPartnerStatusEmail
 };
 

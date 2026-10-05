@@ -7,6 +7,7 @@
 
 const express = require('express');
 const db = require('../database/db');
+const { sendPartnerStatusEmail } = require('../services/mailer');
 
 const router = express.Router();
 
@@ -220,7 +221,7 @@ router.patch('/:code/status', async (req, res) => {
 
     await client.query('BEGIN');
     const appRes = await client.query(`
-      SELECT id, user_id, applicant_email, status FROM partner_applications
+      SELECT id, user_id, applicant_name, applicant_email, business_name, status FROM partner_applications
       WHERE application_code = $1;
     `, [code.trim()]);
 
@@ -236,7 +237,7 @@ router.patch('/:code/status', async (req, res) => {
       WHERE id = $3;
     `, [status, staffNotes, app.id]);
 
-    // If approved, update user's partner_status in users table
+    // Synchronize user role and partner_status in users table
     if (status === 'approved') {
       await client.query(`
         UPDATE users
@@ -246,13 +247,40 @@ router.patch('/:code/status', async (req, res) => {
     } else if (status === 'rejected') {
       await client.query(`
         UPDATE users
-        SET partner_status = 'rejected', updated_at = NOW()
+        SET partner_status = 'rejected', role_id = 1, updated_at = NOW()
+        WHERE id = $1 OR LOWER(email_address) = $2;
+      `, [app.user_id || 0, (app.applicant_email || '').toLowerCase()]);
+    } else if (status === 'pending' || status === 'under_review') {
+      await client.query(`
+        UPDATE users
+        SET partner_status = 'pending', role_id = 1, updated_at = NOW()
         WHERE id = $1 OR LOWER(email_address) = $2;
       `, [app.user_id || 0, (app.applicant_email || '').toLowerCase()]);
     }
 
     await client.query('COMMIT');
-    return res.json({ success: true, message: `Application ${code} updated to ${status}.`, status });
+
+    // Trigger transactional email notification asynchronously
+    if (app.applicant_email && (status === 'approved' || status === 'rejected')) {
+      sendPartnerStatusEmail({
+        applicantName: app.applicant_name,
+        applicantEmail: app.applicant_email,
+        applicationCode: code.trim(),
+        businessName: app.business_name,
+        status: status,
+        staffNotes: staffNotes || ''
+      }).then(info => {
+        console.log(`[Partner Email] Sent ${status} notification to ${app.applicant_email} (MsgID: ${info?.messageId})`);
+      }).catch(err => {
+        console.warn(`[Partner Email Warning] Failed to send email to ${app.applicant_email}:`, err.message);
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: `Application ${code} updated to ${status}. Notification sent to applicant.`,
+      status
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('[Update Partner Application Error]:', err);

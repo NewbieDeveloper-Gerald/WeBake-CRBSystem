@@ -605,13 +605,30 @@
           partnerOwnerEl.value = (u && u.name) || s.name;
         }
 
-        if (u && (u.partnerStatus === 'pending' || u.partnerStatus === 'active' || u.partnerStatus === 'under_review' || u.partnerStatus === 'approved')) {
+        const effStatus = ((u && u.partnerStatus) || s.partnerStatus || '').toLowerCase();
+        const effDetails = (u && u.partnerDetails) || s.partnerDetails;
+
+        if (effStatus === 'active' || effStatus === 'approved' || effStatus === 'accepted') {
           const intro = document.querySelector('.partner-intro');
           if (intro) {
-            intro.innerHTML = `<div style="background:#e3f2fd; color:#0c5460; padding:1rem; border-radius:8px; margin-bottom:1rem; font-weight:bold;"><i class="fas fa-info-circle"></i> You have already submitted an application. You can update your existing details below.</div>`;
+            intro.innerHTML = `<div style="background:#d4edda; border-left:4px solid #28a745; padding:1rem; border-radius:8px; margin-bottom:1rem; color:#155724; font-weight:600;"><i class="fas fa-check-circle"></i> <strong>Active Wholesale Partner:</strong> Your bakery partnership is approved! You can review or update your business details below.</div>`;
+          }
+          if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-save"></i> Update Business Profile';
+          if (effDetails) populatePartnerFields(effDetails, u || s);
+        } else if (effStatus === 'pending' || effStatus === 'under_review' || effStatus === 'reviewing') {
+          const intro = document.querySelector('.partner-intro');
+          if (intro) {
+            intro.innerHTML = `<div style="background:#fff3cd; border-left:4px solid #ffc107; padding:1rem; border-radius:8px; margin-bottom:1rem; color:#856404; font-weight:600;"><i class="fas fa-clock"></i> Your application is currently under review by bakery management. You may update your submitted details below.</div>`;
           }
           if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-save"></i> Update Application';
-          if (u.partnerDetails) populatePartnerFields(u.partnerDetails, u);
+          if (effDetails) populatePartnerFields(effDetails, u || s);
+        } else if (effStatus === 'rejected' || effStatus === 'declined') {
+          const intro = document.querySelector('.partner-intro');
+          if (intro) {
+            intro.innerHTML = `<div style="background:#f8d7da; border-left:4px solid #dc3545; padding:1rem; border-radius:8px; margin-bottom:1rem; color:#721c24; font-weight:600;"><i class="fas fa-exclamation-circle"></i> Your previous wholesale partnership application was declined. You can update your business information and re-apply below.</div>`;
+          }
+          if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Re-apply for Partnership';
+          if (effDetails) populatePartnerFields(effDetails, u || s);
         }
       } else {
         // Guest mode: ensure contact inputs are displayed and required

@@ -122,7 +122,16 @@
       return false;
     },
     setSession: user => {
-      localStorage.setItem(SESSION_KEY, JSON.stringify({ name: user.name, email: normalizeEmail(user.email) }));
+      localStorage.setItem(SESSION_KEY, JSON.stringify({
+        name: user.name,
+        email: normalizeEmail(user.email),
+        role: user.role || 'customer',
+        roleId: user.roleId || 1,
+        roleTitle: user.roleTitle || 'Customer',
+        partnerStatus: user.partnerStatus || 'none',
+        partnerAppId: user.partnerAppId || null,
+        partnerDetails: user.partnerDetails || null
+      }));
       try { window.dispatchEvent(new CustomEvent('weBakeAuthChange')); } catch (e) {}
     },
     getSession: () => JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'),

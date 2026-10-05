@@ -247,7 +247,8 @@ router.post('/login', async (req, res) => {
     try {
       const partnerRes = await db.query(
         `SELECT application_code, business_name, business_type, years_in_operation,
-                estimated_weekly_volume, delivery_address, products_of_interest, additional_notes, status
+                estimated_weekly_volume, delivery_address, products_of_interest, additional_notes, status,
+                admin_notes
          FROM partner_applications
          WHERE user_id = $1 OR LOWER(applicant_email) = $2
          ORDER BY 
@@ -272,7 +273,9 @@ router.post('/login', async (req, res) => {
           volume: app.estimated_weekly_volume,
           address: app.delivery_address,
           products: app.products_of_interest || [],
-          notes: app.additional_notes || ''
+          notes: app.additional_notes || '',
+          adminNotes: app.admin_notes || '',
+          staffNotes: app.admin_notes || ''
         };
       }
     } catch (e) {
@@ -489,7 +492,8 @@ router.all('/sync', async (req, res) => {
     try {
       const partnerRes = await db.query(
         `SELECT application_code, business_name, business_type, years_in_operation,
-                estimated_weekly_volume, delivery_address, products_of_interest, additional_notes, status
+                estimated_weekly_volume, delivery_address, products_of_interest, additional_notes, status,
+                admin_notes
          FROM partner_applications
          WHERE user_id = $1 OR LOWER(applicant_email) = $2
          ORDER BY 
@@ -514,7 +518,9 @@ router.all('/sync', async (req, res) => {
           volume: app.estimated_weekly_volume,
           address: app.delivery_address,
           products: app.products_of_interest || [],
-          notes: app.additional_notes || ''
+          notes: app.additional_notes || '',
+          adminNotes: app.admin_notes || '',
+          staffNotes: app.admin_notes || ''
         };
       }
     } catch (e) {

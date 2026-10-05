@@ -114,11 +114,23 @@ document.addEventListener('DOMContentLoaded', () => {
       email: session.email,
       savedCart: [],
       orderHistory: [],
-      partnerStatus: 'none'
+      partnerStatus: session.partnerStatus || 'none',
+      partnerAppId: session.partnerAppId || null,
+      partnerDetails: session.partnerDetails || null
     };
     const all = DashboardStore.getUsers();
     all.push(currentUser);
     DashboardStore.saveUsers(all);
+  } else if (session && session.partnerStatus && (!currentUser.partnerStatus || currentUser.partnerStatus === 'none')) {
+    currentUser.partnerStatus = session.partnerStatus;
+    currentUser.partnerAppId = session.partnerAppId || currentUser.partnerAppId;
+    currentUser.partnerDetails = session.partnerDetails || currentUser.partnerDetails;
+    const all = DashboardStore.getUsers();
+    const idx = all.findIndex(u => DashboardStore.sameEmail(u.email, session.email));
+    if (idx !== -1) {
+      all[idx] = Object.assign(all[idx], currentUser);
+      DashboardStore.saveUsers(all);
+    }
   }
 
   /* --------------------------------------------------------------------------
@@ -729,23 +741,71 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!partnerBadge || !partnerCta || !partnerActions) return;
 
       const allUsers = DashboardStore.getUsers();
-      const freshUser = allUsers.find(u => DashboardStore.sameEmail(u.email, session.email));
-      const status = freshUser ? (freshUser.partnerStatus || 'none') : 'none';
+      let freshUser = allUsers.find(u => DashboardStore.sameEmail(u.email, session.email));
+      if (!freshUser) {
+        freshUser = currentUser || { email: session.email, name: session.name, partnerStatus: session.partnerStatus || 'none' };
+      }
+
+      // Fallback check against cached partner applications
+      const allApps = DashboardStore.getApplications();
+      const myApp = allApps.find(a => 
+        DashboardStore.sameEmail(a.email, session.email) || 
+        (a.details && DashboardStore.sameEmail(a.details.email, session.email))
+      );
+
+      // Determine effective partner status
+      let status = (freshUser.partnerStatus || session.partnerStatus || myApp?.status || 'none').toLowerCase();
+      if ((status === 'none' || status === '') && myApp && myApp.status) {
+        status = myApp.status.toLowerCase();
+      }
+
+      const partnerDetails = freshUser.partnerDetails || session.partnerDetails || myApp?.details || {};
+      const staffNotes = partnerDetails.adminNotes || partnerDetails.staffNotes || '';
+      const businessName = partnerDetails['business-name'] || partnerDetails['bakery-name'] || partnerDetails.businessName || partnerDetails.bakeryName || '';
+      const appId = freshUser.partnerAppId || session.partnerAppId || myApp?.appId || '';
 
       partnerActions.innerHTML = '';
 
-      if (status === 'active') {
+      if (status === 'active' || status === 'approved' || status === 'accepted') {
         partnerBadge.className = 'partner-badge badge-active';
-        partnerBadge.innerHTML = '<i class="fas fa-check-circle"></i> Active Partner';
-        partnerCta.style.display = 'none';
+        partnerBadge.innerHTML = '<i class="fas fa-check-circle"></i> Active Wholesale Partner';
+        partnerCta.innerHTML = `
+          <div style="background:#d4edda; border-left:4px solid #28a745; padding:12px 14px; border-radius:6px; margin-bottom:10px; color:#155724; font-size:0.875rem; line-height:1.5;">
+            <div style="font-weight:700; font-size:0.95rem; margin-bottom:4px;">
+              <i class="fas fa-certificate"></i> Congratulations! Your Wholesale Partnership is Approved
+            </div>
+            <div>You are officially registered as a wholesale partner${businessName ? ` for <strong>${businessName}</strong>` : ''}. You now have access to wholesale bulk discounts and priority batch deliveries.</div>
+            ${appId ? `<div style="margin-top:6px; font-size:0.8rem; color:#1e7e34;"><strong>Partner ID:</strong> <code>${appId}</code></div>` : ''}
+            ${staffNotes ? `<div style="margin-top:8px; font-style:italic; font-size:0.8rem; color:#155724; background:rgba(255,255,255,0.7); padding:6px 10px; border-radius:4px; border:1px solid #c3e6cb;"><strong>Bakery Note:</strong> "${staffNotes}"</div>` : ''}
+          </div>
+        `;
+        partnerCta.style.display = 'block';
         partnerActions.innerHTML = `
-          <a href="partner.html" class="btn btn-outline" style="padding:0.4rem 1rem; font-size:0.85rem;">Update Details</a>
+          <a href="partner.html" class="btn btn-outline" style="padding:0.4rem 1rem; font-size:0.85rem;"><i class="fas fa-eye"></i> View Partnership Details</a>
           <button id="cancel-partner-btn" class="btn btn-primary" style="padding:0.4rem 1rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545;">Cancel Partnership</button>
         `;
-      } else if (status === 'pending') {
+      } else if (status === 'rejected' || status === 'declined') {
+        partnerBadge.className = 'partner-badge badge-rejected';
+        partnerBadge.innerHTML = '<i class="fas fa-times-circle"></i> Application Not Approved';
+        partnerCta.innerHTML = `
+          <div style="background:#f8d7da; border-left:4px solid #dc3545; padding:10px 14px; border-radius:6px; margin-bottom:10px; color:#721c24; font-size:0.875rem; line-height:1.5;">
+            <strong>Application Notice:</strong> Your wholesale partnership application was <strong>DECLINED</strong> at this time.
+            ${staffNotes ? `<div style="margin-top:6px; font-style:italic; font-size:0.8rem; color:#721c24; background:rgba(255,255,255,0.6); padding:4px 8px; border-radius:4px;"><strong>Reason / Notes:</strong> "${staffNotes}"</div>` : ''}
+            <div style="margin-top:6px; font-size:0.8rem; color:#721c24;">You may review your business profile and submit a revised application.</div>
+          </div>
+        `;
+        partnerCta.style.display = 'block';
+        partnerActions.innerHTML = `
+          <a href="partner.html" class="btn btn-primary" style="padding:0.4rem 1.25rem; font-size:0.85rem;"><i class="fas fa-redo"></i> Re-apply for Partnership</a>
+        `;
+      } else if (status === 'pending' || status === 'under_review' || status === 'reviewing') {
         partnerBadge.className = 'partner-badge badge-pending';
-        partnerBadge.innerHTML = '<i class="fas fa-clock"></i> Application Pending';
-        partnerCta.innerHTML = 'Your partnership application is currently being reviewed.';
+        partnerBadge.innerHTML = '<i class="fas fa-clock"></i> Application Under Review';
+        partnerCta.innerHTML = `
+          <div style="background:#fff3cd; border-left:4px solid #ffc107; padding:10px 14px; border-radius:6px; margin-bottom:10px; color:#856404; font-size:0.875rem; line-height:1.5;">
+            Your wholesale partnership application is currently being reviewed by bakery management. You will receive an email confirmation once a decision is finalized.
+          </div>
+        `;
         partnerCta.style.display = 'block';
         partnerActions.innerHTML = `
           <a href="partner.html" class="btn btn-outline" style="padding:0.4rem 1rem; font-size:0.85rem;">Edit Application</a>
@@ -756,6 +816,11 @@ document.addEventListener('DOMContentLoaded', () => {
         partnerBadge.innerHTML = '<i class="fas fa-minus-circle"></i> No Partnership';
         partnerCta.innerHTML = 'Interested in wholesale? <a href="partner.html">Apply to be a partner today!</a>';
         partnerCta.style.display = 'block';
+
+        if (!window._partnerDirectSyncTriggered) {
+          window._partnerDirectSyncTriggered = true;
+          setTimeout(() => syncFromCloud(), 10);
+        }
       }
 
       const cancelBtn = document.getElementById('cancel-partner-btn');
@@ -842,38 +907,41 @@ document.addEventListener('DOMContentLoaded', () => {
           ? 'http://localhost:5000/api'
           : '/api'
       );
-      const res = await fetch(`${apiBase}/auth/sync?email=${encodeURIComponent(sess.email)}`, {
-        credentials: 'include'
-      });
+      const res = await fetch(`${apiBase}/auth/sync?email=${encodeURIComponent(sess.email)}`);
       const data = await res.json();
       if (data && data.success && data.user) {
         const allUsers = DashboardStore.getUsers();
-        const idx = allUsers.findIndex(u => DashboardStore.sameEmail(u.email, sess.email));
+        let idx = allUsers.findIndex(u => DashboardStore.sameEmail(u.email, sess.email));
         if (idx !== -1) {
-          if (data.user.partnerStatus === 'none' && allUsers[idx].partnerStatus === 'pending' && allUsers[idx].partnerAppId) {
-            // Keep local pending application if backend sync hasn't propagated yet
-            delete data.user.partnerStatus;
-            delete data.user.partnerAppId;
-            delete data.user.partnerDetails;
-          }
           allUsers[idx] = Object.assign(allUsers[idx], data.user);
         } else {
           allUsers.push(data.user);
+          idx = allUsers.length - 1;
         }
         DashboardStore.saveUsers(allUsers);
-        currentUser = allUsers[idx !== -1 ? idx : allUsers.length - 1];
+        currentUser = allUsers[idx];
+
+        // Also update session partner status
+        if (sess) {
+          sess.partnerStatus = data.user.partnerStatus;
+          sess.role = data.user.role;
+          sess.roleId = data.user.roleId;
+          sess.roleTitle = data.user.roleTitle;
+          DashboardStore.saveSession(sess);
+        }
 
         // Also sync to weBakePartnerApplications so edit & tracking modals find it
-        if (currentUser.partnerAppId) {
+        const appId = currentUser.partnerAppId || data.user.partnerAppId;
+        if (appId) {
           const allApps = DashboardStore.getApplications();
-          let app = allApps.find(a => a.appId && a.appId.toUpperCase() === currentUser.partnerAppId.toUpperCase());
+          let app = allApps.find(a => a.appId && a.appId.toUpperCase() === appId.toUpperCase());
           if (!app) {
             app = {
-              appId: currentUser.partnerAppId,
+              appId: appId,
               email: currentUser.email,
               phone: currentUser.contact || '',
               date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-              status: currentUser.partnerStatus || 'pending',
+              status: currentUser.partnerStatus || 'approved',
               details: currentUser.partnerDetails || {}
             };
             allApps.unshift(app);
