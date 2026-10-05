@@ -1,8 +1,7 @@
 /* ==========================================================================
    WeBake — Customer Dashboard Module (dashboard.js)
    Handles authentication guards, profile updates, saved shopping cart
-   management, order history with cancellation & refund requests, and
-   wholesale partnership review & status management.
+   management, and order history with cancellation & refund requests.
    ========================================================================== */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -15,7 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
     KEYS: {
       USERS: 'weBakeUsers',
       SESSION: 'weBakeSession',
-      APPS: 'weBakePartnerApplications',
       ALL_ORDERS: 'weBakeAllOrders'
     },
 
@@ -68,18 +66,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     saveAllOrders(orders) {
       localStorage.setItem(this.KEYS.ALL_ORDERS, JSON.stringify(orders));
-    },
-
-    getApplications() {
-      try {
-        return JSON.parse(localStorage.getItem(this.KEYS.APPS) || '[]');
-      } catch (e) {
-        return [];
-      }
-    },
-
-    saveApplications(apps) {
-      localStorage.setItem(this.KEYS.APPS, JSON.stringify(apps));
     }
   };
 
@@ -113,24 +99,11 @@ document.addEventListener('DOMContentLoaded', () => {
       name: session.name || 'Valued Customer',
       email: session.email,
       savedCart: [],
-      orderHistory: [],
-      partnerStatus: session.partnerStatus || 'none',
-      partnerAppId: session.partnerAppId || null,
-      partnerDetails: session.partnerDetails || null
+      orderHistory: []
     };
     const all = DashboardStore.getUsers();
     all.push(currentUser);
     DashboardStore.saveUsers(all);
-  } else if (session && session.partnerStatus && (!currentUser.partnerStatus || currentUser.partnerStatus === 'none')) {
-    currentUser.partnerStatus = session.partnerStatus;
-    currentUser.partnerAppId = session.partnerAppId || currentUser.partnerAppId;
-    currentUser.partnerDetails = session.partnerDetails || currentUser.partnerDetails;
-    const all = DashboardStore.getUsers();
-    const idx = all.findIndex(u => DashboardStore.sameEmail(u.email, session.email));
-    if (idx !== -1) {
-      all[idx] = Object.assign(all[idx], currentUser);
-      DashboardStore.saveUsers(all);
-    }
   }
 
   /* --------------------------------------------------------------------------
@@ -731,257 +704,18 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   /* --------------------------------------------------------------------------
-     7. Wholesale Partnership Status & Cancellation
-     -------------------------------------------------------------------------- */
-  const DashboardPartnership = {
-    render() {
-      const partnerBadge = document.getElementById('dash-partner-badge');
-      const partnerCta = document.getElementById('dash-partner-cta');
-      const partnerActions = document.getElementById('dash-partner-actions');
-      if (!partnerBadge || !partnerCta || !partnerActions) return;
-
-      const allUsers = DashboardStore.getUsers();
-      let freshUser = allUsers.find(u => DashboardStore.sameEmail(u.email, session.email));
-      if (!freshUser) {
-        freshUser = currentUser || { email: session.email, name: session.name, partnerStatus: session.partnerStatus || 'none' };
-      }
-
-      // Fallback check against cached partner applications
-      const allApps = DashboardStore.getApplications();
-      const myApp = allApps.find(a => 
-        DashboardStore.sameEmail(a.email, session.email) || 
-        (a.details && DashboardStore.sameEmail(a.details.email, session.email))
-      );
-
-      // Determine effective partner status: user/session status always takes precedence over cached applications
-      let status = 'none';
-      if (freshUser.partnerStatus && freshUser.partnerStatus !== 'none') {
-        status = freshUser.partnerStatus.toLowerCase();
-      } else if (session.partnerStatus && session.partnerStatus !== 'none') {
-        status = session.partnerStatus.toLowerCase();
-      } else if (myApp && myApp.status) {
-        status = myApp.status.toLowerCase();
-      }
-
-      const partnerDetails = freshUser.partnerDetails || session.partnerDetails || myApp?.details || {};
-      const staffNotes = partnerDetails.adminNotes || partnerDetails.staffNotes || '';
-      const businessName = partnerDetails['business-name'] || partnerDetails['bakery-name'] || partnerDetails.businessName || partnerDetails.bakeryName || '';
-      const appId = freshUser.partnerAppId || session.partnerAppId || myApp?.appId || '';
-
-      partnerActions.innerHTML = '';
-
-      if (status === 'active' || status === 'approved' || status === 'accepted') {
-        partnerBadge.className = 'partner-badge badge-priority-partner';
-        partnerBadge.removeAttribute('style');
-        partnerBadge.innerHTML = '<i class="fas fa-crown"></i> Priority Partner';
-        partnerCta.innerHTML = `
-          <div style="background:#fffbeb; border-left:4px solid #f59e0b; padding:12px 14px; border-radius:6px; margin-bottom:10px; color:#92400e; font-size:0.875rem; line-height:1.5;">
-            <div style="font-weight:700; font-size:0.95rem; margin-bottom:4px; color:#78350f;">
-              <i class="fas fa-crown"></i> Congratulations! Your Wholesale Partnership is Approved
-            </div>
-            <div>You are officially registered as a wholesale partner${businessName ? ` for <strong>${businessName}</strong>` : ''}. As an authorized Priority Partner, you receive priority baking queue allocation, priority delivery scheduling, guaranteed stock allocation, and 50% reservation downpayment terms.</div>
-            ${appId ? `<div style="margin-top:6px; font-size:0.8rem; color:#b45309;"><strong>Partner ID:</strong> <code>${appId}</code></div>` : ''}
-            ${staffNotes ? `<div style="margin-top:8px; font-style:italic; font-size:0.8rem; color:#92400e; background:rgba(255,255,255,0.7); padding:6px 10px; border-radius:4px; border:1px solid #fcd34d;"><strong>Bakery Note:</strong> "${staffNotes}"</div>` : ''}
-          </div>
-        `;
-        partnerCta.style.display = 'block';
-        partnerActions.innerHTML = `
-          <a href="partner.html" class="btn btn-outline" style="padding:0.4rem 1rem; font-size:0.85rem;"><i class="fas fa-eye"></i> View Partnership Details</a>
-          <button id="cancel-partner-btn" class="btn btn-primary" style="padding:0.4rem 1rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545;">Cancel Partnership</button>
-        `;
-      } else if (status === 'rejected' || status === 'declined') {
-        partnerBadge.className = 'partner-badge badge-rejected';
-        partnerBadge.removeAttribute('style');
-        partnerBadge.innerHTML = '<i class="fas fa-times-circle"></i> Application Declined';
-        partnerCta.innerHTML = `
-          <div style="background:#f8d7da; border-left:4px solid #dc3545; padding:10px 14px; border-radius:6px; margin-bottom:10px; color:#721c24; font-size:0.875rem; line-height:1.5;">
-            <strong>Application Notice:</strong> Your wholesale partnership application was <strong>DECLINED</strong> at this time.
-            ${staffNotes ? `<div style="margin-top:6px; font-style:italic; font-size:0.8rem; color:#721c24; background:rgba(255,255,255,0.6); padding:4px 8px; border-radius:4px;"><strong>Reason / Notes:</strong> "${staffNotes}"</div>` : ''}
-            <div style="margin-top:6px; font-size:0.8rem; color:#721c24;">You may review your business profile and submit a revised application.</div>
-          </div>
-        `;
-        partnerCta.style.display = 'block';
-        partnerActions.innerHTML = `
-          <a href="partner.html" class="btn btn-primary" style="padding:0.4rem 1.25rem; font-size:0.85rem;"><i class="fas fa-redo"></i> Re-apply for Partnership</a>
-        `;
-      } else if (status === 'under_review' || status === 'reviewing' || status === 'contacted') {
-        partnerBadge.className = 'partner-badge badge-under_review';
-        partnerBadge.removeAttribute('style');
-        partnerBadge.innerHTML = '<i class="fas fa-user-clock"></i> Under Review / Contacted';
-        partnerCta.innerHTML = `
-          <div style="background:#f0f9ff; border-left:4px solid #0284c7; padding:12px 14px; border-radius:6px; margin-bottom:10px; color:#0369a1; font-size:0.875rem; line-height:1.5;">
-            <div style="font-weight:700; font-size:0.95rem; margin-bottom:4px;">
-              <i class="fas fa-user-clock"></i> Application Under Review / Store Contacted
-            </div>
-            <div>Bakery management is actively reviewing your store details and evaluating delivery logistics. Our team may reach out to you directly to confirm requirements.</div>
-            <div class="partner-locked-note" style="margin-top:8px;">
-              <i class="fas fa-lock"></i> Editing is locked while your application is being reviewed.
-            </div>
-            ${appId ? `<div style="margin-top:6px; font-size:0.8rem; color:#0284c7;"><strong>Reference ID:</strong> <code>${appId}</code></div>` : ''}
-            ${staffNotes ? `<div style="margin-top:8px; font-style:italic; font-size:0.8rem; color:#0369a1; background:rgba(255,255,255,0.85); padding:6px 10px; border-radius:4px; border:1px solid #bae6fd;"><strong>Bakery Note:</strong> "${staffNotes}"</div>` : ''}
-          </div>
-        `;
-        partnerCta.style.display = 'block';
-        partnerActions.innerHTML = `
-          <button id="cancel-partner-btn" class="btn btn-primary" style="padding:0.4rem 1rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545;">Cancel Request</button>
-        `;
-      } else if (status === 'pending') {
-        partnerBadge.className = 'partner-badge badge-pending';
-        partnerBadge.removeAttribute('style');
-        partnerBadge.innerHTML = '<i class="fas fa-clock"></i> Application Pending for Review';
-        partnerCta.innerHTML = `
-          <div style="background:#fff3cd; border-left:4px solid #ffc107; padding:12px 14px; border-radius:6px; margin-bottom:10px; color:#856404; font-size:0.875rem; line-height:1.5;">
-            <div style="font-weight:700; font-size:0.95rem; margin-bottom:4px;">
-              <i class="fas fa-clock"></i> Application Pending for Review
-            </div>
-            <div>Your wholesale partnership application has been submitted and is currently pending review by bakery management. Our team usually reviews applications within 24–48 hours.</div>
-            ${appId ? `<div style="margin-top:6px; font-size:0.8rem; color:#856404;"><strong>Reference ID:</strong> <code>${appId}</code></div>` : ''}
-          </div>
-        `;
-        partnerCta.style.display = 'block';
-        partnerActions.innerHTML = `
-          <a href="partner.html" class="btn btn-outline" style="padding:0.4rem 1rem; font-size:0.85rem;"><i class="fas fa-edit"></i> Edit Application</a>
-          <button id="cancel-partner-btn" class="btn btn-primary" style="padding:0.4rem 1rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545;">Cancel Request</button>
-        `;
-      } else if (status === 'cancelled') {
-        partnerBadge.className = 'partner-badge badge-cancelled';
-        partnerBadge.removeAttribute('style');
-        partnerBadge.innerHTML = '<i class="fas fa-ban"></i> Partnership Cancelled';
-        partnerCta.innerHTML = `
-          <div style="background:#f8f9fa; border-left:4px solid #6c757d; padding:10px 14px; border-radius:6px; margin-bottom:10px; color:#495057; font-size:0.875rem; line-height:1.5;">
-            <strong>Partnership Notice:</strong> Your wholesale partnership has been <strong>cancelled</strong>.
-            <div style="margin-top:6px; font-size:0.8rem; color:#6c757d;">You can submit a new application anytime if you wish to partner with WeBake again in the future.</div>
-          </div>
-        `;
-        partnerCta.style.display = 'block';
-        partnerActions.innerHTML = `
-          <a href="partner.html" class="btn btn-outline" style="padding:0.4rem 1.25rem; font-size:0.85rem;"><i class="fas fa-handshake"></i> Apply Again</a>
-        `;
-      } else {
-        partnerBadge.className = 'partner-badge badge-none';
-        partnerBadge.removeAttribute('style');
-        partnerBadge.innerHTML = '<i class="fas fa-minus-circle"></i> No Partnership';
-        partnerCta.innerHTML = 'Interested in wholesale? <a href="partner.html">Apply to be a partner today!</a>';
-        partnerCta.style.display = 'block';
-
-        if (!window._partnerDirectSyncTriggered) {
-          window._partnerDirectSyncTriggered = true;
-          setTimeout(() => syncFromCloud(), 10);
-        }
-      }
-
-      // Dedicated handler for partner cancellation
-      const doCancel = async () => {
-        const freshAll = DashboardStore.getUsers();
-        const target = freshAll.find(u => DashboardStore.sameEmail(u.email, session.email));
-        const savedAppId = target?.partnerAppId || session.partnerAppId || currentUser?.partnerAppId || myApp?.appId;
-
-        if (target) {
-          target.partnerStatus = 'cancelled';
-          target.role = 'customer';
-          target.roleId = 1;
-          target.partnerDetails = null;
-          DashboardStore.saveUsers(freshAll);
-        }
-
-        // Also update persistent session & in-memory currentUser
-        session.partnerStatus = 'cancelled';
-        session.role = 'customer';
-        session.roleId = 1;
-        session.partnerDetails = null;
-        DashboardStore.saveSession(session);
-
-        if (currentUser) {
-          currentUser.partnerStatus = 'cancelled';
-          currentUser.role = 'customer';
-          currentUser.roleId = 1;
-          currentUser.partnerDetails = null;
-        }
-
-        lastKnownPartnerState.status = 'cancelled';
-
-        const allApps = DashboardStore.getApplications();
-        let appChanged = false;
-        allApps.forEach(a => {
-          if ((savedAppId && a.appId && a.appId.toUpperCase() === savedAppId.toUpperCase()) ||
-              (a.details?.email && DashboardStore.sameEmail(a.details.email, session.email)) ||
-              (a.email && DashboardStore.sameEmail(a.email, session.email))) {
-            a.status = 'cancelled';
-            a.cancelledAt = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-            appChanged = true;
-          }
-        });
-        if (appChanged) {
-          DashboardStore.saveApplications(allApps);
-        }
-
-        // Immediately stop polling and re-render cancelled UI
-        if (partnerPollTimer) {
-          clearInterval(partnerPollTimer);
-          partnerPollTimer = null;
-        }
-        this.render();
-        toast('Partnership request cancelled.');
-        window.dispatchEvent(new CustomEvent('weBakePartnerChange'));
-
-        // Persist to cloud database
-        const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
-          window.location.protocol === 'file:' ||
-          window.location.hostname === 'localhost' ||
-          window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:5000/api'
-            : '/api'
-        );
-        try {
-          const res = await fetch(`${apiBase}/partner/cancel`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: session.email, appId: savedAppId })
-          });
-          const json = await res.json().catch(() => ({}));
-          if (!res.ok || json.success === false) {
-            console.warn('[Partner Cancel Server Notice]:', json.message);
-          }
-          // Perform cloud sync so all state is verified and remains cancelled
-          await syncFromCloud();
-        } catch (e) {
-          console.warn('[Cloud Partner Cancel Notice]:', e);
-        }
-      };
-
-      const triggerCancelPrompt = () => {
-        if (window.WeBakeModals && typeof window.WeBakeModals.confirmCancelPartner === 'function') {
-          window.WeBakeModals.confirmCancelPartner({ onConfirm: doCancel });
-        } else if (confirm('Are you sure you want to cancel your wholesale partnership? This action cannot be undone.')) {
-          doCancel();
-        }
-      };
-
-      const cancelBtn = document.getElementById('cancel-partner-btn');
-      if (cancelBtn) {
-        cancelBtn.onclick = (e) => {
-          e.preventDefault();
-          triggerCancelPrompt();
-        };
-      }
-    }
-  };
-
-  /* --------------------------------------------------------------------------
-     8. Initialization & Real-Time Sync
+     7. Initialization & Background Cloud Sync
      -------------------------------------------------------------------------- */
   DashboardProfile.init();
   DashboardCart.render();
   DashboardOrders.render();
   DashboardOrders.initDelegation();
-  DashboardPartnership.render();
 
   // Multi-tab storage sync
   window.addEventListener('storage', (e) => {
-    if (e.key === DashboardStore.KEYS.USERS || e.key === DashboardStore.KEYS.APPS) {
+    if (e.key === DashboardStore.KEYS.USERS || e.key === DashboardStore.KEYS.ALL_ORDERS) {
       DashboardCart.render();
       DashboardOrders.render();
-      DashboardPartnership.render();
     }
   });
 
@@ -1011,172 +745,20 @@ document.addEventListener('DOMContentLoaded', () => {
         DashboardStore.saveUsers(allUsers);
         currentUser = allUsers[idx];
 
-        // Also update session partner status
         if (sess) {
-          sess.partnerStatus = data.user.partnerStatus;
           sess.role = data.user.role;
           sess.roleId = data.user.roleId;
           sess.roleTitle = data.user.roleTitle;
           DashboardStore.saveSession(sess);
         }
 
-        // Also sync to weBakePartnerApplications so edit & tracking modals find it
-        const appId = currentUser.partnerAppId || data.user.partnerAppId;
-        if (appId) {
-          const allApps = DashboardStore.getApplications();
-          let app = allApps.find(a => a.appId && a.appId.toUpperCase() === appId.toUpperCase());
-          if (!app) {
-            app = {
-              appId: appId,
-              email: currentUser.email,
-              phone: currentUser.contact || '',
-              date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-              status: currentUser.partnerStatus || 'pending',
-              details: currentUser.partnerDetails || {}
-            };
-            allApps.unshift(app);
-          } else {
-            app.status = currentUser.partnerStatus || app.status;
-            if (currentUser.partnerDetails) {
-              app.details = { ...(app.details || {}), ...currentUser.partnerDetails };
-            }
-          }
-          DashboardStore.saveApplications(allApps);
-        }
-
         DashboardProfile.init();
         DashboardCart.render();
         DashboardOrders.render();
-        DashboardPartnership.render();
       }
     } catch (e) {
       console.warn('[Dashboard Cloud Sync Error]:', e);
     }
   }
   syncFromCloud();
-
-  /* --------------------------------------------------------------------------
-     9. Near-Real-Time Customer Partnership Status Polling (10s)
-     -------------------------------------------------------------------------- */
-  let partnerPollTimer = null;
-  let lastKnownPartnerState = {
-    status: null,
-    updatedAt: null,
-    notes: null
-  };
-
-  async function pollMyStatus() {
-    if (document.visibilityState === 'hidden') return;
-    const sess = DashboardStore.getSession();
-    if (!sess || !sess.email) return;
-
-    const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
-      window.location.protocol === 'file:' ||
-      window.location.hostname === 'localhost' ||
-      window.location.hostname === '127.0.0.1'
-        ? 'http://localhost:5000/api'
-        : '/api'
-    );
-
-    try {
-      const res = await fetch(`${apiBase}/partner/my-status?email=${encodeURIComponent(sess.email)}`, {
-        headers: {
-          'x-user-email': sess.email
-        }
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (!data || !data.success || !data.application) return;
-
-      const app = data.application;
-      const curStatus = (app.status || '').toLowerCase();
-      const curUpdatedAt = app.updatedAt || app.reviewedAt || app.submittedAt || '';
-      const curNotes = app.adminNotes || app.staffNotes || '';
-
-      if (lastKnownPartnerState.status !== curStatus ||
-          lastKnownPartnerState.updatedAt !== curUpdatedAt ||
-          lastKnownPartnerState.notes !== curNotes) {
-
-        lastKnownPartnerState = {
-          status: curStatus,
-          updatedAt: curUpdatedAt,
-          notes: curNotes
-        };
-
-        // Update local user and session
-        const allUsers = DashboardStore.getUsers();
-        let uIdx = allUsers.findIndex(u => DashboardStore.sameEmail(u.email, sess.email));
-        if (uIdx !== -1) {
-          allUsers[uIdx].partnerStatus = curStatus;
-          allUsers[uIdx].partnerAppId = app.applicationCode;
-          allUsers[uIdx].partnerDetails = {
-            ...(allUsers[uIdx].partnerDetails || {}),
-            adminNotes: curNotes,
-            staffNotes: curNotes,
-            businessName: app.businessName,
-            applicantName: app.applicantName
-          };
-          DashboardStore.saveUsers(allUsers);
-          currentUser = allUsers[uIdx];
-        }
-
-        sess.partnerStatus = curStatus;
-        sess.partnerAppId = app.applicationCode;
-        if (sess.partnerDetails) {
-          sess.partnerDetails.adminNotes = curNotes;
-          sess.partnerDetails.staffNotes = curNotes;
-        }
-        DashboardStore.saveSession(sess);
-
-        // Update cached applications list
-        const allApps = DashboardStore.getApplications();
-        let targetApp = allApps.find(a => a.appId && a.appId.toUpperCase() === app.applicationCode.toUpperCase());
-        if (targetApp) {
-          targetApp.status = curStatus;
-          targetApp.staffNotes = curNotes;
-          targetApp.updatedAt = curUpdatedAt;
-          if (targetApp.details) targetApp.details.notes = curNotes;
-        } else {
-          allApps.unshift({
-            appId: app.applicationCode,
-            email: sess.email,
-            status: curStatus,
-            staffNotes: curNotes,
-            updatedAt: curUpdatedAt,
-            details: { 'business-name': app.businessName, 'owner-name': app.applicantName }
-          });
-        }
-        DashboardStore.saveApplications(allApps);
-
-        DashboardPartnership.render();
-      }
-
-      // Stop customer polling once status is rejected or cancelled and has been rendered
-      if (curStatus === 'rejected' || curStatus === 'declined' || curStatus === 'cancelled') {
-        if (partnerPollTimer) {
-          clearInterval(partnerPollTimer);
-          partnerPollTimer = null;
-        }
-      }
-    } catch (e) {
-      // Keep last known state on network failure; retry on next interval
-    }
-  }
-
-  function startPartnerPolling() {
-    if (partnerPollTimer) clearInterval(partnerPollTimer);
-    const initialStatus = (currentUser?.partnerStatus || session?.partnerStatus || '').toLowerCase();
-    if (initialStatus === 'rejected' || initialStatus === 'declined' || initialStatus === 'cancelled') {
-      return; // Already finalized
-    }
-    partnerPollTimer = setInterval(pollMyStatus, 10000);
-  }
-
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && partnerPollTimer) {
-      pollMyStatus();
-    }
-  });
-
-  startPartnerPolling();
 });

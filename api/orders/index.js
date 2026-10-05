@@ -638,7 +638,7 @@ function checkTrackingRateLimit(ip) {
   return true;
 }
 
-// 4. Track Order / Partner Application (Fixes C3)
+// 4. Track Order
 async function handleTrack(req, res, pool) {
   const clientIp = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
                    req.socket?.remoteAddress || '127.0.0.1';
@@ -652,92 +652,29 @@ async function handleTrack(req, res, pool) {
 
   const id = (req.method === 'GET' ? req.query?.id : req.body?.id) || '';
   const contact = (req.method === 'GET' ? req.query?.contact : req.body?.contact) || '';
-  const mode = (req.method === 'GET' ? req.query?.mode : req.body?.mode) || '';
 
   const cleanId = id.trim().toUpperCase();
   const cleanContact = contact.trim().toLowerCase();
   const cleanDigits = cleanContact.replace(/\D/g, '');
 
-  const isPartner = mode === 'partner' || cleanId.includes('PRT');
-
-  // Both ID and contact proof are strictly required (Fixes C3)
+  // Both ID and contact proof are strictly required
   if (!cleanId || !cleanContact) {
     return sendJson(res, 404, {
       success: false,
-      message: isPartner
-        ? 'No matching wholesale partnership application found.'
-        : 'No matching order found for this tracking ID.'
+      message: 'No matching order found for this tracking ID.'
     });
   }
 
-  if (isPartner) {
-    // Partner lookup: code AND matching contact strictly required (Fixes C3)
-    const pRes = await pool.query(`
-      SELECT application_code, applicant_name, applicant_email, applicant_phone,
-             business_name, business_type, years_in_operation, estimated_weekly_volume,
-             delivery_address, products_of_interest, additional_notes, status, updated_at
-      FROM partner_applications
-      WHERE UPPER(application_code) = $1
-      LIMIT 1;
-    `, [cleanId]);
-
-    if (pRes.rows.length === 0) {
-      return sendJson(res, 404, {
-        success: false,
-        message: 'No matching wholesale partnership application found.'
-      });
-    }
-
-    const p = pRes.rows[0];
-    const emailMatch = p.applicant_email && p.applicant_email.toLowerCase() === cleanContact;
-    const pPhoneDigits = (p.applicant_phone || '').replace(/\D/g, '');
-    const phoneMatch = cleanDigits.length >= 7 && (pPhoneDigits === cleanDigits || pPhoneDigits.endsWith(cleanDigits));
-
-    if (!emailMatch && !phoneMatch) {
-      return sendJson(res, 404, {
-        success: false,
-        message: 'No matching wholesale partnership application found.'
-      });
-    }
-
-    return sendJson(res, 200, {
-      success: true,
-      type: 'partner',
-      partner: {
-        appId: p.application_code,
-        email: p.applicant_email,
-        phone: p.applicant_phone,
-        status: p.status,
-        date: p.updated_at
-          ? new Date(p.updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-          : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-        details: {
-          'owner-name': p.applicant_name,
-          'bakery-name': p.business_name,
-          'business-name': p.business_name,
-          'type': p.business_type,
-          'business-type': p.business_type,
-          email: p.applicant_email,
-          phone: p.applicant_phone,
-          years: p.years_in_operation,
-          volume: p.estimated_weekly_volume,
-          address: p.delivery_address,
-          products: p.products_of_interest || [],
-          notes: p.additional_notes || ''
-        }
-      }
-    });
-  } else {
-    // Order lookup: code AND matching contact strictly required (Fixes C3)
-    const oRes = await pool.query(`
-      SELECT id, order_code, user_id, customer_name, customer_email, customer_contact,
-             delivery_address, delivery_date, delivery_time, special_notes,
-             subtotal_amount, delivery_fee, grand_total, downpayment_required,
-             downpayment_paid, balance_due, payment_method, status, created_at
-      FROM orders
-      WHERE UPPER(order_code) = $1
-      LIMIT 1;
-    `, [cleanId]);
+  // Order lookup: code AND matching contact strictly required
+  const oRes = await pool.query(`
+    SELECT id, order_code, user_id, customer_name, customer_email, customer_contact,
+           delivery_address, delivery_date, delivery_time, special_notes,
+           subtotal_amount, delivery_fee, grand_total, downpayment_required,
+           downpayment_paid, balance_due, payment_method, status, created_at
+    FROM orders
+    WHERE UPPER(order_code) = $1
+    LIMIT 1;
+  `, [cleanId]);
 
     if (oRes.rows.length === 0) {
       return sendJson(res, 404, {
@@ -832,7 +769,6 @@ async function handleTrack(req, res, pool) {
         ...(refundDetails ? { refundDetails } : {})
       }
     });
-  }
 }
 
 // Main Dispatcher

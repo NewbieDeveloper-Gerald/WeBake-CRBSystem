@@ -2,7 +2,7 @@
  * ====================================================================
  * WeBake Admin Portal — Dashboard Command Center & Analytics (admin-dashboard.js)
  * Fully connected to unified backend API (/api/orders/dashboard/stats,
- * /api/orders/all, /api/partner/all, and /api/auth/users/customers).
+ * /api/orders/all, and /api/auth/users/customers).
  * ====================================================================
  */
 
@@ -13,24 +13,20 @@
     try {
       let stats = null;
       let orders = [];
-      let partners = [];
 
       if (window.WeBakeAdminAPI) {
-        const [statsRes, ordersRes, partnersRes] = await Promise.all([
+        const [statsRes, ordersRes] = await Promise.all([
           window.WeBakeAdminAPI.get('/orders/dashboard/stats').catch(() => null),
-          window.WeBakeAdminAPI.get('/orders/all').catch(() => null),
-          window.WeBakeAdminAPI.get('/partner/all').catch(() => null)
+          window.WeBakeAdminAPI.get('/orders/all').catch(() => null)
         ]);
 
         if (statsRes && statsRes.success) stats = statsRes.stats;
         if (ordersRes && ordersRes.success && Array.isArray(ordersRes.orders)) orders = ordersRes.orders;
-        if (partnersRes && partnersRes.success && Array.isArray(partnersRes.partners)) partners = partnersRes.partners;
       }
 
       // Fallback calculation if backend stats endpoint is temporarily unreachable
       if (!stats) {
         orders = orders.length ? orders : (window.WeBakeAdmin?.getOrders() || []);
-        partners = partners.length ? partners : (window.WeBakeAdmin?.getPartners() || []);
         const todayStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
         let totalSalesToday = 0, onlineSalesToday = 0, walkinSalesToday = 0;
@@ -69,7 +65,6 @@
           pendingOrders,
           inProductionOrders,
           pendingRefunds,
-          pendingPartners: partners.filter(p => !p.status || p.status === 'pending').length,
           totalCashReceived,
           totalGCashReceived,
           totalMayaReceived,
@@ -96,9 +91,6 @@
 
       const kpiRefundsEl = document.getElementById('kpi-refunds-count');
       if (kpiRefundsEl) kpiRefundsEl.textContent = stats.pendingRefunds || 0;
-
-      const kpiPartnersEl = document.getElementById('kpi-partners-count');
-      if (kpiPartnersEl) kpiPartnersEl.textContent = stats.pendingPartners || 0;
 
       // Cash Reconciliation Card
       const cashDrawerOpeningEl = document.getElementById('recon-opening-cash');
@@ -132,7 +124,7 @@
 
       // Feeds
       renderRecentOrders(orders);
-      renderActivityFeed(orders, partners);
+      renderActivityFeed(orders);
 
     } catch (err) {
       console.error('[Dashboard Render Error]:', err);
@@ -183,13 +175,13 @@
     }).join('');
   }
 
-  function renderActivityFeed(orders, partners) {
+  function renderActivityFeed(orders) {
     const listEl = document.getElementById('dashboard-activity-list');
     if (!listEl) return;
 
     const events = [];
 
-    orders.slice(0, 4).forEach(o => {
+    orders.slice(0, 5).forEach(o => {
       events.push({
         title: `Order ${o.orderId} placed (${o.paymentMethod || 'Online'})`,
         time: `${o.date || 'Recent'} ${o.time || ''}`,
@@ -206,16 +198,6 @@
           color: 'var(--danger)'
         });
       }
-    });
-
-    partners.slice(0, 2).forEach(p => {
-      events.push({
-        title: `New Reseller application: ${p.businessName || 'Store'}`,
-        time: p.date || 'Recently submitted',
-        icon: 'fas fa-handshake',
-        bg: 'var(--info-bg)',
-        color: 'var(--info)'
-      });
     });
 
     if (events.length === 0) {

@@ -61,10 +61,10 @@ router.post('/register', async (req, res) => {
     const insertUserSql = `
       INSERT INTO users (
         role_id, full_name, email_address, contact_number, password_hash,
-        partner_status, is_active, email_verified_at, created_at, updated_at
+        is_active, email_verified_at, created_at, updated_at
       ) VALUES (
-        1, $1, $2, $3, $4, 'none', TRUE, NOW(), NOW(), NOW()
-      ) RETURNING id, role_id, full_name, email_address, contact_number, partner_status, created_at;
+        1, $1, $2, $3, $4, TRUE, NOW(), NOW(), NOW()
+      ) RETURNING id, role_id, full_name, email_address, contact_number, created_at;
     `;
     const userRes = await client.query(insertUserSql, [
       cleanName,
@@ -100,7 +100,6 @@ router.post('/register', async (req, res) => {
         email: newUser.email_address,
         contact: newUser.contact_number,
         address: cleanAddress,
-        partnerStatus: newUser.partner_status || 'none',
         savedCart: [],
         orderHistory: []
       }
@@ -139,7 +138,7 @@ router.post('/login', async (req, res) => {
     const userQuery = `
       SELECT u.id, u.role_id, r.role_name, r.display_title,
              u.full_name, u.email_address, u.contact_number,
-             u.password_hash, u.partner_status, u.is_active, u.saved_cart,
+             u.password_hash, u.is_active, u.saved_cart,
              a.address_line1 AS address
       FROM users u
       JOIN roles r ON u.role_id = r.id
@@ -239,51 +238,6 @@ router.post('/login', async (req, res) => {
       }));
     }
 
-    // 6. Check partner application status
-    let partnerStatus = user.partner_status || 'none';
-    let partnerAppId = null;
-    let partnerDetails = null;
-
-    try {
-      const partnerRes = await db.query(
-        `SELECT application_code, business_name, business_type, years_in_operation,
-                estimated_weekly_volume, delivery_address, products_of_interest, additional_notes, status,
-                admin_notes
-         FROM partner_applications
-         WHERE user_id = $1 OR LOWER(applicant_email) = $2
-         ORDER BY updated_at DESC, id DESC 
-         LIMIT 1;`,
-        [user.id, cleanEmail]
-      );
-      if (partnerRes.rows.length > 0) {
-        const app = partnerRes.rows[0];
-        if (user.partner_status === 'cancelled' || user.partner_status === 'none') {
-          partnerStatus = user.partner_status;
-        } else {
-          partnerStatus = app.status;
-        }
-        partnerAppId = app.application_code;
-        partnerDetails = {
-          'business-name': app.business_name,
-          'bakery-name': app.business_name,
-          'business-type': app.business_type,
-          'type': app.business_type,
-          'owner-name': user.full_name,
-          email: user.email_address,
-          phone: user.contact_number,
-          years: app.years_in_operation,
-          volume: app.estimated_weekly_volume,
-          address: app.delivery_address,
-          products: app.products_of_interest || [],
-          notes: app.additional_notes || '',
-          adminNotes: app.admin_notes || '',
-          staffNotes: app.admin_notes || ''
-        };
-      }
-    } catch (e) {
-      console.warn('[Partner App Login Query Warning]:', e.message);
-    }
-
     return res.status(200).json({
       success: true,
       message: `Welcome back, ${user.full_name}!`,
@@ -296,9 +250,6 @@ router.post('/login', async (req, res) => {
         role: user.role_name || 'customer',
         roleTitle: user.display_title || 'Customer',
         roleId: user.role_id,
-        partnerStatus: partnerStatus,
-        partnerAppId: partnerAppId,
-        partnerDetails: partnerDetails,
         savedCart: user.saved_cart || [],
         orderHistory: orderHistory
       }
@@ -398,7 +349,7 @@ router.all('/check', async (req, res) => {
 
 /**
  * GET or POST /api/auth/sync
- * Returns fresh user profile, partner status, and order history
+ * Returns fresh user profile and order history
  */
 router.all('/sync', async (req, res) => {
   try {
@@ -415,7 +366,7 @@ router.all('/sync', async (req, res) => {
     const userRes = await db.query(`
       SELECT u.id, u.role_id, r.role_name, r.display_title,
              u.full_name, u.email_address, u.contact_number,
-             u.partner_status, u.is_active, u.saved_cart,
+             u.is_active, u.saved_cart,
              a.address_line1 AS address
       FROM users u
       JOIN roles r ON u.role_id = r.id
@@ -487,50 +438,6 @@ router.all('/sync', async (req, res) => {
       }));
     }
 
-    let partnerStatus = user.partner_status || 'none';
-    let partnerAppId = null;
-    let partnerDetails = null;
-
-    try {
-      const partnerRes = await db.query(
-        `SELECT application_code, business_name, business_type, years_in_operation,
-                estimated_weekly_volume, delivery_address, products_of_interest, additional_notes, status,
-                admin_notes
-         FROM partner_applications
-         WHERE user_id = $1 OR LOWER(applicant_email) = $2
-         ORDER BY updated_at DESC, id DESC 
-         LIMIT 1;`,
-        [user.id, cleanEmail]
-      );
-      if (partnerRes.rows.length > 0) {
-        const app = partnerRes.rows[0];
-        if (user.partner_status === 'cancelled' || user.partner_status === 'none') {
-          partnerStatus = user.partner_status;
-        } else {
-          partnerStatus = app.status;
-        }
-        partnerAppId = app.application_code;
-        partnerDetails = {
-          'business-name': app.business_name,
-          'bakery-name': app.business_name,
-          'business-type': app.business_type,
-          'type': app.business_type,
-          'owner-name': user.full_name,
-          email: user.email_address,
-          phone: user.contact_number,
-          years: app.years_in_operation,
-          volume: app.estimated_weekly_volume,
-          address: app.delivery_address,
-          products: app.products_of_interest || [],
-          notes: app.additional_notes || '',
-          adminNotes: app.admin_notes || '',
-          staffNotes: app.admin_notes || ''
-        };
-      }
-    } catch (e) {
-      console.warn('[Partner App Sync Query Warning]:', e.message);
-    }
-
     return res.status(200).json({
       success: true,
       user: {
@@ -542,9 +449,6 @@ router.all('/sync', async (req, res) => {
         role: user.role_name || 'customer',
         roleTitle: user.display_title || 'Customer',
         roleId: user.role_id,
-        partnerStatus: partnerStatus,
-        partnerAppId: partnerAppId,
-        partnerDetails: partnerDetails,
         savedCart: user.saved_cart || [],
         orderHistory: orderHistory
       }
@@ -567,13 +471,13 @@ router.get('/users/customers', async (req, res) => {
   try {
     const q = `
       SELECT u.id, u.full_name AS name, u.email_address AS email, u.contact_number AS contact,
-             u.partner_status, u.created_at,
+             u.created_at,
              COUNT(DISTINCT o.id) AS total_orders,
              COALESCE(SUM(CASE WHEN o.status NOT IN ('cancelled', 'refunded') THEN o.grand_total ELSE 0 END), 0) AS lifetime_value
       FROM users u
       LEFT JOIN orders o ON (o.user_id = u.id OR LOWER(o.customer_email) = LOWER(u.email_address))
       WHERE u.role_id = 1
-      GROUP BY u.id, u.full_name, u.email_address, u.contact_number, u.partner_status, u.created_at
+      GROUP BY u.id, u.full_name, u.email_address, u.contact_number, u.created_at
       ORDER BY lifetime_value DESC;
     `;
     const { rows } = await db.query(q);
@@ -584,7 +488,6 @@ router.get('/users/customers', async (req, res) => {
         name: r.name,
         email: r.email,
         contact: r.contact,
-        partnerStatus: r.partner_status,
         totalOrders: parseInt(r.total_orders || 0, 10),
         lifetimeValue: parseFloat(r.lifetime_value || 0),
         createdAt: r.created_at

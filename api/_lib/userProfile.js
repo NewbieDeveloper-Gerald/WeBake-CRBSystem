@@ -1,7 +1,7 @@
 /**
  * ====================================================================
  * WeBake - User Profile & Data Aggregator Helper (userProfile.js)
- * Shared profile, orders history, and partner application data mapping
+ * Shared profile and orders history data mapping
  * Consolidates duplicate logic across login and session endpoints
  * ====================================================================
  */
@@ -10,7 +10,7 @@ async function fetchUserProfile(pool, userId, cleanEmail) {
   // 1. Fetch user base data with default address
   const userQuery = `
     SELECT u.id, u.role_id, r.role_name, u.full_name, u.email_address, u.contact_number,
-           u.partner_status, u.is_active, u.saved_cart,
+           u.is_active, u.saved_cart,
            a.address_line1 AS address
     FROM users u
     LEFT JOIN roles r ON r.id = u.role_id
@@ -84,55 +84,12 @@ async function fetchUserProfile(pool, userId, cleanEmail) {
     }));
   }
 
-  // 3. Fetch wholesale partner application details
-  let partnerStatus = user.partner_status || 'none';
-  let partnerAppId = null;
-  let partnerDetails = null;
-
-  try {
-    const partnerRes = await pool.query(
-      `SELECT application_code, business_name, business_type, years_in_operation,
-              estimated_weekly_volume, delivery_address, products_of_interest, additional_notes, status
-       FROM partner_applications
-       WHERE user_id = $1 OR LOWER(applicant_email) = $2
-       ORDER BY 
-         CASE WHEN status IN ('pending', 'under_review', 'approved') THEN 1 ELSE 2 END ASC,
-         id DESC 
-       LIMIT 1;`,
-      [user.id, user.email_address.toLowerCase()]
-    );
-    if (partnerRes.rows.length > 0) {
-      const app = partnerRes.rows[0];
-      partnerStatus = app.status;
-      partnerAppId = app.application_code;
-      partnerDetails = {
-        'business-name': app.business_name,
-        'bakery-name': app.business_name,
-        'business-type': app.business_type,
-        'type': app.business_type,
-        'owner-name': user.full_name,
-        email: user.email_address,
-        phone: user.contact_number,
-        years: app.years_in_operation,
-        volume: app.estimated_weekly_volume,
-        address: app.delivery_address,
-        products: app.products_of_interest || [],
-        notes: app.additional_notes || ''
-      };
-    }
-  } catch (e) {
-    console.warn('[Partner Application Query Warning]:', e.message);
-  }
-
   return {
     id: user.id,
     name: user.full_name,
     email: user.email_address,
     contact: user.contact_number,
     address: user.address || '',
-    partnerStatus: partnerStatus,
-    partnerAppId: partnerAppId,
-    partnerDetails: partnerDetails,
     savedCart: user.saved_cart || [],
     orderHistory: orderHistory
   };

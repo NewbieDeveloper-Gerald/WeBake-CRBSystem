@@ -40,21 +40,6 @@
 .status-pending { background: #fff3cd; color: #856404; }
 .status-cancelled { background: #f8d7da; color: #721c24; }
 
-/* Partnership Badge */
-.partner-badge { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1.25rem; border-radius: 20px; font-weight: 600; font-size: 0.9rem; }
-.badge-none { background: var(--light); color: var(--gray); }
-.badge-pending { background: #fff3cd; color: #856404; }
-.badge-reviewing,
-.badge-under_review { background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; }
-.badge-active { background: #d4edda; color: #155724; }
-.badge-priority-partner { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; font-weight: 700; box-shadow: 0 1px 3px rgba(217, 119, 6, 0.12); }
-.badge-rejected { background: #f8d7da; color: #721c24; }
-.badge-cancelled { background: #fee2e2; color: #991b1b; }
-.partner-locked-note { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.6rem 0.9rem; font-size: 0.82rem; color: #475569; display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
-.partner-cta { font-size: 0.85rem; color: var(--gray); }
-.partner-cta a { color: var(--primary); font-weight: 600; text-decoration: none; }
-.partner-cta a:hover { color: var(--accent); }
-
 /* Responsive */
 @media (max-width: 768px) {
   .dashboard-grid { grid-template-columns: 1fr; }

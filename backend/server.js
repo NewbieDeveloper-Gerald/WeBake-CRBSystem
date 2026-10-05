@@ -13,7 +13,6 @@ const db = require('./database/db');
 const otpRoutes = require('./routes/otpRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const productRoutes = require('./routes/productRoutes');
-const partnerRoutes = require('./routes/partnerRoutes');
 const authRoutes = require('./routes/authRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
@@ -62,7 +61,6 @@ app.get('/api/health', async (req, res) => {
 app.use('/api/otp', otpRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/products', productRoutes);
-app.use('/api/partner', partnerRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/settings', settingsRoutes);

@@ -166,22 +166,12 @@
       </form>
     </div>
 
-    <!-- TRACK TRANSACTIONS MODAL -->
-    <div class="modal" id="track-order-modal" style="z-index:3001;padding:2rem;max-width:560px;width:92%;max-height:90vh;overflow-y:auto;">
+    <!-- TRACK ORDERS MODAL -->
+    <div class="modal" id="track-order-modal" style="z-index:3001;padding:2rem;max-width:540px;width:92%;max-height:90vh;overflow-y:auto;">
       <button class="modal-close" data-auth-close>&times;</button>
       <div style="text-align:center;margin-bottom:0.75rem;"><img src="../img/webake-logo.png" alt="WeBake" style="height:36px;width:auto;object-fit:contain;"></div>
-      <h3 class="auth-modal-title" style="margin-bottom:0.25rem;"><i class="fas fa-search-dollar"></i> Track Transactions</h3>
-      <p class="auth-modal-subtitle" style="margin-bottom:1.25rem;">Look up bread delivery orders, 50% downpayments, refunds, or wholesale partnership applications in real-time.</p>
-      
-      <!-- Track Mode Tabs -->
-      <div class="track-tab-wrap">
-        <button type="button" class="btn btn-sm track-tab-btn active" id="tab-btn-orders">
-          <i class="fas fa-bread-slice"></i> <span>Bread Orders</span>
-        </button>
-        <button type="button" class="btn btn-sm track-tab-btn" id="tab-btn-partner">
-          <i class="fas fa-handshake"></i> <span>Partnership Applications</span>
-        </button>
-      </div>
+      <h3 class="auth-modal-title" style="margin-bottom:0.25rem;"><i class="fas fa-truck-fast"></i> Track Your Order</h3>
+      <p class="auth-modal-subtitle" style="margin-bottom:1.25rem;">Enter your Order Reference ID and phone/email to check real-time baking and delivery status.</p>
 
       <form id="track-order-form" style="margin-bottom:1rem;">
         <input type="hidden" id="track-type-mode" value="order">
@@ -288,7 +278,7 @@
     },
 
     // Open tracking modal helper
-    openTracking(id = '', contact = '', mode = 'order') {
+    openTracking(id = '', contact = '') {
       this.open('track-order-modal');
       const idInput = document.getElementById('track-input-id');
       const contactInput = document.getElementById('track-input-contact');
@@ -299,10 +289,6 @@
       if (resultContainer) {
         resultContainer.style.display = 'none';
         resultContainer.innerHTML = '';
-      }
-
-      if (typeof window.setTrackTab === 'function') {
-        window.setTrackTab(mode);
       }
 
       if (id && idInput) idInput.value = id;
@@ -396,32 +382,6 @@
         closeConfirm();
         if (typeof onConfirm === 'function') onConfirm();
       });
-    },
-
-    // Confirm Cancel Partner Request Prompt (Preserves #cancel-partner-modal ID for tests & callers)
-    confirmCancelPartner({ onConfirm }) {
-      document.getElementById('cancel-partner-modal')?.remove();
-
-      const modalHtml = `
-        <div id="cancel-partner-modal" class="overlay active" style="z-index:999999;">
-          <div class="modal active" style="max-width:400px; text-align:center; padding: 2rem; background:#fff; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
-            <h3 style="color:#dc3545; margin-bottom:1rem;"><i class="fas fa-exclamation-triangle"></i> Cancel Application</h3>
-            <p style="margin-bottom:1.5rem; color:#555; font-size:0.9rem;">Are you sure you want to cancel your partnership request? This action cannot be undone.</p>
-            <div style="display:flex; justify-content:center; gap:1rem;">
-              <button id="cancel-modal-no" class="btn btn-outline" type="button">No, Keep It</button>
-              <button id="cancel-modal-yes" class="btn btn-primary" type="button" style="background:#dc3545; border-color:#dc3545;">Yes, Cancel Request</button>
-            </div>
-          </div>
-        </div>
-      `;
-      document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-      const closeDialog = () => document.getElementById('cancel-partner-modal')?.remove();
-      document.getElementById('cancel-modal-no')?.addEventListener('click', closeDialog);
-      document.getElementById('cancel-modal-yes')?.addEventListener('click', () => {
-        closeDialog();
-        if (typeof onConfirm === 'function') onConfirm();
-      });
     }
   };
 
@@ -435,7 +395,6 @@
         WeBakeModals.closeAll();
         document.getElementById('webake-confirm-modal')?.remove();
         document.getElementById('confirm-refund-modal')?.remove();
-        document.getElementById('cancel-partner-modal')?.remove();
         document.getElementById('cancel-order-modal-wrap')?.remove();
       }
     });
@@ -487,7 +446,7 @@
   window.WeBakeModals = WeBakeModals;
   window.openAuthModal = (id) => WeBakeModals.open(id);
   window.closeAuthModals = () => WeBakeModals.closeAll();
-  window.openTrackOrderModal = (id, contact, mode) => WeBakeModals.openTracking(id, contact, mode);
+  window.openTrackOrderModal = (id, contact) => WeBakeModals.openTracking(id, contact);
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {

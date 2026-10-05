@@ -60,7 +60,6 @@
         localStorage.removeItem(USERS_KEY);
         localStorage.removeItem(SESSION_KEY);
         localStorage.removeItem('weBakeAllOrders');
-        localStorage.removeItem('weBakePartnerApplications');
         localStorage.removeItem('_weBakeOtpTimer');
         localStorage.removeItem('weBakeOtpTimer');
         localStorage.setItem(MIGRATION_KEY, 'true');
@@ -73,7 +72,6 @@
     localStorage.removeItem(USERS_KEY);
     localStorage.removeItem(SESSION_KEY);
     localStorage.removeItem('weBakeAllOrders');
-    localStorage.removeItem('weBakePartnerApplications');
     window.location.reload();
   };
 
@@ -127,10 +125,7 @@
         email: normalizeEmail(user.email),
         role: user.role || 'customer',
         roleId: user.roleId || 1,
-        roleTitle: user.roleTitle || 'Customer',
-        partnerStatus: user.partnerStatus || 'none',
-        partnerAppId: user.partnerAppId || null,
-        partnerDetails: user.partnerDetails || null
+        roleTitle: user.roleTitle || 'Customer'
       }));
       try { window.dispatchEvent(new CustomEvent('weBakeAuthChange')); } catch (e) {}
     },
@@ -428,10 +423,6 @@
       if (db) db.innerHTML = `<a href="#" class="btn btn-outline btn-sm">Sign In</a><a href="#" class="btn btn-primary btn-sm">Register</a>`;
       if (mb) mb.innerHTML = `<a href="#" class="btn btn-outline btn-sm auth-mobile-btn">Sign In</a><a href="#" class="btn btn-primary btn-sm auth-mobile-btn">Register</a>`;
     }
-
-    if (typeof window.syncPartnerFormState === 'function') {
-      try { window.syncPartnerFormState(); } catch (e) {}
-    }
   }
 
   function autoFillCheckoutForm() {
@@ -609,8 +600,7 @@
         contact,
         address,
         savedCart: [],
-        orderHistory: [],
-        partnerStatus: 'none'
+        orderHistory: []
       };
 
       // Reset OTP modal inputs

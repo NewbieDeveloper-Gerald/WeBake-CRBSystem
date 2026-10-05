@@ -10,7 +10,7 @@
 ![Node.js](https://img.shields.io/badge/Node.js-18.x%20%7C%2020.x-339933?style=flat&logo=node.js)
 ![Status](https://img.shields.io/badge/Tests-97%2F97%20Passed-brightgreen?style=flat)
 
-**WeBake (CRBSystem)** is a bakery e-commerce, wholesale distribution, and order tracking platform developed for **Crumbs N' Rolls Bakery** (Marilao, Bulacan). The system handles wholesale and retail bakery ordering, multi-channel e-wallet payments (GCash, PayMaya), downpayment validation, live order status tracking, digital receipts, wholesale reseller applications, and customer order management.
+**WeBake (CRBSystem)** is a bakery e-commerce and order tracking platform developed for **Crumbs N' Rolls Bakery** (Marilao, Bulacan). The system handles bakery ordering, multi-channel e-wallet payments (GCash, PayMaya), downpayment validation, live order status tracking, digital receipts, cancellation and refund management, and customer order management.
 
 The platform is designed to run entirely on **Vercel Serverless Functions** backed by **Supabase PostgreSQL**, adhering strictly to the Vercel Hobby tier function constraints ($\le 12$ serverless functions) with complete enterprise-grade security hardening.
 
@@ -55,9 +55,9 @@ The platform is designed to run entirely on **Vercel Serverless Functions** back
 * **Digital Receipt Resending**: Sends rich HTML receipts directly from the verified database record via Nodemailer. Protected by hourly rate-limiting (max 3 resends per hour per order).
 * **Controlled Order Cancellation**: Cancellation requests insert records directly into the `cancellation_requests` database table. Cancellations are restricted to `pending` and `downpayment_confirmed` orders; orders already baking or delivered cannot be cancelled.
 
-### 5. Wholesale / Reseller Partnership Hub
-* **Partner Onboarding**: Dedicated application workflow for businesses, sari-sari stores, and regional resellers.
-* **Application Integrity**: Generates unique reference codes (`WB-PRT-XXXXX`) with collision retries, protects approved partners from being downgraded, and prevents unauthorized application overwrites.
+### 5. Order Management & Refund Processing
+* **Cancellation & Downpayment Refund Workflow**: Streamlined customer cancellation request workflow with staff verification and refund tracking.
+* **Audit Trail**: Every order and cancellation request has full lifecycle timestamps and payment verification logs.
 
 ### 6. Dynamic Cart Synchronization
 * **Guest & Cloud Cart Merge**: When a guest shopper adds items and later logs in, `mergeCarts()` merges their guest selections with their saved database cart by product ID, summing quantities and capping items up to 99 pieces.
@@ -114,7 +114,7 @@ WeBake-CRBSystem/
 │   │   ├── db.js                       # PostgreSQL connection pooling with SSL
 │   │   ├── http.js                     # CORS, JSON response, and sanitized error handlers
 │   │   ├── session.js                  # HMAC-SHA256 session and OTP proof tokens
-│   │   └── userProfile.js              # Aggregated profile, orders, and partner loader
+│   │   └── userProfile.js              # Aggregated profile and order history loader
 │   ├── auth/
 │   │   ├── check.js                    # Email availability checker
 │   │   ├── login.js                    # Authenticates user and sets session cookie
@@ -127,8 +127,6 @@ WeBake-CRBSystem/
 │   │   └── index.js                    # Create, track, cancel, and resend receipt handlers
 │   ├── otp/
 │   │   └── index.js                    # OTP generator, Nodemailer mailer, and proof-token verifier
-│   ├── partner/
-│   │   └── index.js                    # Wholesale partner application management
 │   ├── products/
 │   │   └── index.js                    # Authoritative catalog reader and store settings
 │   └── health.js                       # Service status and database latency monitor
@@ -145,12 +143,11 @@ WeBake-CRBSystem/
 │   │   ├── auth.css                    # Authentication & OTP modals styling
 │   │   ├── main.css                    # Base theme, typography, layout, and components
 │   │   ├── responsive.css              # Mobile, tablet, and desktop responsive breakpoints
-│   │   └── tracking.css                # Order timeline and partner tracking cards
+│   │   └── tracking.css                # Order timeline and receipt styling
 │   ├── html/
 │   │   ├── home.html                   # Landing page, hero, product highlights, and reviews
 │   │   ├── products.html               # Product catalog, bundle selector, and cart drawer
-│   │   ├── dashboard.html              # Customer portal (order history, saved cart, refunds)
-│   │   └── partner.html                # Wholesale reseller application portal
+│   │   └── dashboard.html              # Customer portal (order history, saved cart, profile)
 │   ├── js/
 │   │   ├── config.js                   # Central frozen configuration (WEBAKE_CONFIG)
 │   │   ├── utils.js                    # Sanitization, XSS escaping, and currency formatters
@@ -158,8 +155,7 @@ WeBake-CRBSystem/
 │   │   ├── dashboard.js                # Customer account dashboard controller
 │   │   ├── main.js                     # Core catalog, cart drawer, and checkout handler
 │   │   ├── otp.js                      # OTP modal interaction and resend timers
-│   │   ├── partner.js                  # Wholesale application form submission
-│   │   └── tracking.js                 # Transaction lookup for orders and partner apps
+│   │   └── tracking.js                 # Transaction lookup for orders
 │   └── images/                         # Bakery product images, banners, and icons
 │
 ├── scratch/                            # Automated Acceptance Verification Test Suites
@@ -190,10 +186,9 @@ WeBake-CRBSystem/
 | `POST` | `/api/otp/verify` | No | Verifies code and issues 10-minute HMAC proof token |
 | `GET/POST`| `/api/cart/sync` | Session Cookie | Reads and persists saved cart items for authenticated customer |
 | `POST` | `/api/orders` | Session or Proof | Places a new order with server pricing and idempotency check |
-| `GET` | `/api/orders/track` | Proof of Ownership| Looks up order/partner record by ID + matching email/phone |
+| `GET` | `/api/orders/track` | Proof of Ownership| Looks up order record by Order ID + matching email/phone |
 | `POST` | `/api/orders/cancel` | Matching Owner | Requests cancellation & downpayment refund for pending order |
 | `POST` | `/api/orders/receipt`| Matching Owner | Resends digital order receipt (rate limited to 3/hr) |
-| `POST` | `/api/partner` | No (Protected) | Submits or updates wholesale reseller partnership application |
 
 ---
 
@@ -205,7 +200,6 @@ The system uses PostgreSQL running on Supabase with the following primary relati
 erDiagram
     users ||--o{ orders : places
     users ||--o{ user_addresses : has
-    users ||--o{ partner_applications : submits
     roles ||--o{ users : assigns
     categories ||--o{ products : categorizes
     products ||--o{ product_bundles : packages
@@ -220,7 +214,6 @@ erDiagram
         string password_hash
         string contact_number
         jsonb saved_cart
-        string partner_status
     }
 
     orders {
@@ -329,7 +322,7 @@ node scratch/test_phase4_5.js
 
 ### Test Gate Coverage:
 * **24 / 24 Tests Passed**: PBKDF2 upgrades, timing-safe verification, proof token purposes, session cookies, tracking authorization, and cancellation table rows.
-* **24 / 24 Tests Passed**: Live catalog loading, unknown product rejection, price tampering immunity, idempotency deduplication, receipt resend rate limiting (429), and partner integrity.
+* **24 / 24 Tests Passed**: Live catalog loading, unknown product rejection, price tampering immunity, idempotency deduplication, and receipt resend rate limiting (429).
 * **49 / 49 Tests Passed**: Health endpoint contract, authenticated cart sync, guest cart merge logic, zero plaintext passwords, XSS entity escaping, central config validation, CSP security headers, and Vercel serverless function budget ($\le 12$).
 
 ---

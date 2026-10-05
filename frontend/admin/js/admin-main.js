@@ -13,7 +13,6 @@
     ORDERS: 'weBakeAllOrders',
     PRODUCTS: 'weBakeProducts',
     INVENTORY: 'weBakeInventory',
-    PARTNERS: 'weBakePartnerApplications',
     USERS: 'weBakeUsers',
     SETTINGS: 'weBakeSettings',
     CASH_RECON: 'weBakeCashReconciliation',
@@ -107,23 +106,6 @@
       dispatchLocalUpdate('inventory');
     } catch (e) {
       console.error('Failed to save inventory:', e);
-    }
-  }
-
-  function getPartners() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEYS.PARTNERS) || '[]');
-    } catch (e) {
-      return [];
-    }
-  }
-
-  function savePartners(partners) {
-    try {
-      localStorage.setItem(STORAGE_KEYS.PARTNERS, JSON.stringify(partners));
-      dispatchLocalUpdate('partners');
-    } catch (e) {
-      console.error('Failed to save partner applications:', e);
     }
   }
 
@@ -237,11 +219,6 @@
             refundsBadge.textContent = s.pendingRefunds || 0;
             refundsBadge.style.display = (s.pendingRefunds > 0) ? 'inline-block' : 'none';
           }
-          const partnersBadge = document.getElementById('sidebar-partners-badge');
-          if (partnersBadge) {
-            partnersBadge.textContent = s.pendingPartners || 0;
-            partnersBadge.style.display = (s.pendingPartners > 0) ? 'inline-block' : 'none';
-          }
           return;
         }
       }
@@ -252,8 +229,6 @@
     const orders = getOrders();
     const pendingDownpayments = orders.filter(o => o.status === 'pending').length;
     const pendingRefunds = orders.filter(o => o.status === 'cancellation_requested').length;
-    const partners = getPartners();
-    const pendingPartners = partners.filter(p => !p.status || p.status === 'pending').length;
 
     const ordersBadge = document.getElementById('sidebar-orders-badge');
     if (ordersBadge) {
@@ -265,12 +240,6 @@
     if (refundsBadge) {
       refundsBadge.textContent = pendingRefunds;
       refundsBadge.style.display = pendingRefunds > 0 ? 'inline-block' : 'none';
-    }
-
-    const partnersBadge = document.getElementById('sidebar-partners-badge');
-    if (partnersBadge) {
-      partnersBadge.textContent = pendingPartners;
-      partnersBadge.style.display = pendingPartners > 0 ? 'inline-block' : 'none';
     }
   }
 
@@ -324,8 +293,6 @@
     saveProducts,
     getInventory,
     saveInventory,
-    getPartners,
-    savePartners,
     getSettings,
     saveSettings,
     getCashRecon,

@@ -28,7 +28,7 @@ module.exports = async function handler(req, res) {
     // 1. Query user by email
     const userQuery = `
       SELECT u.id, u.role_id, r.role_name, u.full_name, u.email_address, u.contact_number,
-             u.password_hash, u.partner_status, u.is_active
+             u.password_hash, u.is_active
       FROM users u
       LEFT JOIN roles r ON r.id = u.role_id
       WHERE LOWER(u.email_address) = $1

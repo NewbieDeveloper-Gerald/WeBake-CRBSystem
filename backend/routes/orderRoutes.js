@@ -202,13 +202,9 @@ router.get('/all', async (req, res) => {
         o.delivery_address, o.delivery_date, o.delivery_time, o.special_notes,
         o.subtotal_amount, o.delivery_fee, o.grand_total,
         o.downpayment_required, o.downpayment_paid, o.balance_due,
-        o.payment_method, o.status, o.created_at, o.updated_at,
-        COALESCE(u.partner_status, 'none') AS user_partner_status
+        o.payment_method, o.status, o.created_at, o.updated_at
       FROM orders o
-      LEFT JOIN users u ON (o.user_id = u.id OR LOWER(o.customer_email) = LOWER(u.email_address))
-      ORDER BY 
-        CASE WHEN COALESCE(u.partner_status, 'none') IN ('active', 'approved') THEN 0 ELSE 1 END ASC,
-        o.created_at DESC;
+      ORDER BY o.created_at DESC;
     `);
 
     const orderRows = ordersRes.rows;
@@ -257,12 +253,10 @@ router.get('/all', async (req, res) => {
                        (o.delivery_address && (o.delivery_address.toLowerCase().includes('walk-in') || o.delivery_address.toLowerCase().includes('counter')));
       const p = paymentsMap[o.id] || {};
       const dateObj = new Date(o.created_at);
-      const isPriority = o.user_partner_status === 'active' || o.user_partner_status === 'approved';
 
       return {
         id: o.id,
         orderId: o.order_code,
-        isPriorityPartner: isPriority,
         customer: {
           name: o.customer_name,
           email: o.customer_email,
@@ -322,13 +316,8 @@ router.get('/dashboard/stats', async (req, res) => {
       WHERE verification_status = 'verified';
     `);
 
-    const partnersRes = await db.query(`
-      SELECT COUNT(id) AS pending_partners FROM partner_applications WHERE status IN ('pending', 'under_review');
-    `);
-
     const stats = statsRes.rows[0];
     const pays = paymentsRes.rows[0];
-    const pendingPartners = parseInt(partnersRes.rows[0]?.pending_partners || 0, 10);
 
     const salesToday = parseFloat(stats.sales_today || 0);
     const walkinSalesToday = parseFloat(stats.walkin_sales_today || 0);
@@ -343,7 +332,6 @@ router.get('/dashboard/stats', async (req, res) => {
         pendingOrders: parseInt(stats.pending_orders || 0, 10),
         inProductionOrders: parseInt(stats.in_production_orders || 0, 10),
         pendingRefunds: parseInt(stats.pending_refunds || 0, 10),
-        pendingPartners,
         totalCashReceived: parseFloat(pays.cash_received || 0),
         totalGCashReceived: parseFloat(pays.gcash_received || 0),
         totalMayaReceived: parseFloat(pays.maya_received || 0),
@@ -663,6 +651,137 @@ router.post('/cancellations/:id/decline', async (req, res) => {
     return res.status(500).json({ success: false, message: 'Failed to decline refund: ' + err.message });
   } finally {
     client.release();
+  }
+});
+
+/**
+ * GET or POST /api/orders/track
+ * Looks up order tracking details by Order Code + matching email/phone
+ */
+router.all('/track', async (req, res) => {
+  try {
+    const id = (req.method === 'GET' ? req.query?.id : req.body?.id) || '';
+    const contact = (req.method === 'GET' ? req.query?.contact : req.body?.contact) || '';
+
+    const cleanId = id.trim().toUpperCase();
+    const cleanContact = contact.trim().toLowerCase();
+    const cleanDigits = cleanContact.replace(/\D/g, '');
+
+    if (!cleanId || !cleanContact) {
+      return res.status(404).json({
+        success: false,
+        message: 'No matching order found for this tracking ID.'
+      });
+    }
+
+    const oRes = await db.query(`
+      SELECT id, order_code, user_id, customer_name, customer_email, customer_contact,
+             delivery_address, delivery_date, delivery_time, special_notes,
+             subtotal_amount, delivery_fee, grand_total, downpayment_required,
+             downpayment_paid, balance_due, payment_method, status, created_at
+      FROM orders
+      WHERE UPPER(order_code) = $1
+      LIMIT 1;
+    `, [cleanId]);
+
+    if (oRes.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No matching order found for this tracking ID.'
+      });
+    }
+
+    const o = oRes.rows[0];
+    const emailMatch = o.customer_email && o.customer_email.toLowerCase() === cleanContact;
+    const oPhoneDigits = (o.customer_contact || '').replace(/\D/g, '');
+    const phoneMatch = cleanDigits.length >= 7 && (oPhoneDigits === cleanDigits || oPhoneDigits.endsWith(cleanDigits));
+
+    if (!emailMatch && !phoneMatch) {
+      return res.status(404).json({
+        success: false,
+        message: 'No matching order found for this tracking ID.'
+      });
+    }
+
+    const itemsRes = await db.query(`
+      SELECT product_name, pieces_per_bundle, unit_price, quantity, total_price
+      FROM order_items
+      WHERE order_id = $1
+      ORDER BY id ASC;
+    `, [o.id]);
+
+    const items = itemsRes.rows.map(it => ({
+      name: it.product_name,
+      pieces: it.pieces_per_bundle,
+      price: parseFloat(it.unit_price),
+      qty: it.quantity,
+      min: it.pieces_per_bundle,
+      total: parseFloat(it.total_price)
+    }));
+
+    const paymentsRes = await db.query(`
+      SELECT reference_number
+      FROM payments
+      WHERE order_id = $1
+      ORDER BY id DESC
+      LIMIT 1;
+    `, [o.id]);
+    const refNo = paymentsRes.rows[0]?.reference_number || '';
+
+    const cancelRes = await db.query(`
+      SELECT reason, refund_channel, refund_account_name, refund_account_number, eligible_refund_amount, status, created_at
+      FROM cancellation_requests
+      WHERE order_id = $1
+      LIMIT 1;
+    `, [o.id]);
+
+    let refundDetails = null;
+    if (cancelRes.rows.length > 0) {
+      const c = cancelRes.rows[0];
+      refundDetails = {
+        reason: c.reason,
+        wallet: c.refund_channel,
+        accountName: c.refund_account_name,
+        accountNum: c.refund_account_number,
+        amount: parseFloat(c.eligible_refund_amount),
+        status: c.status,
+        requestedAt: new Date(c.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+      };
+    }
+
+    return res.status(200).json({
+      success: true,
+      type: 'order',
+      order: {
+        id: o.id,
+        orderId: o.order_code,
+        date: new Date(o.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+        total: parseFloat(o.grand_total),
+        downpayment: parseFloat(o.downpayment_required),
+        balance: parseFloat(o.balance_due),
+        paymentMethod: o.payment_method,
+        referenceNumber: refNo,
+        status: o.status,
+        customer: {
+          name: o.customer_name,
+          email: o.customer_email,
+          contact: o.customer_contact,
+          address: o.delivery_address,
+          deliveryDate: o.delivery_date,
+          deliveryTime: o.delivery_time,
+          notes: o.special_notes
+        },
+        items: items,
+        ...(refundDetails ? { refundDetails } : {})
+      }
+    });
+
+  } catch (error) {
+    console.error('[Track Order Route Error]:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve order tracking information.'
+    });
   }
 });
 

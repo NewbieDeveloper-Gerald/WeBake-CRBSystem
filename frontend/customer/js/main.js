@@ -791,7 +791,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Universal delegated handler for any inline "sign in" links across all pages
   document.addEventListener('click', (e) => {
-    const inlineSignIn = e.target.closest('#checkout-inline-signin, #checkout-inline-signin2, #partner-inline-signin-link, #partner-inline-signin-link2, .inline-signin-trigger');
+    const inlineSignIn = e.target.closest('#checkout-inline-signin, #checkout-inline-signin2, .inline-signin-trigger');
     if (inlineSignIn) {
       e.preventDefault();
       e.stopPropagation();
@@ -811,7 +811,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Prevent mousedown on inline signin links from triggering blur on input fields
   document.addEventListener('mousedown', (e) => {
-    if (e.target.closest('#checkout-inline-signin, #checkout-inline-signin2, #partner-inline-signin-link, #partner-inline-signin-link2, .inline-signin-trigger')) {
+    if (e.target.closest('#checkout-inline-signin, #checkout-inline-signin2, .inline-signin-trigger')) {
       e.preventDefault();
     }
   });

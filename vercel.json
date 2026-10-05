@@ -47,10 +47,6 @@
       "destination": "/api/otp?action=:action"
     },
     {
-      "source": "/api/partner/:action",
-      "destination": "/api/partner?action=:action"
-    },
-    {
       "source": "/api/orders/:action",
       "destination": "/api/orders?action=:action"
     },

@@ -3,7 +3,6 @@
  * WeBake - Transaction Tracking Module (tracking.js)
  * Handles lookup and tracking for:
  *   1. Customer Bread Orders & Downpayment Verification
- *   2. Wholesale Partnership / Reseller Applications
  *   3. Digital Receipt Resend & Downpayment Refund Requests
  * ====================================================================
  */
@@ -27,45 +26,7 @@
   }
 
 
-  // --- 2. Tab Controller ---
-  function setTrackTab(mode) {
-    const modeInput = document.getElementById('track-type-mode');
-    const tabOrders = document.getElementById('tab-btn-orders');
-    const tabPartner = document.getElementById('tab-btn-partner');
-    const labelId = document.getElementById('track-label-id');
-    const inputId = document.getElementById('track-input-id');
-    const labelContact = document.getElementById('track-label-contact');
-    const inputContact = document.getElementById('track-input-contact');
-    const submitBtn = document.getElementById('track-submit-btn');
-    const errBox = document.getElementById('track-error-msg');
-    const resBox = document.getElementById('track-result-container');
-
-    if (errBox) errBox.style.display = 'none';
-    if (resBox) { resBox.style.display = 'none'; resBox.innerHTML = ''; }
-    if (typeof stopTrackPartnerPolling === 'function') stopTrackPartnerPolling();
-
-    if (mode === 'partner') {
-      if (modeInput) modeInput.value = 'partner';
-      if (tabOrders) { tabOrders.classList.remove('active'); tabOrders.style.background = 'transparent'; tabOrders.style.color = '#666'; }
-      if (tabPartner) { tabPartner.classList.add('active'); tabPartner.style.background = 'var(--primary)'; tabPartner.style.color = '#fff'; }
-      if (labelId) labelId.innerHTML = '<i class="fas fa-id-badge" style="color:var(--primary);font-size:0.95rem;"></i> Partner Reference ID *';
-      if (inputId) { inputId.placeholder = 'e.g. WB-PRT-58291'; }
-      if (labelContact) labelContact.innerHTML = '<i class="fas fa-address-card" style="color:var(--primary);font-size:0.95rem;"></i> Business Email or Contact Number *';
-      if (inputContact) { inputContact.placeholder = 'Email or phone used in application'; }
-      if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-search"></i> Check Application Status';
-    } else {
-      if (modeInput) modeInput.value = 'order';
-      if (tabOrders) { tabOrders.classList.add('active'); tabOrders.style.background = 'var(--primary)'; tabOrders.style.color = '#fff'; }
-      if (tabPartner) { tabPartner.classList.remove('active'); tabPartner.style.background = 'transparent'; tabPartner.style.color = '#666'; }
-      if (labelId) labelId.innerHTML = '<i class="fas fa-receipt" style="color:var(--primary);font-size:0.95rem;"></i> Order ID *';
-      if (inputId) { inputId.placeholder = 'e.g. WB-84920'; }
-      if (labelContact) labelContact.innerHTML = '<i class="fas fa-address-card" style="color:var(--primary);font-size:0.95rem;"></i> Email or Contact Number *';
-      if (inputContact) { inputContact.placeholder = 'Email or phone used at checkout'; }
-      if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-search"></i> Check Order Status';
-    }
-  }
-
-  // --- 3. Data Lookup Helpers ---
+  // --- 2. Data Lookup Helper ---
   function findOrderRecord(enteredId, enteredContact) {
     const allOrders = JSON.parse(localStorage.getItem('weBakeAllOrders') || '[]');
     let found = allOrders.find(o => o.orderId && o.orderId.toUpperCase() === enteredId);
@@ -93,66 +54,6 @@
       const phoneMatch = cleanEnteredContact.length >= 7 && cleanCustomerContact.includes(cleanEnteredContact);
       if (emailMatch || phoneMatch || found.orderId.toUpperCase() === enteredId) {
         return found;
-      }
-    }
-    return null;
-  }
-
-  function findPartnerRecord(enteredId, enteredContact) {
-    // 1. Check active guest application cache first
-    try {
-      const guestApp = JSON.parse(localStorage.getItem('weBakeGuestPartnerApp') || 'null');
-      if (guestApp && guestApp.appId) {
-        const matchesId = enteredId && guestApp.appId.toUpperCase() === enteredId.toUpperCase();
-        const guestEmail = (guestApp.email || guestApp.details?.email || '').toLowerCase();
-        const guestPhone = (guestApp.phone || guestApp.details?.phone || '').replace(/\D/g, '');
-        const cleanEntered = (enteredContact || '').replace(/\D/g, '');
-        const matchesEmail = enteredContact && guestEmail === enteredContact.toLowerCase();
-        const matchesPhone = cleanEntered.length >= 7 && guestPhone.includes(cleanEntered);
-        if (matchesId || matchesEmail || matchesPhone) {
-          return {
-            appId: guestApp.appId,
-            email: guestEmail,
-            phone: guestPhone,
-            date: guestApp.submittedAt ? new Date(guestApp.submittedAt).toLocaleDateString() : 'Recently Submitted',
-            status: guestApp.status || 'pending',
-            details: guestApp.details || {}
-          };
-        }
-      }
-    } catch (e) {}
-
-    const allApps = JSON.parse(localStorage.getItem('weBakePartnerApplications') || '[]');
-    let foundApp = allApps.find(a => a.appId && a.appId.toUpperCase() === enteredId);
-
-    if (!foundApp) {
-      const allUsers = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
-      for (const u of allUsers) {
-        if (u.partnerDetails && u.partnerStatus && u.partnerStatus !== 'none') {
-          const matchesId = u.partnerAppId && u.partnerAppId.toUpperCase() === enteredId;
-          const matchesEmail = u.email && u.email.toLowerCase() === enteredContact;
-          const matchesPhone = u.contact && u.contact.replace(/\D/g, '') === enteredContact.replace(/\D/g, '');
-          if (matchesId || matchesEmail || matchesPhone) {
-            foundApp = {
-              appId: u.partnerAppId || ('WB-PRT-' + Math.floor(10000 + Math.random() * 90000)),
-              date: 'Recently Submitted',
-              status: u.partnerStatus,
-              details: u.partnerDetails
-            };
-            break;
-          }
-        }
-      }
-    }
-
-    if (foundApp) {
-      const appEmail = (foundApp.details?.email || foundApp.email || '').toLowerCase();
-      const appPhone = (foundApp.details?.phone || foundApp.phone || '').replace(/\D/g, '');
-      const cleanEnteredContact = enteredContact.replace(/\D/g, '');
-      const emailMatch = appEmail && (appEmail === enteredContact);
-      const phoneMatch = cleanEnteredContact.length >= 7 && appPhone.includes(cleanEnteredContact);
-      if (emailMatch || phoneMatch || (foundApp.appId && foundApp.appId.toUpperCase() === enteredId)) {
-        return foundApp;
       }
     }
     return null;
@@ -454,419 +355,28 @@
     });
   }
 
-
-  // --- 5. Render Partner Application Search Result ---
-  function renderTrackPartnerResult(app, resBox) {
-    if (!resBox) return;
-
-    const appStatus = (app.status || 'pending').toLowerCase();
-    let statusText = 'Application Pending for Review';
-    let statusBg = '#fff3cd';
-    let statusColor = '#856404';
-    let statusIcon = 'fa-clock';
-
-    if (appStatus === 'approved' || appStatus === 'active') {
-      statusText = 'Approved Wholesale Partner';
-      statusBg = '#fef3c7';
-      statusColor = '#92400e';
-      statusIcon = 'fa-crown';
-    } else if (appStatus === 'under_review' || appStatus === 'reviewing' || appStatus === 'contacted') {
-      statusText = 'Under Review / Contacted';
-      statusBg = '#e0f2fe';
-      statusColor = '#0369a1';
-      statusIcon = 'fa-user-clock';
-    } else if (appStatus === 'rejected' || appStatus === 'declined') {
-      statusText = 'Application Declined';
-      statusBg = '#f8d7da';
-      statusColor = '#721c24';
-      statusIcon = 'fa-times-circle';
-    } else if (appStatus === 'cancelled') {
-      statusText = 'Partnership Cancelled';
-      statusBg = '#fee2e2';
-      statusColor = '#991b1b';
-      statusIcon = 'fa-ban';
-    }
-
-    const esc = (typeof window.escapeHtml === 'function') ? window.escapeHtml : (str) => String(str || '').replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c] || c));
-    const details = app.details || {};
-    const productsList = (details.products && details.products.length) ? details.products.map(p => esc(p)).join(', ') : 'All Products';
-    const isApproved = (appStatus === 'approved' || appStatus === 'active');
-
-    let nextStepsText = 'Your wholesale partnership application has been received and is pending initial review by bakery management. We will contact you or update your status once our team begins vetting your business.';
-    if (isApproved) {
-      nextStepsText = 'Congratulations! Your wholesale partnership is active with Priority Partner privileges. You receive priority morning baking queueing, priority delivery scheduling, guaranteed stock allocation, and 50% reservation downpayment terms.';
-    } else if (appStatus === 'under_review' || appStatus === 'reviewing' || appStatus === 'contacted') {
-      nextStepsText = 'Our bakery management team is actively reviewing your store location and evaluating delivery logistics. We may contact you directly via phone or email to confirm weekly order volumes and schedule details.';
-    } else if (appStatus === 'cancelled') {
-      nextStepsText = 'This partnership application has been cancelled. If you wish to apply again, you may submit a new application through the Partner page.';
-    } else if (appStatus === 'rejected' || appStatus === 'declined') {
-      nextStepsText = 'Thank you for your interest. Unfortunately, this application could not be approved at this time. You are welcome to submit an updated application in the future.';
-    }
-
-    let actionsHtml = '';
-    if (appStatus === 'pending') {
-      actionsHtml = `
-        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1rem; flex-wrap:wrap; border-top:1px solid #f0e7dc; padding-top:0.85rem;">
-          <button type="button" id="track-edit-partner-btn" class="btn btn-outline" style="padding:0.45rem 1rem; font-size:0.85rem; display:inline-flex; align-items:center; gap:0.4rem;">
-            <i class="fas fa-edit"></i> Edit Application
-          </button>
-          <button type="button" id="track-cancel-partner-btn" class="btn btn-primary" style="padding:0.45rem 1rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545; display:inline-flex; align-items:center; gap:0.4rem;">
-            <i class="fas fa-ban"></i> Cancel Request
-          </button>
-        </div>
-      `;
-    } else if (appStatus === 'under_review' || appStatus === 'reviewing' || appStatus === 'contacted') {
-      actionsHtml = `
-        <div class="partner-locked-note" style="margin-top:0.75rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:0.6rem 0.9rem; font-size:0.82rem; color:#475569; display:flex; align-items:center; gap:0.5rem;">
-          <i class="fas fa-lock"></i> Editing is locked while your application is being reviewed.
-        </div>
-        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:0.75rem; flex-wrap:wrap; border-top:1px solid #f0e7dc; padding-top:0.85rem;">
-          <button type="button" id="track-cancel-partner-btn" class="btn btn-primary" style="padding:0.45rem 1rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545; display:inline-flex; align-items:center; gap:0.4rem;">
-            <i class="fas fa-ban"></i> Cancel Request
-          </button>
-        </div>
-      `;
-    } else if (isApproved) {
-      actionsHtml = `
-        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1rem; flex-wrap:wrap; border-top:1px solid #f0e7dc; padding-top:0.85rem;">
-          <button type="button" id="track-cancel-partner-btn" class="btn btn-primary" style="padding:0.45rem 1rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545; display:inline-flex; align-items:center; gap:0.4rem;">
-            <i class="fas fa-ban"></i> Cancel Partnership
-          </button>
-        </div>
-      `;
-    } else if (appStatus === 'rejected' || appStatus === 'declined' || appStatus === 'cancelled') {
-      actionsHtml = `
-        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1rem; flex-wrap:wrap; border-top:1px solid #f0e7dc; padding-top:0.85rem;">
-          <a href="partner.html" class="btn btn-primary" style="padding:0.45rem 1.25rem; font-size:0.85rem; display:inline-flex; align-items:center; gap:0.4rem;">
-            <i class="fas fa-redo"></i> Apply Again
-          </a>
-        </div>
-      `;
-    }
-
-    const yearsText = details.years ? (String(details.years).toLowerCase().includes('year') ? `${esc(details.years)} in operation` : `${esc(details.years)} years in operation`) : '1+ years in operation';
-
-    resBox.innerHTML = `
-      <div style="border:1px solid var(--border); border-radius:8px; padding:1.25rem; background:#fff; margin-top:0.75rem;">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.75rem; flex-wrap:wrap; gap:0.5rem;">
-          <div>
-            <span style="font-size:0.75rem; color:var(--gray); text-transform:uppercase; font-weight:700;">Partnership Application ID</span>
-            <div style="font-size:1.15rem; font-weight:800; color:var(--primary);">${esc(app.appId)}</div>
-            <div style="font-size:0.78rem; color:#888;"><i class="far fa-calendar-alt"></i> Submitted: ${esc(app.date || 'Recent')}</div>
-          </div>
-          <span style="padding:0.25rem 0.65rem; border-radius:20px; font-size:0.78rem; font-weight:700; background:${statusBg}; color:${statusColor}; display:inline-flex; align-items:center; gap:0.35rem;">
-            <i class="fas ${statusIcon}"></i> ${statusText}
-          </span>
-        </div>
-
-        <div style="background:#faf6f0; border:1px solid #ebd9c8; border-radius:6px; padding:0.85rem; font-size:0.83rem; margin-bottom:0.85rem; line-height:1.6;">
-          <div><strong>Bakery / Business Name:</strong> ${esc(details['bakery-name'] || 'N/A')}</div>
-          <div><strong>Representative:</strong> ${esc(details['owner-name'] || 'N/A')}</div>
-          <div><strong>Business Type:</strong> ${esc(details.type || 'Bakery')} (${yearsText})</div>
-          <div><strong>Business Address:</strong> ${esc(details.address || 'N/A')}</div>
-          <div><strong>Contact Info:</strong> ${esc(details.phone || app.phone || 'N/A')} · ${esc(details.email || app.email || 'N/A')}</div>
-          <div><strong>Products of Interest:</strong> ${productsList}</div>
-          ${details.permit ? `<div><strong>Business Permit:</strong> ${esc(details.permit)}</div>` : ''}
-          ${details.tin ? `<div><strong>TIN:</strong> ${esc(details.tin)}</div>` : ''}
-          ${details.notes ? `<div><strong>Notes:</strong> ${esc(details.notes)}</div>` : ''}
-        </div>
-
-        <div style="font-size:0.82rem; color:#555; background:#f9f9f9; border-left:3px solid var(--primary); padding:0.65rem 0.85rem; border-radius:0 4px 4px 0; line-height:1.5;">
-          <strong><i class="fas fa-info-circle" style="color:var(--primary);"></i> Next Steps:</strong><br>
-          ${esc(nextStepsText)}
-        </div>
-
-        ${actionsHtml}
-      </div>
-    `;
-
-    resBox.style.display = 'block';
-
-    // Edit application button
-    resBox.querySelector('#track-edit-partner-btn')?.addEventListener('click', () => {
-      sessionStorage.setItem('weBakeEditPartnerId', app.appId);
-      const trackModal = document.getElementById('track-order-modal');
-      if (trackModal) trackModal.classList.remove('active');
-      if (window.location.pathname.includes('partner.html')) {
-        if (typeof window.syncPartnerFormState === 'function') {
-          window.syncPartnerFormState();
-        }
-        const formSec = document.querySelector('.partner-form-section');
-        if (formSec) {
-          window.scrollTo({ top: formSec.offsetTop - 50, behavior: 'smooth' });
-        }
-      } else {
-        window.location.href = 'partner.html';
-      }
-    });
-
-    // Cancel application button
-    resBox.querySelector('#track-cancel-partner-btn')?.addEventListener('click', () => {
-      const doCancelPartner = () => {
-        const allApps = JSON.parse(localStorage.getItem('weBakePartnerApplications') || '[]');
-        const targetIndex = allApps.findIndex(a => a.appId && a.appId.toUpperCase() === app.appId.toUpperCase());
-        if (targetIndex !== -1) {
-          allApps[targetIndex].status = 'cancelled';
-          allApps[targetIndex].cancelledAt = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-          localStorage.setItem('weBakePartnerApplications', JSON.stringify(allApps));
-        }
-
-        // Sync into guest app cache if matching
-        try {
-          const guestApp = JSON.parse(localStorage.getItem('weBakeGuestPartnerApp') || 'null');
-          if (guestApp && guestApp.appId && guestApp.appId.toUpperCase() === app.appId.toUpperCase()) {
-            guestApp.status = 'cancelled';
-            guestApp.cancelledAt = new Date().toISOString();
-            localStorage.setItem('weBakeGuestPartnerApp', JSON.stringify(guestApp));
-          }
-        } catch (e) {}
-
-        const allUsers = JSON.parse(localStorage.getItem('weBakeUsers') || '[]');
-        let usersChanged = false;
-        allUsers.forEach(u => {
-          if ((u.partnerAppId && u.partnerAppId.toUpperCase() === app.appId.toUpperCase()) ||
-              (u.email && app.details?.email && u.email.trim().toLowerCase() === (app.details.email || '').trim().toLowerCase())) {
-            u.partnerStatus = 'cancelled';
-            u.role = 'customer';
-            u.roleId = 1;
-            u.partnerDetails = null;
-            usersChanged = true;
-          }
-        });
-        if (usersChanged) {
-          localStorage.setItem('weBakeUsers', JSON.stringify(allUsers));
-        }
-
-        // Sync session if matching
-        try {
-          const sess = JSON.parse(localStorage.getItem('weBakeSession') || 'null');
-          if (sess && (
-            (sess.partnerAppId && sess.partnerAppId.toUpperCase() === app.appId.toUpperCase()) ||
-            (sess.email && (sess.email || '').trim().toLowerCase() === (app.details?.email || app.email || '').trim().toLowerCase())
-          )) {
-            sess.partnerStatus = 'cancelled';
-            sess.role = 'customer';
-            sess.roleId = 1;
-            sess.partnerDetails = null;
-            localStorage.setItem('weBakeSession', JSON.stringify(sess));
-          }
-        } catch (e) {}
-
-        // Persist to Supabase cloud database
-        const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
-          window.location.protocol === 'file:' ||
-          window.location.hostname === 'localhost' ||
-          window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:5000/api'
-            : '/api'
-        );
-        fetch(`${apiBase}/partner/cancel`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: app.details?.email || app.email, appId: app.appId })
-        }).catch(e => console.warn('[Cloud Partner Cancel Track Notice]:', e));
-
-        app.status = 'cancelled';
-        showToast('Partnership request cancelled.');
-        renderTrackPartnerResult(app, resBox);
-
-        window.dispatchEvent(new Event('storage'));
-        window.dispatchEvent(new CustomEvent('weBakePartnerChange'));
-      };
-
-      if (window.WeBakeModals && typeof window.WeBakeModals.confirmCancelPartner === 'function') {
-        window.WeBakeModals.confirmCancelPartner({ onConfirm: doCancelPartner });
-      } else if (confirm('Are you sure you want to cancel your partnership request? This action cannot be undone.')) {
-        doCancelPartner();
-      }
-    });
-
-    // Start near-real-time status polling for this application while tracking result is active
-    if (!trackPartnerPollTimer || currentTrackedAppId !== app.appId) {
-      currentTrackedAppId = app.appId;
-      startTrackPartnerPolling(app.appId, app.details?.email || app.email || '', resBox);
-    }
-  }
-
-  let trackPartnerPollTimer = null;
-  let currentTrackedAppId = null;
-  let lastKnownTrackState = { status: null, updatedAt: null, notes: null };
-
-  function stopTrackPartnerPolling() {
-    if (trackPartnerPollTimer) {
-      clearInterval(trackPartnerPollTimer);
-      trackPartnerPollTimer = null;
-      currentTrackedAppId = null;
-    }
-  }
-
-  function startTrackPartnerPolling(appId, appEmail, resBox) {
-    stopTrackPartnerPolling();
-    if (!appId) return;
-
-    currentTrackedAppId = appId;
-
-    async function checkTrackStatus() {
-      if (document.visibilityState === 'hidden') return;
-      const modal = document.getElementById('track-order-modal');
-      if (!modal || !modal.classList.contains('active')) {
-        stopTrackPartnerPolling();
-        return;
-      }
-
-      const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
-        window.location.protocol === 'file:' ||
-        window.location.hostname === 'localhost' ||
-        window.location.hostname === '127.0.0.1'
-          ? 'http://localhost:5000/api'
-          : '/api'
-      );
-
-      try {
-        const cleanPhone = (appEmail || '').replace(/\D/g, '');
-        const isPhone = cleanPhone.length === 11 && cleanPhone.startsWith('09');
-        const emailParam = !isPhone ? (appEmail || '') : '';
-        const phoneParam = isPhone ? cleanPhone : '';
-        const url = `${apiBase}/partner/my-status?code=${encodeURIComponent(appId)}&email=${encodeURIComponent(emailParam)}&phone=${encodeURIComponent(phoneParam)}`;
-        const res = await fetch(url, { headers: { 'x-user-email': emailParam } });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data || !data.success || !data.application) return;
-
-        const current = data.application;
-        const st = (current.status || '').toLowerCase();
-        const upd = current.updatedAt || current.reviewedAt || current.submittedAt || '';
-        const nts = current.adminNotes || current.staffNotes || '';
-
-        if (lastKnownTrackState.status !== st ||
-            lastKnownTrackState.updatedAt !== upd ||
-            lastKnownTrackState.notes !== nts) {
-          lastKnownTrackState = { status: st, updatedAt: upd, notes: nts };
-          const updatedApp = {
-            appId: current.applicationCode || appId,
-            email: current.applicantEmail || appEmail,
-            phone: current.applicantPhone || '',
-            status: st,
-            date: current.submittedAt ? new Date(current.submittedAt).toLocaleDateString() : 'Recent',
-            details: {
-              'business-name': current.businessName,
-              'owner-name': current.applicantName,
-              'type': current.businessType,
-              years: current.yearsInOperation,
-              address: current.deliveryAddress,
-              products: current.products || [],
-              notes: nts,
-              email: current.applicantEmail || appEmail,
-              phone: current.applicantPhone || ''
-            }
-          };
-
-          // Sync into localStorage weBakePartnerApplications
-          const allApps = JSON.parse(localStorage.getItem('weBakePartnerApplications') || '[]');
-          const targetIdx = allApps.findIndex(a => a.appId && a.appId.toUpperCase() === appId.toUpperCase());
-          if (targetIdx !== -1) {
-            allApps[targetIdx].status = st;
-            allApps[targetIdx].staffNotes = nts;
-            allApps[targetIdx].updatedAt = upd;
-            localStorage.setItem('weBakePartnerApplications', JSON.stringify(allApps));
-          }
-
-          // Sync into weBakeGuestPartnerApp
-          try {
-            const guestApp = JSON.parse(localStorage.getItem('weBakeGuestPartnerApp') || 'null');
-            if (guestApp && guestApp.appId && guestApp.appId.toUpperCase() === appId.toUpperCase()) {
-              guestApp.status = st;
-              guestApp.adminNotes = nts;
-              guestApp.staffNotes = nts;
-              guestApp.updatedAt = upd;
-              localStorage.setItem('weBakeGuestPartnerApp', JSON.stringify(guestApp));
-            }
-          } catch (e) {}
-
-          window.dispatchEvent(new CustomEvent('weBakePartnerChange'));
-          renderTrackPartnerResult(updatedApp, resBox);
-        }
-
-        if (st === 'rejected' || st === 'cancelled') {
-          stopTrackPartnerPolling();
-        }
-      } catch (err) {}
-    }
-
-    // Run immediate check first so user does not wait 5-10s!
-    checkTrackStatus();
-    trackPartnerPollTimer = setInterval(checkTrackStatus, 5000);
-  }
-
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && trackPartnerPollTimer) {
-      // Trigger instant check when tab resumes
-      const resBox = document.getElementById('track-result-container');
-      const appIdEl = resBox?.querySelector('.font-weight-800, strong');
-      const appId = appIdEl ? appIdEl.textContent.trim() : null;
-      if (appId && resBox) {
-        const idInput = document.getElementById('track-input-id');
-        const contactInput = document.getElementById('track-input-contact');
-        if (idInput && contactInput) {
-          startTrackPartnerPolling(idInput.value.trim(), contactInput.value.trim(), resBox);
-        }
-      }
-    }
-  });
-
+  // --- 4. Submit Handler (Order Lookup) ---
   async function handleTrackSubmit(e) {
     e.preventDefault();
     const idInput = document.getElementById('track-input-id');
     const contactInput = document.getElementById('track-input-contact');
     const errBox = document.getElementById('track-error-msg');
     const resBox = document.getElementById('track-result-container');
-    const currentMode = document.getElementById('track-type-mode')?.value || 'order';
 
     const enteredId = idInput?.value.trim().toUpperCase();
     const enteredContact = contactInput?.value.trim().toLowerCase();
 
     if (!enteredId || !enteredContact) return;
 
-    // Smart Lookup: Auto-detect if user entered a Partner ID or Order ID
-    const isPartnerQuery = (currentMode === 'partner') || enteredId.startsWith('WB-PRT') || enteredId.includes('PRT');
-
-    if (isPartnerQuery) {
-      const app = findPartnerRecord(enteredId, enteredContact);
-      if (app) {
-        if (errBox) errBox.style.display = 'none';
-        setTrackTab('partner');
-        renderTrackPartnerResult(app, resBox);
-        return;
-      }
-      // Fallback: check if it's an order
-      const order = findOrderRecord(enteredId, enteredContact);
-      if (order) {
-        if (errBox) errBox.style.display = 'none';
-        setTrackTab('order');
-        renderTrackOrderResult(order, resBox);
-        return;
-      }
-    } else {
-      // Default: Bread Orders lookup
-      const order = findOrderRecord(enteredId, enteredContact);
-      if (order) {
-        if (errBox) errBox.style.display = 'none';
-        setTrackTab('order');
-        renderTrackOrderResult(order, resBox);
-        return;
-      }
-
-      // Fallback: check if user entered a partner application on the order tab
-      const app = findPartnerRecord(enteredId, enteredContact);
-      if (app) {
-        if (errBox) errBox.style.display = 'none';
-        setTrackTab('partner');
-        renderTrackPartnerResult(app, resBox);
-        return;
-      }
+    // 1. Local storage lookup
+    const order = findOrderRecord(enteredId, enteredContact);
+    if (order) {
+      if (errBox) errBox.style.display = 'none';
+      renderTrackOrderResult(order, resBox);
+      return;
     }
 
-    // Cloud Database Lookup Fallback (across devices)
+    // 2. Cloud database lookup fallback
     const submitBtn = document.getElementById('track-submit-btn');
     const origBtnHtml = submitBtn ? submitBtn.innerHTML : '';
     if (submitBtn) {
@@ -882,19 +392,12 @@
           ? 'http://localhost:5000/api'
           : '/api'
       );
-      const res = await fetch(`${apiBase}/orders/track?id=${encodeURIComponent(enteredId)}&contact=${encodeURIComponent(enteredContact)}&mode=${isPartnerQuery ? 'partner' : 'order'}`);
+      const res = await fetch(`${apiBase}/orders/track?id=${encodeURIComponent(enteredId)}&contact=${encodeURIComponent(enteredContact)}&mode=order`);
       const data = await res.json();
-      if (data && data.success) {
+      if (data && data.success && data.order) {
         if (errBox) errBox.style.display = 'none';
-        if (data.type === 'partner' && data.partner) {
-          setTrackTab('partner');
-          renderTrackPartnerResult(data.partner, resBox);
-          return;
-        } else if (data.type === 'order' && data.order) {
-          setTrackTab('order');
-          renderTrackOrderResult(data.order, resBox);
-          return;
-        }
+        renderTrackOrderResult(data.order, resBox);
+        return;
       }
     } catch (err) {
       console.warn('[Track Cloud Query Error]:', err);
@@ -906,16 +409,14 @@
     }
 
     if (errBox) {
-      errBox.textContent = isPartnerQuery
-        ? 'No matching partnership application found. Please verify your Reference ID (e.g. WB-PRT-XXXXX) and registered email or phone.'
-        : 'No matching order found. Please verify your Order ID and the email or phone number used at checkout.';
+      errBox.textContent = 'No matching order found. Please verify your Order Reference ID (e.g. WB-84920) and the email or phone number used at checkout.';
       errBox.style.display = 'block';
     }
     if (resBox) resBox.style.display = 'none';
   }
 
-  // --- 7. Public Open Function ---
-  function openTrackOrderModal(id = '', contact = '', mode = 'order') {
+  // --- 5. Public Open Function ---
+  function openTrackOrderModal(id = '', contact = '') {
     ensureTrackingModal();
     if (typeof window.openAuthModal === 'function') {
       window.openAuthModal('track-order-modal');
@@ -926,7 +427,6 @@
       if (overlay) overlay.classList.add('active');
     }
 
-    setTrackTab(mode);
     const idInput = document.getElementById('track-input-id');
     const contactInput = document.getElementById('track-input-contact');
     const errBox = document.getElementById('track-error-msg');
@@ -942,7 +442,7 @@
     }
   }
 
-  // --- 8. Event Wiring on DOMContentLoaded ---
+  // --- 6. Event Wiring on DOMContentLoaded ---
   document.addEventListener('DOMContentLoaded', () => {
     ensureTrackingModal();
 
@@ -950,16 +450,6 @@
     if (form) form.addEventListener('submit', handleTrackSubmit);
 
     document.body.addEventListener('click', e => {
-      // Tab switching
-      if (e.target.closest('#tab-btn-orders')) {
-        e.preventDefault();
-        setTrackTab('order');
-      }
-      if (e.target.closest('#tab-btn-partner')) {
-        e.preventDefault();
-        setTrackTab('partner');
-      }
-      // Open track modal triggers
       if (e.target.closest('[data-track-order-open]')) {
         e.preventDefault();
         openTrackOrderModal();
@@ -971,9 +461,7 @@
   window.openTrackOrderModal = openTrackOrderModal;
   window.WeBakeTracking = {
     openModal: openTrackOrderModal,
-    setTab: setTrackTab,
-    findOrder: findOrderRecord,
-    findPartner: findPartnerRecord
+    findOrder: findOrderRecord
   };
 
 })(window, document);

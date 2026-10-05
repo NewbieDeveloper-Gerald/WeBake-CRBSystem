@@ -15,3 +15,7 @@ yarn-debug.log*
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Private specs and scratch
+WEBAKE_PARTNERSHIP_WORKFLOW_SPEC.md
+scratch/test_partner_submission.js

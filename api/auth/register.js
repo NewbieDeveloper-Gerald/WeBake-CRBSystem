@@ -85,10 +85,10 @@ module.exports = async function handler(req, res) {
     const insertUserSql = `
       INSERT INTO users (
         role_id, full_name, email_address, contact_number, password_hash,
-        partner_status, is_active, email_verified_at, saved_cart, created_at, updated_at
+        is_active, email_verified_at, saved_cart, created_at, updated_at
       ) VALUES (
-        1, $1, $2, $3, $4, 'none', TRUE, NOW(), '[]'::jsonb, NOW(), NOW()
-      ) RETURNING id, role_id, full_name, email_address, contact_number, partner_status, created_at;
+        1, $1, $2, $3, $4, TRUE, NOW(), '[]'::jsonb, NOW(), NOW()
+      ) RETURNING id, role_id, full_name, email_address, contact_number, created_at;
     `;
     const userRes = await client.query(insertUserSql, [
       cleanName,
@@ -133,7 +133,6 @@ module.exports = async function handler(req, res) {
         email: newUser.email_address,
         contact: newUser.contact_number,
         address: cleanAddress,
-        partnerStatus: newUser.partner_status || 'none',
         savedCart: [],
         orderHistory: []
       }
