@@ -555,7 +555,9 @@
         allUsers.forEach(u => {
           if ((u.partnerAppId && u.partnerAppId.toUpperCase() === app.appId.toUpperCase()) ||
               (u.email && app.details?.email && u.email.trim().toLowerCase() === (app.details.email || '').trim().toLowerCase())) {
-            u.partnerStatus = 'none';
+            u.partnerStatus = 'cancelled';
+            u.role = 'customer';
+            u.roleId = 1;
             u.partnerDetails = null;
             usersChanged = true;
           }
@@ -563,6 +565,35 @@
         if (usersChanged) {
           localStorage.setItem('weBakeUsers', JSON.stringify(allUsers));
         }
+
+        // Sync session if matching
+        try {
+          const sess = JSON.parse(localStorage.getItem('weBakeSession') || 'null');
+          if (sess && (
+            (sess.partnerAppId && sess.partnerAppId.toUpperCase() === app.appId.toUpperCase()) ||
+            (sess.email && (sess.email || '').trim().toLowerCase() === (app.details?.email || app.email || '').trim().toLowerCase())
+          )) {
+            sess.partnerStatus = 'cancelled';
+            sess.role = 'customer';
+            sess.roleId = 1;
+            sess.partnerDetails = null;
+            localStorage.setItem('weBakeSession', JSON.stringify(sess));
+          }
+        } catch (e) {}
+
+        // Persist to Supabase cloud database
+        const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
+          window.location.protocol === 'file:' ||
+          window.location.hostname === 'localhost' ||
+          window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:5000/api'
+            : '/api'
+        );
+        fetch(`${apiBase}/partner/cancel`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: app.details?.email || app.email, appId: app.appId })
+        }).catch(e => console.warn('[Cloud Partner Cancel Track Notice]:', e));
 
         app.status = 'cancelled';
         showToast('Partnership request cancelled.');

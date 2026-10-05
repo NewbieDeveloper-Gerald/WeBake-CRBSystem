@@ -45,11 +45,12 @@
       }
 
       const filtered = partners.filter(p => {
-        const status = p.status || 'pending';
+        const status = (p.status || 'pending').toLowerCase();
         if (currentTab === 'pending') return status === 'pending';
         if (currentTab === 'reviewing') return status === 'under_review' || status === 'reviewing' || status === 'contacted';
-        if (currentTab === 'approved') return status === 'approved';
-        if (currentTab === 'rejected') return status === 'rejected';
+        if (currentTab === 'approved') return status === 'approved' || status === 'active';
+        if (currentTab === 'rejected') return status === 'rejected' || status === 'declined';
+        if (currentTab === 'cancelled') return status === 'cancelled';
         return true;
       });
 
@@ -57,6 +58,13 @@
       const pendingCount = partners.filter(p => !p.status || p.status === 'pending').length;
       const countEl = document.getElementById('count-partner-pending');
       if (countEl) countEl.textContent = pendingCount;
+
+      const cancelledCount = partners.filter(p => (p.status || '').toLowerCase() === 'cancelled').length;
+      const countCancelledEl = document.getElementById('count-partner-cancelled');
+      if (countCancelledEl) {
+        countCancelledEl.textContent = cancelledCount;
+        countCancelledEl.style.display = cancelledCount > 0 ? 'inline-block' : 'none';
+      }
 
       if (filtered.length === 0) {
         tableBody.innerHTML = `
@@ -81,15 +89,17 @@
         const contactPerson = p.fullName || d['owner-name'] || 'Owner';
         const phone = p.phone || d.phone || 'N/A';
         const volume = p.weeklyVolume || d.volume || '50-100 bundles';
-        const status = p.status || 'pending';
+        const status = (p.status || 'pending').toLowerCase();
 
         let statusBadge = '<span class="badge badge-pending">Pending Review</span>';
         if (status === 'under_review' || status === 'reviewing' || status === 'contacted') {
           statusBadge = '<span class="badge badge-confirmed">Under Review</span>';
-        } else if (status === 'approved') {
+        } else if (status === 'approved' || status === 'active') {
           statusBadge = '<span class="badge badge-completed">Approved Partner</span>';
-        } else if (status === 'rejected') {
+        } else if (status === 'rejected' || status === 'declined') {
           statusBadge = '<span class="badge badge-cancelled">Declined</span>';
+        } else if (status === 'cancelled') {
+          statusBadge = '<span class="badge badge-cancelled" style="background:#fee2e2; color:#991b1b; border:1px solid #f87171;"><i class="fas fa-ban"></i> Cancelled</span>';
         }
 
         return `

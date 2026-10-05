@@ -46,6 +46,7 @@
 .badge-pending { background: #fff3cd; color: #856404; }
 .badge-active { background: #d4edda; color: #155724; }
 .badge-rejected { background: #f8d7da; color: #721c24; }
+.badge-cancelled { background: #fee2e2; color: #991b1b; }
 .partner-cta { font-size: 0.85rem; color: var(--gray); }
 .partner-cta a { color: var(--primary); font-weight: 600; text-decoration: none; }
 .partner-cta a:hover { color: var(--accent); }

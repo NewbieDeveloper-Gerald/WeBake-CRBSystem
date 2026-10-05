@@ -120,6 +120,10 @@
             <button type="button" class="order-tab-btn" data-tab="reviewing">Under Review / Contacted</button>
             <button type="button" class="order-tab-btn" data-tab="approved">Approved Partners</button>
             <button type="button" class="order-tab-btn" data-tab="rejected">Declined</button>
+            <button type="button" class="order-tab-btn" data-tab="cancelled">
+              <span>Cancelled</span>
+              <span class="order-tab-count" id="count-partner-cancelled" style="display:none;">0</span>
+            </button>
           </div>
         </div>
 
@@ -198,6 +202,7 @@
                 <option value="reviewing">Under Review / Contacted</option>
                 <option value="approved">Approved Wholesale Partner</option>
                 <option value="rejected">Declined</option>
+                <option value="cancelled">Cancelled Partnership</option>
               </select>
             </div>
             <div class="form-group">

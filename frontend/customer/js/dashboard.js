@@ -811,6 +811,19 @@ document.addEventListener('DOMContentLoaded', () => {
           <a href="partner.html" class="btn btn-outline" style="padding:0.4rem 1rem; font-size:0.85rem;">Edit Application</a>
           <button id="cancel-partner-btn" class="btn btn-primary" style="padding:0.4rem 1rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545;">Cancel Request</button>
         `;
+      } else if (status === 'cancelled') {
+        partnerBadge.className = 'partner-badge badge-cancelled';
+        partnerBadge.innerHTML = '<i class="fas fa-ban"></i> Partnership Cancelled';
+        partnerCta.innerHTML = `
+          <div style="background:#f8f9fa; border-left:4px solid #6c757d; padding:10px 14px; border-radius:6px; margin-bottom:10px; color:#495057; font-size:0.875rem; line-height:1.5;">
+            <strong>Partnership Notice:</strong> Your wholesale partnership has been <strong>cancelled</strong>.
+            <div style="margin-top:6px; font-size:0.8rem; color:#6c757d;">You can submit a new application anytime if you wish to partner with WeBake again in the future.</div>
+          </div>
+        `;
+        partnerCta.style.display = 'block';
+        partnerActions.innerHTML = `
+          <a href="partner.html" class="btn btn-outline" style="padding:0.4rem 1.25rem; font-size:0.85rem;"><i class="fas fa-handshake"></i> Apply Again</a>
+        `;
       } else {
         partnerBadge.className = 'partner-badge badge-none';
         partnerBadge.innerHTML = '<i class="fas fa-minus-circle"></i> No Partnership';
@@ -826,47 +839,63 @@ document.addEventListener('DOMContentLoaded', () => {
       const cancelBtn = document.getElementById('cancel-partner-btn');
       if (cancelBtn) {
         cancelBtn.addEventListener('click', () => {
-          const doCancel = () => {
+          const doCancel = async () => {
             const freshAll = DashboardStore.getUsers();
             const target = freshAll.find(u => DashboardStore.sameEmail(u.email, session.email));
+            const savedAppId = target?.partnerAppId || session.partnerAppId;
+
             if (target) {
-              const savedAppId = target.partnerAppId;
-              target.partnerStatus = 'none';
-              target.partnerDetails = null; // Clear their saved info when they cancel
+              target.partnerStatus = 'cancelled';
+              target.role = 'customer';
+              target.roleId = 1;
+              target.partnerDetails = null;
               DashboardStore.saveUsers(freshAll);
+            }
 
-              const allApps = DashboardStore.getApplications();
-              let appChanged = false;
-              allApps.forEach(a => {
-                if ((savedAppId && a.appId && a.appId.toUpperCase() === savedAppId.toUpperCase()) ||
-                    (a.details?.email && DashboardStore.sameEmail(a.details.email, session.email))) {
-                  a.status = 'cancelled';
-                  a.cancelledAt = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-                  appChanged = true;
-                }
-              });
-              if (appChanged) {
-                DashboardStore.saveApplications(allApps);
+            // Also update persistent session
+            session.partnerStatus = 'cancelled';
+            session.role = 'customer';
+            session.roleId = 1;
+            session.partnerDetails = null;
+            DashboardStore.saveSession(session);
+
+            const allApps = DashboardStore.getApplications();
+            let appChanged = false;
+            allApps.forEach(a => {
+              if ((savedAppId && a.appId && a.appId.toUpperCase() === savedAppId.toUpperCase()) ||
+                  (a.details?.email && DashboardStore.sameEmail(a.details.email, session.email)) ||
+                  (a.email && DashboardStore.sameEmail(a.email, session.email))) {
+                a.status = 'cancelled';
+                a.cancelledAt = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                appChanged = true;
               }
+            });
+            if (appChanged) {
+              DashboardStore.saveApplications(allApps);
+            }
 
-              // Asynchronously cancel in Supabase cloud database
-              const apiBase = window.WEBAKE_API_BASE || (
-                window.location.protocol === 'file:' ||
-                window.location.hostname === 'localhost' ||
-                window.location.hostname === '127.0.0.1'
-                  ? 'http://localhost:5000/api'
-                  : '/api'
-              );
-              fetch(`${apiBase}/partner/cancel`, {
+            // Asynchronously cancel in Supabase cloud database
+            const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
+              window.location.protocol === 'file:' ||
+              window.location.hostname === 'localhost' ||
+              window.location.hostname === '127.0.0.1'
+                ? 'http://localhost:5000/api'
+                : '/api'
+            );
+            try {
+              await fetch(`${apiBase}/partner/cancel`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: session.email, appId: savedAppId })
-              }).catch(e => console.warn('[Cloud Partner Cancel Notice]:', e));
-
-              this.render();
-              toast('Partnership cancelled.');
-              window.dispatchEvent(new CustomEvent('weBakePartnerChange'));
+              });
+            } catch (e) {
+              console.warn('[Cloud Partner Cancel Notice]:', e);
             }
+
+            this.render();
+            toast('Partnership request cancelled.');
+            window.dispatchEvent(new CustomEvent('weBakePartnerChange'));
+            window.dispatchEvent(new Event('storage'));
           };
 
           if (window.WeBakeModals && typeof window.WeBakeModals.confirmCancelPartner === 'function') {

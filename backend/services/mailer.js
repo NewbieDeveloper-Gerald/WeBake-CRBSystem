@@ -447,14 +447,23 @@ async function sendOrderReceiptEmail({ order, hasAccount = false }) {
  */
 function buildPartnerStatusHtml({ applicantName, applicationCode, businessName, status, staffNotes }) {
   const isApproved = status === 'approved';
-  const badgeBg = isApproved ? '#E8F5E9' : '#FFEBEE';
-  const badgeColor = isApproved ? '#2E7D32' : '#C62828';
-  const badgeBorder = isApproved ? '#A5D6A7' : '#FFCDD2';
-  const badgeText = isApproved ? 'WHOLESALE PARTNERSHIP APPROVED' : 'APPLICATION REVIEW UPDATE';
-  const heading = isApproved ? 'Welcome to the WeBake Wholesale Family! 🎉' : 'Wholesale Application Status Update';
+  const isCancelled = status === 'cancelled';
+  let badgeBg = isApproved ? '#E8F5E9' : '#FFEBEE';
+  let badgeColor = isApproved ? '#2E7D32' : '#C62828';
+  let badgeBorder = isApproved ? '#A5D6A7' : '#FFCDD2';
+  let badgeText = isApproved ? 'WHOLESALE PARTNERSHIP APPROVED' : 'APPLICATION REVIEW UPDATE';
+  let heading = isApproved ? 'Welcome to the WeBake Wholesale Family! 🎉' : 'Wholesale Application Status Update';
+
+  if (isCancelled) {
+    badgeBg = '#F3F4F6';
+    badgeColor = '#4B5563';
+    badgeBorder = '#D1D5DB';
+    badgeText = 'PARTNERSHIP CANCELLED';
+    heading = 'Wholesale Partnership Request Cancelled';
+  }
   
   const notesSection = staffNotes ? `
-    <div style="margin:24px 0; background-color:#FAF6F0; border-left:4px solid ${isApproved ? '#28A745' : '#B5523A'}; border-radius:6px; padding:14px 18px; text-align:left;">
+    <div style="margin:24px 0; background-color:#FAF6F0; border-left:4px solid ${isApproved ? '#28A745' : isCancelled ? '#6B7280' : '#B5523A'}; border-radius:6px; padding:14px 18px; text-align:left;">
       <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#7A685D; margin-bottom:6px;">
         Remarks from Bakery Management:
       </div>
@@ -491,6 +500,20 @@ function buildPartnerStatusHtml({ applicantName, applicationCode, businessName, 
     <p style="margin:24px 0 0; font-size:14px; line-height:1.6; color:#6B584E;">
       You can now log in to your <a href="http://localhost:5000/customer/html/dashboard.html" style="color:#B5523A; font-weight:700; text-decoration:none;">WeBake Customer Dashboard</a> to view your active partnership status and begin placing wholesale orders!
     </p>
+  ` : isCancelled ? `
+    <p style="margin:0 0 16px; font-size:15px; line-height:1.6; color:#4A2E24;">
+      Dear <strong>${applicantName || 'Customer'}</strong>,
+    </p>
+    <p style="margin:0 0 16px; font-size:14.5px; line-height:1.6; color:#6B584E;">
+      This email confirms that your wholesale partnership request for <strong style="color:#4A2E24;">${businessName || 'your business'}</strong> (Reference ID: <strong style="color:#B5523A;">${applicationCode}</strong>) has been <strong>CANCELLED</strong>.
+    </p>
+    <p style="margin:0 0 16px; font-size:14px; line-height:1.6; color:#6B584E;">
+      Your account has returned to regular retail customer status. If you wish to apply again in the future, you may submit a new application anytime through your customer dashboard.
+    </p>
+    ${notesSection}
+    <p style="margin:20px 0 0; font-size:14px; line-height:1.6; color:#6B584E;">
+      You can continue ordering fresh bakery items as a customer through our store at <a href="http://localhost:5000/customer/html/home.html" style="color:#B5523A; font-weight:700; text-decoration:none;">crumbsnrolls.com</a>.
+    </p>
   ` : `
     <p style="margin:0 0 16px; font-size:15px; line-height:1.6; color:#4A2E24;">
       Dear <strong>${applicantName || 'Applicant'}</strong>,
@@ -521,7 +544,7 @@ function buildPartnerStatusHtml({ applicantName, applicationCode, businessName, 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${isApproved ? 'Partnership Approved' : 'Application Status Update'}</title>
+  <title>${isApproved ? 'Partnership Approved' : isCancelled ? 'Partnership Cancelled' : 'Application Status Update'}</title>
 </head>
 <body style="margin:0; padding:0; background-color:#F5EFE6; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#F5EFE6; padding:30px 15px;">
@@ -594,6 +617,7 @@ function buildPartnerStatusHtml({ applicantName, applicationCode, businessName, 
  */
 function buildPartnerStatusText({ applicantName, applicationCode, businessName, status, staffNotes }) {
   const isApproved = status === 'approved';
+  const isCancelled = status === 'cancelled';
   const notesText = staffNotes ? `\nRemarks from Bakery Management:\n"${staffNotes}"\n` : '';
 
   if (isApproved) {
@@ -616,6 +640,23 @@ function buildPartnerStatusText({ applicantName, applicationCode, businessName, 
       `- Active Partner badge in your customer dashboard`,
       notesText,
       `You can now log in to your WeBake customer dashboard to track your partnership and start placing wholesale orders.`,
+      `-------------------------------------------------------`,
+      `For inquiries: crbwebake@gmail.com | 0917 123 4567`
+    ].filter(Boolean).join('\n');
+  } else if (isCancelled) {
+    return [
+      `CRUMBS N' ROLLS BAKERY (WeBake)`,
+      `1356 Cordero St., Lambakin, Marilao, Bulacan`,
+      `-------------------------------------------------------`,
+      `WHOLESALE PARTNERSHIP CANCELLED`,
+      `Application Code: ${applicationCode}`,
+      `Business: ${businessName || 'Your Business'}`,
+      `-------------------------------------------------------`,
+      `Dear ${applicantName || 'Customer'},`,
+      ``,
+      `This email confirms that your wholesale partnership request (ID: ${applicationCode}) has been cancelled.`,
+      notesText,
+      `You may re-apply anytime through your WeBake customer dashboard or continue placing regular retail orders.`,
       `-------------------------------------------------------`,
       `For inquiries: crbwebake@gmail.com | 0917 123 4567`
     ].filter(Boolean).join('\n');
@@ -652,8 +693,11 @@ async function sendPartnerStatusEmail({ applicantName, applicantEmail, applicati
 
   const transporter = getTransporter();
   const isApproved = status === 'approved';
+  const isCancelled = status === 'cancelled';
   const subject = isApproved
     ? `Congratulations! Your WeBake Wholesale Partnership Has Been Approved - [${applicationCode}]`
+    : isCancelled
+    ? `Notice: Your WeBake Wholesale Partnership Has Been Cancelled - [${applicationCode}]`
     : `Update on Your WeBake Wholesale Partnership Application - [${applicationCode}]`;
 
   const info = await transporter.sendMail({

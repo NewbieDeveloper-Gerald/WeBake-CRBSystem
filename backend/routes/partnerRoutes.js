@@ -256,12 +256,18 @@ router.patch('/:code/status', async (req, res) => {
         SET partner_status = 'pending', role_id = 1, updated_at = NOW()
         WHERE id = $1 OR LOWER(email_address) = $2;
       `, [app.user_id || 0, (app.applicant_email || '').toLowerCase()]);
+    } else if (status === 'cancelled') {
+      await client.query(`
+        UPDATE users
+        SET partner_status = 'cancelled', role_id = 1, updated_at = NOW()
+        WHERE (id = $1 OR LOWER(email_address) = $2) AND role_id != 4;
+      `, [app.user_id || 0, (app.applicant_email || '').toLowerCase()]);
     }
 
     await client.query('COMMIT');
 
     // Trigger transactional email notification asynchronously
-    if (app.applicant_email && (status === 'approved' || status === 'rejected')) {
+    if (app.applicant_email && (status === 'approved' || status === 'rejected' || status === 'cancelled')) {
       sendPartnerStatusEmail({
         applicantName: app.applicant_name,
         applicantEmail: app.applicant_email,
@@ -285,6 +291,114 @@ router.patch('/:code/status', async (req, res) => {
     await client.query('ROLLBACK');
     console.error('[Update Partner Application Error]:', err);
     return res.status(500).json({ success: false, message: 'Failed to update application.', error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * POST /api/partner/cancel
+ * Cancels a wholesale partner application or active partnership by customer or guest
+ */
+router.post('/cancel', async (req, res) => {
+  const client = await db.getClient();
+  try {
+    const { email, appId, reason } = req.body || {};
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanAppId = (appId || '').trim();
+
+    if (!cleanEmail && !cleanAppId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email address or Application ID is required to cancel partnership.'
+      });
+    }
+
+    await client.query('BEGIN');
+
+    // 1. Locate partner application
+    let query = `
+      SELECT id, application_code, user_id, applicant_name, applicant_email, business_name, status
+      FROM partner_applications
+      WHERE 1=1
+    `;
+    const params = [];
+    if (cleanAppId && cleanEmail) {
+      params.push(cleanAppId, cleanEmail);
+      query += ` AND (application_code ILIKE $1 OR LOWER(applicant_email) = $2)`;
+    } else if (cleanAppId) {
+      params.push(cleanAppId);
+      query += ` AND application_code ILIKE $1`;
+    } else {
+      params.push(cleanEmail);
+      query += ` AND LOWER(applicant_email) = $1`;
+    }
+    query += ` ORDER BY id DESC LIMIT 1;`;
+
+    const appRes = await client.query(query, params);
+
+    let app = null;
+    if (appRes.rows.length > 0) {
+      app = appRes.rows[0];
+      const cancelNote = reason ? ` [Cancelled by customer: ${reason}]` : ' [Cancelled by customer]';
+      await client.query(`
+        UPDATE partner_applications
+        SET status = 'cancelled',
+            admin_notes = COALESCE(admin_notes, '') || $1,
+            reviewed_at = NOW(),
+            updated_at = NOW()
+        WHERE id = $2;
+      `, [cancelNote, app.id]);
+    }
+
+    // 2. Synchronize user in users table
+    const userTargetEmail = cleanEmail || (app ? app.applicant_email : '');
+    const userTargetId = app ? app.user_id : null;
+
+    if (userTargetEmail || userTargetId) {
+      await client.query(`
+        UPDATE users
+        SET partner_status = 'cancelled',
+            role_id = 1,
+            updated_at = NOW()
+        WHERE (id = $1 OR LOWER(email_address) = $2)
+          AND role_id != 4;
+      `, [userTargetId || 0, userTargetEmail]);
+    }
+
+    await client.query('COMMIT');
+
+    // Trigger transactional cancellation confirmation email asynchronously
+    const targetEmail = (app && app.applicant_email) || cleanEmail;
+    if (targetEmail) {
+      sendPartnerStatusEmail({
+        applicantName: (app && app.applicant_name) || 'Customer',
+        applicantEmail: targetEmail,
+        applicationCode: (app && app.application_code) || cleanAppId || 'WB-PRT',
+        businessName: (app && app.business_name) || '',
+        status: 'cancelled',
+        staffNotes: reason || 'Customer requested partnership cancellation.'
+      }).then(info => {
+        console.log(`[Partner Email] Sent cancellation notice to ${targetEmail} (MsgID: ${info?.messageId})`);
+      }).catch(err => {
+        console.warn(`[Partner Email Warning] Failed to send cancel notice:`, err.message);
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Partnership request cancelled successfully.',
+      appId: app ? app.application_code : cleanAppId,
+      status: 'cancelled'
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('[Partner Cancel Error]:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to cancel partnership.',
+      error: error.message
+    });
   } finally {
     client.release();
   }
