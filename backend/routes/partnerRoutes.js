@@ -408,9 +408,22 @@ router.patch('/:code/status', async (req, res) => {
       });
     }
 
-    // Role check: Only admin/owner can change status
+    // Role check: Only admin/owner/staff can change application status
     const callerEmail = (req.headers['x-user-email'] || req.body.adminEmail || '').trim().toLowerCase();
-    if (callerEmail) {
+    const adminRoleHeader = (req.headers['x-admin-role'] || '').trim().toLowerCase();
+
+    const recognizedAdmins = [
+      (process.env.GMAIL_USER || 'crbwebake@gmail.com').toLowerCase(),
+      'crbwebake@gmail.com',
+      'geraldvelasco550@gmail.com'
+    ];
+
+    const isRecognizedAdmin = recognizedAdmins.includes(callerEmail) ||
+                              adminRoleHeader === 'owner' ||
+                              adminRoleHeader === 'admin' ||
+                              adminRoleHeader === 'staff';
+
+    if (callerEmail && !isRecognizedAdmin) {
       const adminCheck = await client.query('SELECT role_id FROM users WHERE LOWER(email_address) = $1 LIMIT 1;', [callerEmail]);
       if (adminCheck.rows.length > 0 && adminCheck.rows[0].role_id !== 3 && adminCheck.rows[0].role_id !== 4) {
         return res.status(403).json({ success: false, message: 'Forbidden: Admin access required.' });

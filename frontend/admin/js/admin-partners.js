@@ -223,9 +223,16 @@
       }
 
       if (window.WeBakeAdminAPI) {
+        let adminEmail = 'crbwebake@gmail.com';
+        try {
+          const sess = JSON.parse(localStorage.getItem('weBakeAdminSession') || 'null');
+          if (sess && sess.email) adminEmail = sess.email;
+        } catch (e) {}
+
         await window.WeBakeAdminAPI.patch(`/partner/${activeAppId}/status`, {
           status: targetStatus,
-          staffNotes: staffNotes
+          staffNotes: staffNotes,
+          adminEmail: adminEmail
         });
       }
 

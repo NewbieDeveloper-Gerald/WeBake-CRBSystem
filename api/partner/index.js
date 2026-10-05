@@ -325,14 +325,94 @@ async function handleMyStatus(req, res, pool) {
   }
 }
 
+async function handleStatusPatch(req, res, pool) {
+  const urlParts = req.url.split('?')[0].split('/').filter(Boolean);
+  let code = req.query?.code || '';
+  if (!code && urlParts.length >= 2) {
+    code = urlParts[urlParts.length - 2] === 'status' ? urlParts[urlParts.length - 3] : urlParts[urlParts.length - 2];
+  }
+  if (!code) code = urlParts[urlParts.length - 1] || '';
+
+  let { status, staffNotes } = req.body || {};
+  if (!status) return sendJson(res, 400, { success: false, message: 'Status is required.' });
+
+  if (status === 'reviewing') status = 'under_review';
+  if (status === 'declined') status = 'rejected';
+
+  const allowedStatuses = ['under_review', 'approved', 'rejected', 'cancelled'];
+  if (!allowedStatuses.includes(status)) {
+    return sendJson(res, 400, { success: false, message: `Invalid status '${status}'.` });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const appRes = await client.query('SELECT id, user_id, applicant_email FROM partner_applications WHERE application_code ILIKE $1 LIMIT 1;', [code.trim()]);
+    if (appRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return sendJson(res, 404, { success: false, message: 'Application not found.' });
+    }
+    const app = appRes.rows[0];
+
+    await client.query(`
+      UPDATE partner_applications
+      SET status = $1, admin_notes = COALESCE($2, admin_notes), reviewed_at = NOW(), updated_at = NOW()
+      WHERE id = $3;
+    `, [status, staffNotes, app.id]);
+
+    if (status === 'approved') {
+      await client.query(`
+        UPDATE users
+        SET partner_status = 'active', role_id = CASE WHEN role_id = 4 THEN 4 ELSE 2 END, updated_at = NOW()
+        WHERE id = $1 OR LOWER(email_address) = $2;
+      `, [app.user_id || 0, (app.applicant_email || '').toLowerCase()]);
+    } else if (status === 'rejected') {
+      await client.query(`
+        UPDATE users
+        SET partner_status = 'rejected', role_id = CASE WHEN role_id = 4 THEN 4 ELSE 1 END, updated_at = NOW()
+        WHERE id = $1 OR LOWER(email_address) = $2;
+      `, [app.user_id || 0, (app.applicant_email || '').toLowerCase()]);
+    } else if (status === 'under_review') {
+      await client.query(`
+        UPDATE users
+        SET partner_status = 'under_review', role_id = CASE WHEN role_id = 4 THEN 4 ELSE 1 END, updated_at = NOW()
+        WHERE id = $1 OR LOWER(email_address) = $2;
+      `, [app.user_id || 0, (app.applicant_email || '').toLowerCase()]);
+    } else if (status === 'cancelled') {
+      await client.query(`
+        UPDATE users
+        SET partner_status = 'cancelled', role_id = CASE WHEN role_id = 4 THEN 4 ELSE 1 END, updated_at = NOW()
+        WHERE (id = $1 OR LOWER(email_address) = $2) AND role_id != 4;
+      `, [app.user_id || 0, (app.applicant_email || '').toLowerCase()]);
+    }
+
+    await client.query('COMMIT');
+
+    return sendJson(res, 200, {
+      success: true,
+      message: `Application ${code} updated to ${status}.`,
+      status
+    });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    return sendError(res, 500, 'Failed to update partner application status.', e);
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = async function handler(req, res) {
-  if (handleCors(req, res, 'GET, POST, OPTIONS')) return;
+  if (handleCors(req, res, 'GET, POST, PATCH, OPTIONS')) return;
 
   const action = req.query?.action || (req.url.split('?')[0].split('/').filter(Boolean).pop());
   const pool = getPool();
 
   if (req.method === 'GET' || action === 'my-status') {
     return await handleMyStatus(req, res, pool);
+  }
+
+  if (req.method === 'PATCH' || action === 'status') {
+    return await handleStatusPatch(req, res, pool);
   }
 
   if (req.method !== 'POST') {

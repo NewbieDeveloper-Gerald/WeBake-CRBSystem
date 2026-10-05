@@ -28,7 +28,7 @@ app.use(cors({
   origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Email']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Email', 'X-Admin-Role']
 }));
 
 // Body parser
