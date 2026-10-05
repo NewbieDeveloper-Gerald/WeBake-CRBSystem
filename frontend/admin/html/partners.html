@@ -92,7 +92,7 @@
           </button>
           <div class="page-headline">
             <h1>Wholesale Reseller Applications</h1>
-            <p>Vetting and partner discount rate pipeline for store resellers</p>
+            <p>Vetting and priority partner pipeline for store resellers</p>
           </div>
         </div>
 
@@ -117,7 +117,7 @@
               <span>Pending Review</span>
               <span class="order-tab-count" id="count-partner-pending">0</span>
             </button>
-            <button type="button" class="order-tab-btn" data-tab="reviewing">Under Review / Contacted</button>
+            <button type="button" class="order-tab-btn" data-tab="under_review">Under Review / Contacted</button>
             <button type="button" class="order-tab-btn" data-tab="approved">Approved Partners</button>
             <button type="button" class="order-tab-btn" data-tab="rejected">Declined</button>
             <button type="button" class="order-tab-btn" data-tab="cancelled">
@@ -138,7 +138,6 @@
                   <th>Contact Person</th>
                   <th>Phone Number</th>
                   <th>Target Weekly Volume</th>
-                  <th>Discount Rate</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -194,20 +193,14 @@
             </div>
           </div>
 
-          <div class="form-row-2">
-            <div class="form-group">
-              <label class="form-label form-label-required">Application Status</label>
-              <select id="review-status-select" class="form-select">
-                <option value="reviewing">Under Review / Contacted</option>
-                <option value="approved">Approved Wholesale Partner</option>
-                <option value="rejected">Declined</option>
-                <option value="cancelled">Cancelled Partnership</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Wholesale Discount Rate (%)</label>
-              <input type="number" id="review-discount-input" class="form-input" min="0" max="50" value="10">
-            </div>
+          <div class="form-group" style="margin-top: 1rem;">
+            <label class="form-label form-label-required">Application Status</label>
+            <select id="review-status-select" class="form-select">
+              <option value="under_review">Under Review / Contacted</option>
+              <option value="approved">Approved Wholesale Partner</option>
+              <option value="rejected">Declined</option>
+              <option value="cancelled">Cancelled Partnership</option>
+            </select>
           </div>
 
           <div class="form-group">

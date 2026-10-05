@@ -771,17 +771,17 @@ document.addEventListener('DOMContentLoaded', () => {
       partnerActions.innerHTML = '';
 
       if (status === 'active' || status === 'approved' || status === 'accepted') {
-        partnerBadge.className = 'partner-badge badge-active';
+        partnerBadge.className = 'partner-badge badge-priority-partner';
         partnerBadge.removeAttribute('style');
-        partnerBadge.innerHTML = '<i class="fas fa-check-circle"></i> Active Wholesale Partner';
+        partnerBadge.innerHTML = '<i class="fas fa-crown"></i> Priority Partner';
         partnerCta.innerHTML = `
-          <div style="background:#d4edda; border-left:4px solid #28a745; padding:12px 14px; border-radius:6px; margin-bottom:10px; color:#155724; font-size:0.875rem; line-height:1.5;">
-            <div style="font-weight:700; font-size:0.95rem; margin-bottom:4px;">
-              <i class="fas fa-certificate"></i> Congratulations! Your Wholesale Partnership is Approved
+          <div style="background:#fffbeb; border-left:4px solid #f59e0b; padding:12px 14px; border-radius:6px; margin-bottom:10px; color:#92400e; font-size:0.875rem; line-height:1.5;">
+            <div style="font-weight:700; font-size:0.95rem; margin-bottom:4px; color:#78350f;">
+              <i class="fas fa-crown"></i> Congratulations! Your Wholesale Partnership is Approved
             </div>
-            <div>You are officially registered as a wholesale partner${businessName ? ` for <strong>${businessName}</strong>` : ''}. You now have access to wholesale bulk discounts and priority batch deliveries.</div>
-            ${appId ? `<div style="margin-top:6px; font-size:0.8rem; color:#1e7e34;"><strong>Partner ID:</strong> <code>${appId}</code></div>` : ''}
-            ${staffNotes ? `<div style="margin-top:8px; font-style:italic; font-size:0.8rem; color:#155724; background:rgba(255,255,255,0.7); padding:6px 10px; border-radius:4px; border:1px solid #c3e6cb;"><strong>Bakery Note:</strong> "${staffNotes}"</div>` : ''}
+            <div>You are officially registered as a wholesale partner${businessName ? ` for <strong>${businessName}</strong>` : ''}. As an authorized Priority Partner, you receive priority baking queue allocation, priority delivery scheduling, guaranteed stock allocation, and 50% reservation downpayment terms.</div>
+            ${appId ? `<div style="margin-top:6px; font-size:0.8rem; color:#b45309;"><strong>Partner ID:</strong> <code>${appId}</code></div>` : ''}
+            ${staffNotes ? `<div style="margin-top:8px; font-style:italic; font-size:0.8rem; color:#92400e; background:rgba(255,255,255,0.7); padding:6px 10px; border-radius:4px; border:1px solid #fcd34d;"><strong>Bakery Note:</strong> "${staffNotes}"</div>` : ''}
           </div>
         `;
         partnerCta.style.display = 'block';
@@ -792,7 +792,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (status === 'rejected' || status === 'declined') {
         partnerBadge.className = 'partner-badge badge-rejected';
         partnerBadge.removeAttribute('style');
-        partnerBadge.innerHTML = '<i class="fas fa-times-circle"></i> Application Not Approved';
+        partnerBadge.innerHTML = '<i class="fas fa-times-circle"></i> Application Declined';
         partnerCta.innerHTML = `
           <div style="background:#f8d7da; border-left:4px solid #dc3545; padding:10px 14px; border-radius:6px; margin-bottom:10px; color:#721c24; font-size:0.875rem; line-height:1.5;">
             <strong>Application Notice:</strong> Your wholesale partnership application was <strong>DECLINED</strong> at this time.
@@ -805,7 +805,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <a href="partner.html" class="btn btn-primary" style="padding:0.4rem 1.25rem; font-size:0.85rem;"><i class="fas fa-redo"></i> Re-apply for Partnership</a>
         `;
       } else if (status === 'under_review' || status === 'reviewing' || status === 'contacted') {
-        partnerBadge.className = 'partner-badge badge-reviewing';
+        partnerBadge.className = 'partner-badge badge-under_review';
         partnerBadge.removeAttribute('style');
         partnerBadge.innerHTML = '<i class="fas fa-user-clock"></i> Under Review / Contacted';
         partnerCta.innerHTML = `
@@ -814,13 +814,15 @@ document.addEventListener('DOMContentLoaded', () => {
               <i class="fas fa-user-clock"></i> Application Under Review / Store Contacted
             </div>
             <div>Bakery management is actively reviewing your store details and evaluating delivery logistics. Our team may reach out to you directly to confirm requirements.</div>
+            <div class="partner-locked-note" style="margin-top:8px;">
+              <i class="fas fa-lock"></i> Editing is locked while your application is being reviewed.
+            </div>
             ${appId ? `<div style="margin-top:6px; font-size:0.8rem; color:#0284c7;"><strong>Reference ID:</strong> <code>${appId}</code></div>` : ''}
             ${staffNotes ? `<div style="margin-top:8px; font-style:italic; font-size:0.8rem; color:#0369a1; background:rgba(255,255,255,0.85); padding:6px 10px; border-radius:4px; border:1px solid #bae6fd;"><strong>Bakery Note:</strong> "${staffNotes}"</div>` : ''}
           </div>
         `;
         partnerCta.style.display = 'block';
         partnerActions.innerHTML = `
-          <a href="partner.html" class="btn btn-outline" style="padding:0.4rem 1rem; font-size:0.85rem;"><i class="fas fa-edit"></i> Edit Application</a>
           <button id="cancel-partner-btn" class="btn btn-primary" style="padding:0.4rem 1rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545;">Cancel Request</button>
         `;
       } else if (status === 'pending') {
@@ -907,6 +909,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Immediately re-render cancelled UI
+            if (partnerPollTimer) {
+              clearInterval(partnerPollTimer);
+              partnerPollTimer = null;
+            }
             this.render();
             toast('Partnership request cancelled.');
             window.dispatchEvent(new CustomEvent('weBakePartnerChange'));
@@ -1027,4 +1033,129 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   syncFromCloud();
+
+  /* --------------------------------------------------------------------------
+     9. Near-Real-Time Customer Partnership Status Polling (10s)
+     -------------------------------------------------------------------------- */
+  let partnerPollTimer = null;
+  let lastKnownPartnerState = {
+    status: null,
+    updatedAt: null,
+    notes: null
+  };
+
+  async function pollMyStatus() {
+    if (document.visibilityState === 'hidden') return;
+    const sess = DashboardStore.getSession();
+    if (!sess || !sess.email) return;
+
+    const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
+      window.location.protocol === 'file:' ||
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:5000/api'
+        : '/api'
+    );
+
+    try {
+      const res = await fetch(`${apiBase}/partner/my-status?email=${encodeURIComponent(sess.email)}`, {
+        headers: {
+          'x-user-email': sess.email
+        }
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data || !data.success || !data.application) return;
+
+      const app = data.application;
+      const curStatus = (app.status || '').toLowerCase();
+      const curUpdatedAt = app.updatedAt || app.reviewedAt || app.submittedAt || '';
+      const curNotes = app.adminNotes || app.staffNotes || '';
+
+      if (lastKnownPartnerState.status !== curStatus ||
+          lastKnownPartnerState.updatedAt !== curUpdatedAt ||
+          lastKnownPartnerState.notes !== curNotes) {
+
+        lastKnownPartnerState = {
+          status: curStatus,
+          updatedAt: curUpdatedAt,
+          notes: curNotes
+        };
+
+        // Update local user and session
+        const allUsers = DashboardStore.getUsers();
+        let uIdx = allUsers.findIndex(u => DashboardStore.sameEmail(u.email, sess.email));
+        if (uIdx !== -1) {
+          allUsers[uIdx].partnerStatus = curStatus;
+          allUsers[uIdx].partnerAppId = app.applicationCode;
+          allUsers[uIdx].partnerDetails = {
+            ...(allUsers[uIdx].partnerDetails || {}),
+            adminNotes: curNotes,
+            staffNotes: curNotes,
+            businessName: app.businessName,
+            applicantName: app.applicantName
+          };
+          DashboardStore.saveUsers(allUsers);
+          currentUser = allUsers[uIdx];
+        }
+
+        sess.partnerStatus = curStatus;
+        sess.partnerAppId = app.applicationCode;
+        if (sess.partnerDetails) {
+          sess.partnerDetails.adminNotes = curNotes;
+          sess.partnerDetails.staffNotes = curNotes;
+        }
+        DashboardStore.saveSession(sess);
+
+        // Update cached applications list
+        const allApps = DashboardStore.getApplications();
+        let targetApp = allApps.find(a => a.appId && a.appId.toUpperCase() === app.applicationCode.toUpperCase());
+        if (targetApp) {
+          targetApp.status = curStatus;
+          targetApp.staffNotes = curNotes;
+          targetApp.updatedAt = curUpdatedAt;
+          if (targetApp.details) targetApp.details.notes = curNotes;
+        } else {
+          allApps.unshift({
+            appId: app.applicationCode,
+            email: sess.email,
+            status: curStatus,
+            staffNotes: curNotes,
+            updatedAt: curUpdatedAt,
+            details: { 'business-name': app.businessName, 'owner-name': app.applicantName }
+          });
+        }
+        DashboardStore.saveApplications(allApps);
+
+        DashboardPartnership.render();
+      }
+
+      // Stop customer polling once status is rejected or cancelled and has been rendered
+      if (curStatus === 'rejected' || curStatus === 'declined' || curStatus === 'cancelled') {
+        if (partnerPollTimer) {
+          clearInterval(partnerPollTimer);
+          partnerPollTimer = null;
+        }
+      }
+    } catch (e) {
+      // Keep last known state on network failure; retry on next interval
+    }
+  }
+
+  function startPartnerPolling() {
+    if (partnerPollTimer) clearInterval(partnerPollTimer);
+    const initialStatus = (currentUser?.partnerStatus || session?.partnerStatus || '').toLowerCase();
+    if (initialStatus === 'rejected' || initialStatus === 'declined' || initialStatus === 'cancelled') {
+      return; // Already finalized
+    }
+    partnerPollTimer = setInterval(pollMyStatus, 10000);
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && partnerPollTimer) {
+      pollMyStatus();
+    }
+  });
+
+  startPartnerPolling();
 });

@@ -202,9 +202,13 @@ router.get('/all', async (req, res) => {
         o.delivery_address, o.delivery_date, o.delivery_time, o.special_notes,
         o.subtotal_amount, o.delivery_fee, o.grand_total,
         o.downpayment_required, o.downpayment_paid, o.balance_due,
-        o.payment_method, o.status, o.created_at, o.updated_at
+        o.payment_method, o.status, o.created_at, o.updated_at,
+        COALESCE(u.partner_status, 'none') AS user_partner_status
       FROM orders o
-      ORDER BY o.created_at DESC;
+      LEFT JOIN users u ON (o.user_id = u.id OR LOWER(o.customer_email) = LOWER(u.email_address))
+      ORDER BY 
+        CASE WHEN COALESCE(u.partner_status, 'none') IN ('active', 'approved') THEN 0 ELSE 1 END ASC,
+        o.created_at DESC;
     `);
 
     const orderRows = ordersRes.rows;
@@ -253,10 +257,12 @@ router.get('/all', async (req, res) => {
                        (o.delivery_address && (o.delivery_address.toLowerCase().includes('walk-in') || o.delivery_address.toLowerCase().includes('counter')));
       const p = paymentsMap[o.id] || {};
       const dateObj = new Date(o.created_at);
+      const isPriority = o.user_partner_status === 'active' || o.user_partner_status === 'approved';
 
       return {
         id: o.id,
         orderId: o.order_code,
+        isPriorityPartner: isPriority,
         customer: {
           name: o.customer_name,
           email: o.customer_email,

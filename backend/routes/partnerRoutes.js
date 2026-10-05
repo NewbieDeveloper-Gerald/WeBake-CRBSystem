@@ -54,7 +54,7 @@ router.post('/apply', async (req, res) => {
       userId = userRes.rows[0].id;
     }
 
-    // Check if active application already exists
+    // Check if active application already exists (pending, under_review, approved)
     const existingRes = await db.query(
       `SELECT id, application_code, status FROM partner_applications 
        WHERE (user_id = $1 OR LOWER(applicant_email) = $2 OR applicant_phone = $3)
@@ -63,56 +63,120 @@ router.post('/apply', async (req, res) => {
       [userId || 0, applicantEmail, applicantPhone]
     );
 
-    let applicationCode = null;
-    let status = 'pending';
-
     if (existingRes.rows.length > 0) {
       const existing = existingRes.rows[0];
-      applicationCode = existing.application_code;
-      status = existing.status;
-      await db.query(`
-        UPDATE partner_applications
-        SET applicant_name = $1, business_name = $2, business_type = $3,
-            years_in_operation = $4, estimated_weekly_volume = $5,
-            delivery_address = $6, products_of_interest = $7,
-            additional_notes = $8, user_id = COALESCE(user_id, $9), updated_at = NOW()
-        WHERE id = $10;
-      `, [
-        applicantName, businessName, businessType, yearsInOp, weeklyVol,
-        deliveryAddress, products, notes, userId, existing.id
-      ]);
-    } else {
-      applicationCode = `WB-PRT-${Math.floor(10000 + Math.random() * 90000)}`;
-      const insertSql = `
-        INSERT INTO partner_applications (
-          application_code, user_id, applicant_name, applicant_email, applicant_phone,
-          business_name, business_type, years_in_operation, estimated_weekly_volume,
-          delivery_address, products_of_interest, additional_notes, agreed_to_terms, status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, true, 'pending');
-      `;
-      await db.query(insertSql, [
-        applicationCode, userId, applicantName, applicantEmail, applicantPhone,
-        businessName, businessType, yearsInOp, weeklyVol, deliveryAddress,
-        products, notes
-      ]);
+      return res.status(409).json({
+        success: false,
+        message: `You already have an active partnership application (${existing.application_code}) with status '${existing.status}'. A customer may only have one active application at a time.`,
+        applicationCode: existing.application_code,
+        status: existing.status
+      });
     }
 
-    // Also update users.partner_status if user exists and not approved
+    const applicationCode = `WB-PRT-${Math.floor(10000 + Math.random() * 90000)}`;
+    const insertSql = `
+      INSERT INTO partner_applications (
+        application_code, user_id, applicant_name, applicant_email, applicant_phone,
+        business_name, business_type, years_in_operation, estimated_weekly_volume,
+        delivery_address, products_of_interest, additional_notes, agreed_to_terms, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, true, 'pending');
+    `;
+    await db.query(insertSql, [
+      applicationCode, userId, applicantName, applicantEmail, applicantPhone,
+      businessName, businessType, yearsInOp, weeklyVol, deliveryAddress,
+      products, notes
+    ]);
+
+    // Update users.partner_status if user exists
     if (userId) {
-      await db.query(`UPDATE users SET partner_status = $1 WHERE id = $2 AND partner_status NOT IN ('active', 'approved');`, [status, userId]);
+      await db.query(`UPDATE users SET partner_status = 'pending' WHERE id = $1;`, [userId]);
     }
 
     return res.status(201).json({
       success: true,
       message: 'Wholesale partner application submitted successfully.',
       applicationCode: applicationCode,
-      status: status
+      status: 'pending'
     });
   } catch (error) {
     console.error('[Partner Apply Error]:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to submit partner application.',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/partner/my-status
+ * Returns caller's own application status for polling on customer dashboard & tracking
+ */
+router.get('/my-status', async (req, res) => {
+  try {
+    const callerEmail = (req.headers['x-user-email'] || req.query.email || '').trim().toLowerCase();
+    const callerCode = (req.query.code || req.query.appId || '').trim();
+
+    if (!callerEmail && !callerCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'Authentication email or reference code is required.'
+      });
+    }
+
+    let query = `
+      SELECT id, application_code, applicant_name, applicant_email, business_name,
+             business_type, status, admin_notes, submitted_at, updated_at, reviewed_at
+      FROM partner_applications
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (callerCode && callerEmail) {
+      // Guest or explicit reference code + verified email verification
+      params.push(callerCode, callerEmail);
+      query += ` AND application_code ILIKE $1 AND LOWER(applicant_email) = $2`;
+    } else if (callerEmail) {
+      // Logged-in session email lookup
+      params.push(callerEmail);
+      query += ` AND LOWER(applicant_email) = $1`;
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Verified email is required to access application status.'
+      });
+    }
+
+    query += ` ORDER BY updated_at DESC, id DESC LIMIT 1;`;
+
+    const { rows } = await db.query(query, params);
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No partnership application found.'
+      });
+    }
+
+    const app = rows[0];
+    return res.json({
+      success: true,
+      application: {
+        applicationCode: app.application_code,
+        status: app.status,
+        adminNotes: app.admin_notes || '',
+        staffNotes: app.admin_notes || '',
+        businessName: app.business_name,
+        applicantName: app.applicant_name,
+        submittedAt: app.submitted_at,
+        updatedAt: app.updated_at,
+        reviewedAt: app.reviewed_at
+      }
+    });
+  } catch (error) {
+    console.error('[Partner My-Status Error]:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve application status.',
       error: error.message
     });
   }
@@ -185,7 +249,6 @@ router.get('/all', async (req, res) => {
         products: r.products_of_interest,
         notes: r.additional_notes,
         status: r.status,
-        discountRate: r.status === 'approved' ? 15 : 0,
         staffNotes: r.admin_notes || '',
         date: new Date(r.submitted_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
         details: {
@@ -206,17 +269,152 @@ router.get('/all', async (req, res) => {
 });
 
 /**
+ * PATCH /api/partner/:code
+ * Updates details of an existing pending application by the applicant
+ * Enforces:
+ *   - Only status === 'pending' allowed (returns 403 otherwise)
+ *   - Caller must be the verified owner
+ *   - Email and application code are immutable
+ */
+router.patch('/:code', async (req, res) => {
+  try {
+    const { code } = req.params;
+    const cleanCode = (code || '').trim();
+    const data = req.body || {};
+
+    if (!cleanCode) {
+      return res.status(400).json({ success: false, message: 'Application code is required.' });
+    }
+
+    // 1. Fetch application
+    const appRes = await db.query(`
+      SELECT id, application_code, user_id, applicant_name, applicant_email, applicant_phone,
+             business_name, business_type, years_in_operation, estimated_weekly_volume,
+             delivery_address, products_of_interest, additional_notes, status
+      FROM partner_applications
+      WHERE application_code ILIKE $1;
+    `, [cleanCode]);
+
+    if (appRes.rows.length === 0) {
+      return res.status(404).json({ success: false, message: `Application ${cleanCode} not found.` });
+    }
+
+    const app = appRes.rows[0];
+
+    // 2. Enforce status rule: only 'pending' may be edited
+    if (app.status !== 'pending') {
+      return res.status(403).json({
+        success: false,
+        message: 'Editing is locked while your application is being reviewed. Only applications in Pending status can be edited.',
+        currentStatus: app.status
+      });
+    }
+
+    // 3. Ownership verification
+    const callerEmail = (req.headers['x-user-email'] || data.email || '').trim().toLowerCase();
+    const callerUserId = data.userId || null;
+    const isOwner = (callerEmail && callerEmail === (app.applicant_email || '').toLowerCase()) ||
+                    (app.user_id && callerUserId && Number(callerUserId) === Number(app.user_id));
+
+    if (!isOwner) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized: You may only edit your own partnership application.'
+      });
+    }
+
+    // 4. Extract and validate editable fields
+    const businessName = (data.businessName || data['business-name'] || data['bakery-name'] || app.business_name || '').trim();
+    const applicantName = (data.fullName || data.name || data['owner-name'] || app.applicant_name || '').trim();
+    const rawType = data.businessType || data['business-type'] || data.type || app.business_type;
+    const businessType = normalizeBusinessType(rawType);
+    const yearsInOp = data.yearsInOperation || data.experience || data.years || app.years_in_operation;
+    const weeklyVol = data.weeklyVolume || data.volume || app.estimated_weekly_volume;
+    const deliveryAddress = (data.address || data.deliveryAddress || app.delivery_address || '').trim();
+    const products = Array.isArray(data.products) && data.products.length > 0 ? data.products : app.products_of_interest;
+    const notes = data.notes !== undefined ? data.notes : (data.additionalNotes !== undefined ? data.additionalNotes : app.additional_notes);
+
+    let cleanPhone = app.applicant_phone;
+    if (data.phone || data.contact) {
+      const p = String(data.phone || data.contact).replace(/\D/g, '');
+      if (p.length !== 11 || !p.startsWith('09')) {
+        return res.status(400).json({ success: false, message: 'Contact number must be 11 digits starting with 09.' });
+      }
+      cleanPhone = p;
+    }
+
+    if (!businessName || !applicantName) {
+      return res.status(400).json({ success: false, message: 'Business name and applicant name cannot be empty.' });
+    }
+
+    // 5. Update database (applicant_email and application_code remain untouched)
+    await db.query(`
+      UPDATE partner_applications
+      SET business_name = $1,
+          applicant_name = $2,
+          business_type = $3,
+          years_in_operation = $4,
+          estimated_weekly_volume = $5,
+          delivery_address = $6,
+          products_of_interest = $7,
+          additional_notes = $8,
+          applicant_phone = $9,
+          updated_at = NOW()
+      WHERE id = $10;
+    `, [
+      businessName, applicantName, businessType, yearsInOp, weeklyVol,
+      deliveryAddress, products, notes, cleanPhone, app.id
+    ]);
+
+    return res.json({
+      success: true,
+      message: 'Application updated successfully.',
+      applicationCode: app.application_code,
+      status: 'pending'
+    });
+  } catch (error) {
+    console.error('[Partner Edit Error]:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update application.',
+      error: error.message
+    });
+  }
+});
+
+/**
  * PATCH /api/partner/:code/status
- * Updates reseller application status and synchronizes user role/status
+ * Updates reseller application status and synchronizes user role/status (Admin Only)
  */
 router.patch('/:code/status', async (req, res) => {
   const client = await db.getClient();
   try {
     const { code } = req.params;
-    const { status, staffNotes } = req.body || {};
+    let { status, staffNotes } = req.body || {};
 
     if (!status) {
       return res.status(400).json({ success: false, message: 'Status is required.' });
+    }
+
+    // Standardize status values
+    if (status === 'reviewing') status = 'under_review';
+    if (status === 'declined') status = 'rejected';
+
+    const allowedStatuses = ['under_review', 'approved', 'rejected', 'cancelled'];
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status '${status}'. Allowed statuses: ${allowedStatuses.join(', ')}.`
+      });
+    }
+
+    // Role check: Only admin/owner can change status
+    const callerEmail = (req.headers['x-user-email'] || req.body.adminEmail || '').trim().toLowerCase();
+    if (callerEmail) {
+      const adminCheck = await client.query('SELECT role_id FROM users WHERE LOWER(email_address) = $1 LIMIT 1;', [callerEmail]);
+      if (adminCheck.rows.length > 0 && adminCheck.rows[0].role_id !== 3 && adminCheck.rows[0].role_id !== 4) {
+        return res.status(403).json({ success: false, message: 'Forbidden: Admin access required.' });
+      }
     }
 
     await client.query('BEGIN');
@@ -250,16 +448,10 @@ router.patch('/:code/status', async (req, res) => {
         SET partner_status = 'rejected', role_id = 1, updated_at = NOW()
         WHERE id = $1 OR LOWER(email_address) = $2;
       `, [app.user_id || 0, (app.applicant_email || '').toLowerCase()]);
-    } else if (status === 'under_review' || status === 'reviewing') {
+    } else if (status === 'under_review') {
       await client.query(`
         UPDATE users
         SET partner_status = 'under_review', role_id = 1, updated_at = NOW()
-        WHERE id = $1 OR LOWER(email_address) = $2;
-      `, [app.user_id || 0, (app.applicant_email || '').toLowerCase()]);
-    } else if (status === 'pending') {
-      await client.query(`
-        UPDATE users
-        SET partner_status = 'pending', role_id = 1, updated_at = NOW()
         WHERE id = $1 OR LOWER(email_address) = $2;
       `, [app.user_id || 0, (app.applicant_email || '').toLowerCase()]);
     } else if (status === 'cancelled') {
@@ -273,7 +465,7 @@ router.patch('/:code/status', async (req, res) => {
     await client.query('COMMIT');
 
     // Trigger transactional email notification asynchronously
-    if (app.applicant_email && (status === 'approved' || status === 'rejected' || status === 'cancelled' || status === 'under_review' || status === 'reviewing')) {
+    if (app.applicant_email) {
       sendPartnerStatusEmail({
         applicantName: app.applicant_name,
         applicantEmail: app.applicant_email,

@@ -42,6 +42,7 @@
 
     if (errBox) errBox.style.display = 'none';
     if (resBox) { resBox.style.display = 'none'; resBox.innerHTML = ''; }
+    if (typeof stopTrackPartnerPolling === 'function') stopTrackPartnerPolling();
 
     if (mode === 'partner') {
       if (modeInput) modeInput.value = 'partner';
@@ -442,10 +443,10 @@
     let statusIcon = 'fa-clock';
 
     if (appStatus === 'approved' || appStatus === 'active') {
-      statusText = 'Approved — Wholesale Partner Active';
-      statusBg = '#d4edda';
-      statusColor = '#155724';
-      statusIcon = 'fa-check-circle';
+      statusText = 'Approved Wholesale Partner';
+      statusBg = '#fef3c7';
+      statusColor = '#92400e';
+      statusIcon = 'fa-crown';
     } else if (appStatus === 'under_review' || appStatus === 'reviewing' || appStatus === 'contacted') {
       statusText = 'Under Review / Contacted';
       statusBg = '#e0f2fe';
@@ -457,7 +458,7 @@
       statusColor = '#721c24';
       statusIcon = 'fa-times-circle';
     } else if (appStatus === 'cancelled') {
-      statusText = 'Application Cancelled';
+      statusText = 'Partnership Cancelled';
       statusBg = '#fee2e2';
       statusColor = '#991b1b';
       statusIcon = 'fa-ban';
@@ -467,29 +468,58 @@
     const details = app.details || {};
     const productsList = (details.products && details.products.length) ? details.products.map(p => esc(p)).join(', ') : 'All Products';
     const isApproved = (appStatus === 'approved' || appStatus === 'active');
-    const canModify = (appStatus !== 'cancelled' && appStatus !== 'rejected' && appStatus !== 'declined');
 
     let nextStepsText = 'Your wholesale partnership application has been received and is pending initial review by bakery management. We will contact you or update your status once our team begins vetting your business.';
     if (isApproved) {
-      nextStepsText = 'Congratulations! Your wholesale partnership is active. You may now place orders with your partner privileges and bulk terms.';
+      nextStepsText = 'Congratulations! Your wholesale partnership is active with Priority Partner privileges. You receive priority morning baking queueing, priority delivery scheduling, guaranteed stock allocation, and 50% reservation downpayment terms.';
     } else if (appStatus === 'under_review' || appStatus === 'reviewing' || appStatus === 'contacted') {
       nextStepsText = 'Our bakery management team is actively reviewing your store location and evaluating delivery logistics. We may contact you directly via phone or email to confirm weekly order volumes and schedule details.';
     } else if (appStatus === 'cancelled') {
       nextStepsText = 'This partnership application has been cancelled. If you wish to apply again, you may submit a new application through the Partner page.';
     } else if (appStatus === 'rejected' || appStatus === 'declined') {
-      nextStepsText = 'Thank you for your interest. Unfortunately, this application could not be approved at this time.';
+      nextStepsText = 'Thank you for your interest. Unfortunately, this application could not be approved at this time. You are welcome to submit an updated application in the future.';
     }
 
-    const actionsHtml = canModify ? `
-      <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1rem; flex-wrap:wrap; border-top:1px solid #f0e7dc; padding-top:0.85rem;">
-        <button type="button" id="track-edit-partner-btn" class="btn btn-outline" style="padding:0.45rem 1rem; font-size:0.85rem; display:inline-flex; align-items:center; gap:0.4rem;">
-          <i class="fas fa-edit"></i> ${isApproved ? 'Update Details' : 'Edit Application'}
-        </button>
-        <button type="button" id="track-cancel-partner-btn" class="btn btn-primary" style="padding:0.45rem 1rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545; display:inline-flex; align-items:center; gap:0.4rem;">
-          <i class="fas fa-ban"></i> ${isApproved ? 'Cancel Partnership' : 'Cancel Request'}
-        </button>
-      </div>
-    ` : '';
+    let actionsHtml = '';
+    if (appStatus === 'pending') {
+      actionsHtml = `
+        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1rem; flex-wrap:wrap; border-top:1px solid #f0e7dc; padding-top:0.85rem;">
+          <button type="button" id="track-edit-partner-btn" class="btn btn-outline" style="padding:0.45rem 1rem; font-size:0.85rem; display:inline-flex; align-items:center; gap:0.4rem;">
+            <i class="fas fa-edit"></i> Edit Application
+          </button>
+          <button type="button" id="track-cancel-partner-btn" class="btn btn-primary" style="padding:0.45rem 1rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545; display:inline-flex; align-items:center; gap:0.4rem;">
+            <i class="fas fa-ban"></i> Cancel Request
+          </button>
+        </div>
+      `;
+    } else if (appStatus === 'under_review' || appStatus === 'reviewing' || appStatus === 'contacted') {
+      actionsHtml = `
+        <div class="partner-locked-note" style="margin-top:0.75rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:0.6rem 0.9rem; font-size:0.82rem; color:#475569; display:flex; align-items:center; gap:0.5rem;">
+          <i class="fas fa-lock"></i> Editing is locked while your application is being reviewed.
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:0.75rem; flex-wrap:wrap; border-top:1px solid #f0e7dc; padding-top:0.85rem;">
+          <button type="button" id="track-cancel-partner-btn" class="btn btn-primary" style="padding:0.45rem 1rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545; display:inline-flex; align-items:center; gap:0.4rem;">
+            <i class="fas fa-ban"></i> Cancel Request
+          </button>
+        </div>
+      `;
+    } else if (isApproved) {
+      actionsHtml = `
+        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1rem; flex-wrap:wrap; border-top:1px solid #f0e7dc; padding-top:0.85rem;">
+          <button type="button" id="track-cancel-partner-btn" class="btn btn-primary" style="padding:0.45rem 1rem; font-size:0.85rem; background:#dc3545; border-color:#dc3545; display:inline-flex; align-items:center; gap:0.4rem;">
+            <i class="fas fa-ban"></i> Cancel Partnership
+          </button>
+        </div>
+      `;
+    } else if (appStatus === 'rejected' || appStatus === 'declined' || appStatus === 'cancelled') {
+      actionsHtml = `
+        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1rem; flex-wrap:wrap; border-top:1px solid #f0e7dc; padding-top:0.85rem;">
+          <a href="partner.html" class="btn btn-primary" style="padding:0.45rem 1.25rem; font-size:0.85rem; display:inline-flex; align-items:center; gap:0.4rem;">
+            <i class="fas fa-redo"></i> Apply Again
+          </a>
+        </div>
+      `;
+    }
 
     const yearsText = details.years ? (String(details.years).toLowerCase().includes('year') ? `${esc(details.years)} in operation` : `${esc(details.years)} years in operation`) : '1+ years in operation';
 
@@ -615,7 +645,96 @@
         window.WeBakeModals.confirmCancelPartner({ onConfirm: doCancelPartner });
       }
     });
+
+    // Start 10s status polling for this application while tracking result is active
+    startTrackPartnerPolling(app.appId, app.details?.email || app.email || '', resBox);
   }
+
+  let trackPartnerPollTimer = null;
+  let lastKnownTrackState = { status: null, updatedAt: null, notes: null };
+
+  function stopTrackPartnerPolling() {
+    if (trackPartnerPollTimer) {
+      clearInterval(trackPartnerPollTimer);
+      trackPartnerPollTimer = null;
+    }
+  }
+
+  function startTrackPartnerPolling(appId, appEmail, resBox) {
+    stopTrackPartnerPolling();
+    if (!appId) return;
+
+    async function checkTrackStatus() {
+      if (document.visibilityState === 'hidden') return;
+      const modal = document.getElementById('track-order-modal');
+      if (!modal || !modal.classList.contains('active')) {
+        stopTrackPartnerPolling();
+        return;
+      }
+
+      const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
+        window.location.protocol === 'file:' ||
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1'
+          ? 'http://localhost:5000/api'
+          : '/api'
+      );
+
+      try {
+        const url = `${apiBase}/partner/my-status?code=${encodeURIComponent(appId)}&email=${encodeURIComponent(appEmail || '')}`;
+        const res = await fetch(url, { headers: { 'x-user-email': appEmail || '' } });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data || !data.success || !data.application) return;
+
+        const current = data.application;
+        const st = (current.status || '').toLowerCase();
+        const upd = current.updatedAt || current.reviewedAt || '';
+        const nts = current.adminNotes || current.staffNotes || '';
+
+        if (lastKnownTrackState.status !== st ||
+            lastKnownTrackState.updatedAt !== upd ||
+            lastKnownTrackState.notes !== nts) {
+          lastKnownTrackState = { status: st, updatedAt: upd, notes: nts };
+          const updatedApp = {
+            appId: current.applicationCode || appId,
+            email: appEmail,
+            status: st,
+            date: current.submittedAt ? new Date(current.submittedAt).toLocaleDateString() : 'Recent',
+            details: {
+              'business-name': current.businessName,
+              'owner-name': current.applicantName,
+              notes: nts,
+              email: appEmail
+            }
+          };
+          renderTrackPartnerResult(updatedApp, resBox);
+        }
+
+        if (st === 'rejected' || st === 'cancelled') {
+          stopTrackPartnerPolling();
+        }
+      } catch (err) {}
+    }
+
+    trackPartnerPollTimer = setInterval(checkTrackStatus, 10000);
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && trackPartnerPollTimer) {
+      // Trigger instant check when tab resumes
+      const resBox = document.getElementById('track-result-container');
+      const appIdEl = resBox?.querySelector('.font-weight-800, strong');
+      const appId = appIdEl ? appIdEl.textContent.trim() : null;
+      if (appId && resBox) {
+        const idInput = document.getElementById('track-input-id');
+        const contactInput = document.getElementById('track-input-contact');
+        if (idInput && contactInput) {
+          startTrackPartnerPolling(idInput.value.trim(), contactInput.value.trim(), resBox);
+        }
+      }
+    }
+  });
 
   async function handleTrackSubmit(e) {
     e.preventDefault();

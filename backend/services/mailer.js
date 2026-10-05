@@ -482,13 +482,13 @@ function buildPartnerStatusHtml({ applicantName, applicationCode, businessName, 
     <!-- Perks List -->
     <div style="background-color:#FDFBF7; border:1px solid #EEDBCE; border-radius:8px; padding:18px 20px; margin:20px 0; text-align:left;">
       <div style="font-size:13px; font-weight:800; color:#4A2E24; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px;">
-        Your Wholesale Partner Benefits:
+        Your Priority Partner Benefits:
       </div>
       <ul style="margin:0; padding-left:20px; font-size:13.5px; line-height:1.8; color:#5C4B40;">
-        <li><strong>Wholesale Pricing:</strong> Exclusive discounted bulk rates on Mamon, Otap, Eggnog, and Buttertoast.</li>
-        <li><strong>Batch Delivery Priority:</strong> Morning production priority and scheduled direct deliveries to your shop.</li>
-        <li><strong>Flexible Payment Terms:</strong> 50% downpayment terms with remaining balance settlement on handover.</li>
-        <li><strong>Dashboard Management:</strong> View your active partner badge, past wholesale invoices, and order history anytime.</li>
+        <li><strong>Priority Partner Status:</strong> Priority Partner badge displayed on your customer dashboard and wholesale store orders.</li>
+        <li><strong>Priority Delivery & Stock Allocation:</strong> First priority in daily delivery scheduling and morning baking stock allocation.</li>
+        <li><strong>Priority Production Queue:</strong> Early morning baking batch prioritization for your scheduled store deliveries.</li>
+        <li><strong>Flexible Payment Terms:</strong> 50% reservation downpayment terms with remaining balance settlement upon delivery.</li>
       </ul>
     </div>
     ${notesSection}
@@ -654,11 +654,11 @@ function buildPartnerStatusText({ applicantName, applicationCode, businessName, 
       ``,
       `We are pleased to inform you that your wholesale reseller partnership application has been officially APPROVED by bakery management!`,
       ``,
-      `YOUR WHOLESALE PARTNER BENEFITS:`,
-      `- Exclusive bulk discount pricing on all bread and pastry bundles`,
-      `- Priority morning baking batch queue and direct scheduled delivery`,
+      `YOUR PRIORITY PARTNER BENEFITS:`,
+      `- Priority Partner badge on your customer dashboard and wholesale orders`,
+      `- Priority morning baking queue and scheduled direct store deliveries`,
+      `- Priority in stock allocation and delivery scheduling`,
       `- 50% downpayment terms with balance settlement on delivery`,
-      `- Active Partner badge in your customer dashboard`,
       notesText,
       `You can now log in to your WeBake customer dashboard to track your partnership and start placing wholesale orders.`,
       `-------------------------------------------------------`,

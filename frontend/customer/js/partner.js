@@ -546,6 +546,85 @@
     }
   }
 
+  function setFormFieldsLocked(isLocked, lockedReasonText) {
+    const partnerForm = document.getElementById('partner-form');
+    if (!partnerForm) return;
+
+    const inputs = partnerForm.querySelectorAll('input:not([type="hidden"]), select, textarea, button[type="submit"]');
+    inputs.forEach(el => {
+      el.disabled = isLocked;
+    });
+
+    let lockNotice = document.getElementById('partner-form-lock-notice');
+    if (isLocked) {
+      if (!lockNotice) {
+        lockNotice = document.createElement('div');
+        lockNotice.id = 'partner-form-lock-notice';
+        lockNotice.className = 'partner-locked-note';
+        lockNotice.style.cssText = 'background:#fef2f2; border:1px solid #fecaca; color:#991b1b; padding:12px 16px; border-radius:8px; margin-bottom:1.25rem; font-weight:600; font-size:0.9rem; display:flex; align-items:center; gap:0.6rem;';
+        const formContainer = partnerForm.parentElement;
+        if (formContainer) {
+          formContainer.insertBefore(lockNotice, partnerForm);
+        }
+      }
+      lockNotice.innerHTML = `<i class="fas fa-lock"></i> ${lockedReasonText || 'Editing is locked while your application is being reviewed.'}`;
+      lockNotice.style.display = 'flex';
+    } else {
+      if (lockNotice) {
+        lockNotice.style.display = 'none';
+      }
+    }
+  }
+
+  let editStatusPollTimer = null;
+  function startEditStatusPolling(targetCode, targetEmail) {
+    if (editStatusPollTimer) clearInterval(editStatusPollTimer);
+    if (!targetCode && !targetEmail) return;
+
+    const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
+      window.location.protocol === 'file:' ||
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:5000/api'
+        : '/api'
+    );
+
+    async function checkCurrentEditStatus() {
+      if (document.visibilityState === 'hidden') return;
+      try {
+        const url = `${apiBase}/partner/my-status?code=${encodeURIComponent(targetCode || '')}&email=${encodeURIComponent(targetEmail || '')}`;
+        const res = await fetch(url, { headers: { 'x-user-email': targetEmail || '' } });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data || !data.success || !data.application) return;
+
+        const curStatus = (data.application.status || '').toLowerCase();
+        if (curStatus !== 'pending') {
+          // Status changed away from pending! Lock the form immediately
+          setFormFieldsLocked(true, 'Editing is locked while your application is being reviewed.');
+          toast('Editing is locked while your application is being reviewed.');
+          if (editStatusPollTimer) {
+            clearInterval(editStatusPollTimer);
+            editStatusPollTimer = null;
+          }
+        }
+      } catch (e) {}
+    }
+
+    editStatusPollTimer = setInterval(checkCurrentEditStatus, 10000);
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && editStatusPollTimer) {
+      // immediate check
+      const s = PartnerStore.getSession();
+      const editingId = PartnerStore.getEditAppId();
+      if (editingId || (s && s.email)) {
+        startEditStatusPolling(editingId || s?.partnerAppId, s?.email);
+      }
+    }
+  });
+
   function syncPartnerFormState() {
     const partnerForm = document.getElementById('partner-form');
     if (!partnerForm) return;
@@ -611,31 +690,43 @@
         if (effStatus === 'active' || effStatus === 'approved' || effStatus === 'accepted') {
           const intro = document.querySelector('.partner-intro');
           if (intro) {
-            intro.innerHTML = `<div style="background:#d4edda; border-left:4px solid #28a745; padding:1rem; border-radius:8px; margin-bottom:1rem; color:#155724; font-weight:600;"><i class="fas fa-check-circle"></i> <strong>Active Wholesale Partner:</strong> Your bakery partnership is approved! You can review or update your business details below.</div>`;
+            intro.innerHTML = `<div style="background:#fffbeb; border-left:4px solid #f59e0b; padding:1rem; border-radius:8px; margin-bottom:1rem; color:#92400e; font-weight:600;"><i class="fas fa-crown"></i> <strong>Priority Wholesale Partner Active:</strong> Your wholesale partnership is approved and active! Application details are read-only.</div>`;
           }
-          if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-save"></i> Update Business Profile';
           if (effDetails) populatePartnerFields(effDetails, u || s);
+          setFormFieldsLocked(true, 'Your wholesale partnership is approved and active. Editing is locked.');
         } else if (effStatus === 'under_review' || effStatus === 'reviewing' || effStatus === 'contacted') {
           const intro = document.querySelector('.partner-intro');
           if (intro) {
-            intro.innerHTML = `<div style="background:#e0f2fe; border-left:4px solid #0284c7; padding:1rem; border-radius:8px; margin-bottom:1rem; color:#0369a1; font-weight:600;"><i class="fas fa-user-clock"></i> <strong>Application Under Review / Contacted:</strong> Bakery management is actively reviewing your store application and checking delivery logistics. You may update your submitted details below.</div>`;
+            intro.innerHTML = `<div style="background:#e0f2fe; border-left:4px solid #0284c7; padding:1rem; border-radius:8px; margin-bottom:1rem; color:#0369a1; font-weight:600;"><i class="fas fa-user-clock"></i> <strong>Application Under Review / Contacted:</strong> Bakery management is actively reviewing your store application and checking delivery logistics.</div>`;
           }
-          if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-save"></i> Update Application';
           if (effDetails) populatePartnerFields(effDetails, u || s);
+          setFormFieldsLocked(true, 'Editing is locked while your application is being reviewed.');
         } else if (effStatus === 'pending') {
           const intro = document.querySelector('.partner-intro');
           if (intro) {
-            intro.innerHTML = `<div style="background:#fff3cd; border-left:4px solid #ffc107; padding:1rem; border-radius:8px; margin-bottom:1rem; color:#856404; font-weight:600;"><i class="fas fa-clock"></i> <strong>Application Pending for Review:</strong> Your wholesale application has been submitted and is pending initial review by bakery management. You may update your submitted details below.</div>`;
+            intro.innerHTML = `<div style="background:#fff3cd; border-left:4px solid #ffc107; padding:1rem; border-radius:8px; margin-bottom:1rem; color:#856404; font-weight:600;"><i class="fas fa-clock"></i> <strong>Application Pending for Review:</strong> Your wholesale application has been submitted and is pending initial review by bakery management. You may edit your submitted details below.</div>`;
           }
-          if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-save"></i> Update Application';
+          if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-save"></i> Save Application Changes';
           if (effDetails) populatePartnerFields(effDetails, u || s);
+          setFormFieldsLocked(false);
+          startEditStatusPolling(u?.partnerAppId || s?.partnerAppId, u?.email || s?.email);
         } else if (effStatus === 'rejected' || effStatus === 'declined') {
           const intro = document.querySelector('.partner-intro');
           if (intro) {
-            intro.innerHTML = `<div style="background:#f8d7da; border-left:4px solid #dc3545; padding:1rem; border-radius:8px; margin-bottom:1rem; color:#721c24; font-weight:600;"><i class="fas fa-exclamation-circle"></i> Your previous wholesale partnership application was declined. You can update your business information and re-apply below.</div>`;
+            intro.innerHTML = `<div style="background:#f8d7da; border-left:4px solid #dc3545; padding:1rem; border-radius:8px; margin-bottom:1rem; color:#721c24; font-weight:600;"><i class="fas fa-redo"></i> Your previous application was declined. You may update your business information and re-apply below.</div>`;
           }
           if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Re-apply for Partnership';
           if (effDetails) populatePartnerFields(effDetails, u || s);
+          setFormFieldsLocked(false);
+        } else if (effStatus === 'cancelled') {
+          const intro = document.querySelector('.partner-intro');
+          if (intro) {
+            intro.innerHTML = `<div style="background:#f8f9fa; border-left:4px solid #6c757d; padding:1rem; border-radius:8px; margin-bottom:1rem; color:#495057; font-weight:600;"><i class="fas fa-handshake"></i> Your previous partnership was cancelled. You may submit a new application below.</div>`;
+          }
+          if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Application';
+          setFormFieldsLocked(false);
+        } else {
+          setFormFieldsLocked(false);
         }
       } else {
         // Guest mode: ensure contact inputs are displayed and required
@@ -643,6 +734,7 @@
         if (loggedInBadge) loggedInBadge.style.display = 'none';
         if (partnerEmailEl) partnerEmailEl.setAttribute('required', '');
         if (partnerPhoneEl) partnerPhoneEl.setAttribute('required', '');
+        setFormFieldsLocked(false);
       }
 
       // Check if user is editing a specific application (e.g. from Track Transaction modal)
@@ -653,12 +745,19 @@
         if (editApp && editApp.status !== 'cancelled') {
           populatePartnerFields(editApp.details || {}, editApp);
 
+          if (editApp.status !== 'pending') {
+            setFormFieldsLocked(true, 'Editing is locked while your application is being reviewed.');
+          } else {
+            setFormFieldsLocked(false);
+            startEditStatusPolling(editApp.appId, editApp.email || editApp.details?.email);
+          }
+
           if (editBanner) {
             editBanner.style.display = 'flex';
             if (editIdText) editIdText.textContent = editApp.appId;
           }
 
-          if (submitBtn) {
+          if (submitBtn && editApp.status === 'pending') {
             submitBtn.innerHTML = '<i class="fas fa-save"></i> Save Application Changes';
           }
 
@@ -852,11 +951,14 @@
       }
     }
 
+    if (window._isPartnerFormSubmitting) return;
+    window._isPartnerFormSubmitting = true;
+
     const submitBtn = partnerForm.querySelector('button[type="submit"]');
     const origBtnHtml = submitBtn ? submitBtn.innerHTML : '';
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
     }
 
     const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
@@ -884,32 +986,82 @@
     let returnedAppId = null;
     let returnedStatus = 'pending';
 
+    const isPendingEdit = Boolean(editingAppId) || Boolean(currentUser && currentUser.partnerStatus === 'pending' && currentUser.partnerAppId);
+    const targetCode = editingAppId || (currentUser && currentUser.partnerAppId);
+
     try {
-      const res = await fetch(`${apiBase}/partner/apply`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json().catch(() => null);
+      if (isPendingEdit && targetCode) {
+        // Send PATCH request to edit existing pending application
+        const patchPayload = {
+          fullName: payload.fullName,
+          phone: payload.phone,
+          businessName: payload.businessName,
+          businessType: payload.businessType,
+          yearsInOperation: payload.yearsInOperation,
+          weeklyVolume: payload.weeklyVolume,
+          address: payload.address,
+          products: payload.products,
+          notes: payload.notes,
+          email: payload.email
+        };
 
-      if (!res.ok || !data || !data.success) {
-        const errorMsg = (data && data.error) || 'Failed to submit application. Please check your details and try again.';
-        toast(errorMsg);
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = origBtnHtml;
+        const res = await fetch(`${apiBase}/partner/${encodeURIComponent(targetCode)}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-email': payload.email
+          },
+          credentials: 'include',
+          body: JSON.stringify(patchPayload)
+        });
+        const data = await res.json().catch(() => null);
+
+        if (!res.ok || !data || !data.success) {
+          if (res.status === 403 || (data && data.message && data.message.includes('locked'))) {
+            toast('Editing is locked while your application is being reviewed.');
+            setFormFieldsLocked(true, 'Editing is locked while your application is being reviewed.');
+          } else {
+            toast((data && data.message) || (data && data.error) || 'Failed to update application.');
+          }
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = origBtnHtml;
+          }
+          return;
         }
-        return;
-      }
 
-      serverSuccess = true;
-      returnedAppId = data.applicationCode || data.applicationId;
-      returnedStatus = data.status || 'pending';
+        serverSuccess = true;
+        returnedAppId = targetCode;
+        returnedStatus = data.status || 'pending';
+      } else {
+        // Submit new application via POST
+        const res = await fetch(`${apiBase}/partner/apply`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => null);
+
+        if (!res.ok || !data || !data.success) {
+          const errorMsg = (data && data.message) || (data && data.error) || 'Failed to submit application. Please check your details and try again.';
+          toast(errorMsg);
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = origBtnHtml;
+          }
+          return;
+        }
+
+        serverSuccess = true;
+        returnedAppId = data.applicationCode || data.applicationId;
+        returnedStatus = data.status || 'pending';
+      }
     } catch (netErr) {
       console.warn('[Partner API Network Error, falling back to local save]:', netErr);
       serverSuccess = true;
     } finally {
+      window._isPartnerFormSubmitting = false;
       if (submitBtn) {
         submitBtn.disabled = false;
         submitBtn.innerHTML = origBtnHtml;

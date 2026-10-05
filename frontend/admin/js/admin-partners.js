@@ -12,21 +12,25 @@
   let currentTab = 'all';
   let activeAppId = null;
   let cachedPartners = [];
+  let adminPollTimer = null;
+  let isSavingReview = false;
 
   const tableBody = document.getElementById('partners-table-body');
   const reviewModal = document.getElementById('modal-review-partner');
 
-  async function renderPartners() {
+  async function renderPartners(silent = false) {
     if (!tableBody) return;
 
-    tableBody.innerHTML = `
-      <tr>
-        <td colspan="8" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">
-          <i class="fas fa-spinner fa-spin fa-2x"></i>
-          <p style="margin-top:0.5rem;">Loading reseller applications from database...</p>
-        </td>
-      </tr>
-    `;
+    if (!silent) {
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="7" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+            <p style="margin-top:0.5rem;">Loading reseller applications from database...</p>
+          </td>
+        </tr>
+      `;
+    }
 
     try {
       let partners = [];
@@ -47,17 +51,17 @@
       const filtered = partners.filter(p => {
         const status = (p.status || 'pending').toLowerCase();
         if (currentTab === 'pending') return status === 'pending';
-        if (currentTab === 'reviewing') return status === 'under_review' || status === 'reviewing' || status === 'contacted';
+        if (currentTab === 'reviewing' || currentTab === 'under_review') return status === 'under_review' || status === 'reviewing' || status === 'contacted';
         if (currentTab === 'approved') return status === 'approved' || status === 'active';
         if (currentTab === 'rejected') return status === 'rejected' || status === 'declined';
         if (currentTab === 'cancelled') return status === 'cancelled';
         return true;
       });
 
-      // Update Counts
+      // Update Tab Counts
       const pendingCount = partners.filter(p => !p.status || p.status === 'pending').length;
-      const countEl = document.getElementById('count-partner-pending');
-      if (countEl) countEl.textContent = pendingCount;
+      const countPendingEl = document.getElementById('count-partner-pending');
+      if (countPendingEl) countPendingEl.textContent = pendingCount;
 
       const cancelledCount = partners.filter(p => (p.status || '').toLowerCase() === 'cancelled').length;
       const countCancelledEl = document.getElementById('count-partner-cancelled');
@@ -69,7 +73,7 @@
       if (filtered.length === 0) {
         tableBody.innerHTML = `
           <tr>
-            <td colspan="8">
+            <td colspan="7">
               <div class="empty-state">
                 <div class="empty-icon-wrap"><i class="fas fa-handshake"></i></div>
                 <h4 class="empty-title">No ${currentTab === 'all' ? '' : currentTab} Reseller Applications</h4>
@@ -95,7 +99,7 @@
         if (status === 'under_review' || status === 'reviewing' || status === 'contacted') {
           statusBadge = '<span class="badge badge-confirmed">Under Review</span>';
         } else if (status === 'approved' || status === 'active') {
-          statusBadge = '<span class="badge badge-completed">Approved Partner</span>';
+          statusBadge = '<span class="badge badge-completed"><i class="fas fa-crown"></i> Priority Partner</span>';
         } else if (status === 'rejected' || status === 'declined') {
           statusBadge = '<span class="badge badge-cancelled">Declined</span>';
         } else if (status === 'cancelled') {
@@ -112,7 +116,6 @@
             <td>${window.escapeHtml ? window.escapeHtml(contactPerson) : contactPerson}</td>
             <td>${window.escapeHtml ? window.escapeHtml(phone) : phone}</td>
             <td>${window.escapeHtml ? window.escapeHtml(volume) : volume}</td>
-            <td><strong>${p.discountRate ? p.discountRate + '%' : (status === 'approved' ? '15%' : 'Standard')}</strong></td>
             <td>${statusBadge}</td>
             <td>
               <button type="button" class="btn btn-outline btn-sm btn-review-app" data-id="${appId}">
@@ -129,18 +132,20 @@
 
     } catch (err) {
       console.error('[Admin Partners Render Error]:', err);
-      tableBody.innerHTML = `
-        <tr>
-          <td colspan="8">
-            <div class="empty-state" style="color:var(--danger);">
-              <i class="fas fa-exclamation-triangle fa-2x"></i>
-              <h4 class="empty-title">Error Loading Applications</h4>
-              <p class="empty-desc">${err.message || 'Cannot reach database server.'}</p>
-              <button class="btn btn-outline btn-sm mt-1" onclick="location.reload()">Retry</button>
-            </div>
-          </td>
-        </tr>
-      `;
+      if (!silent) {
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="7">
+              <div class="empty-state" style="color:var(--danger);">
+                <i class="fas fa-exclamation-triangle fa-2x"></i>
+                <h4 class="empty-title">Error Loading Applications</h4>
+                <p class="empty-desc">${err.message || 'Cannot reach database server.'}</p>
+                <button class="btn btn-outline btn-sm mt-1" onclick="location.reload()">Retry</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }
     }
   }
 
@@ -164,66 +169,112 @@
     activeAppId = appId;
     const d = app.details || {};
 
-    document.getElementById('review-app-id').textContent = appId;
-    document.getElementById('review-b-name').textContent = app.businessName || d['business-name'] || 'Store';
-    document.getElementById('review-b-type').textContent = formatBusinessType(app.businessType || d['business-type'] || 'sari_sari');
-    document.getElementById('review-b-owner').textContent = app.fullName || d['owner-name'] || 'Owner';
-    document.getElementById('review-b-phone').textContent = app.phone || d.phone || 'N/A';
-    document.getElementById('review-b-email').textContent = app.email || d.email || 'N/A';
-    document.getElementById('review-b-address').textContent = app.address || d.address || 'N/A';
-    document.getElementById('review-b-volume').textContent = app.weeklyVolume || d.volume || '50-100 bundles';
+    const setText = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val;
+    };
 
-    let statusVal = 'reviewing';
-    if (app.status === 'approved' || app.status === 'active') {
+    setText('review-app-id', appId);
+    setText('review-b-name', app.businessName || d['business-name'] || 'Store');
+    setText('review-b-type', formatBusinessType(app.businessType || d['business-type'] || 'sari_sari'));
+    setText('review-b-owner', app.fullName || d['owner-name'] || 'Owner');
+    setText('review-b-phone', app.phone || d.phone || 'N/A');
+    setText('review-b-email', app.email || d.email || 'N/A');
+    setText('review-b-address', app.address || d.address || 'N/A');
+    setText('review-b-volume', app.weeklyVolume || d.volume || '50-100 bundles');
+
+    let statusVal = 'under_review';
+    const rawStatus = (app.status || '').toLowerCase();
+    if (rawStatus === 'approved' || rawStatus === 'active') {
       statusVal = 'approved';
-    } else if (app.status === 'rejected' || app.status === 'declined') {
+    } else if (rawStatus === 'rejected' || rawStatus === 'declined') {
       statusVal = 'rejected';
-    } else if (app.status === 'cancelled') {
+    } else if (rawStatus === 'cancelled') {
       statusVal = 'cancelled';
     } else {
-      statusVal = 'reviewing';
+      statusVal = 'under_review';
     }
-    document.getElementById('review-status-select').value = statusVal;
-    document.getElementById('review-discount-input').value = app.discountRate || (app.status === 'approved' ? 15 : 10);
-    document.getElementById('review-staff-notes').value = app.staffNotes || '';
+
+    const statusSelect = document.getElementById('review-status-select');
+    if (statusSelect) statusSelect.value = statusVal;
+
+    const staffNotesEl = document.getElementById('review-staff-notes');
+    if (staffNotesEl) staffNotesEl.value = app.staffNotes || '';
 
     reviewModal.classList.add('active');
   }
 
   async function saveReviewStatus(e) {
     e.preventDefault();
-    if (!activeAppId) return;
+    if (!activeAppId || isSavingReview) return;
 
-    const rawStatus = document.getElementById('review-status-select').value;
+    const rawStatus = document.getElementById('review-status-select')?.value || 'under_review';
     const targetStatus = rawStatus === 'reviewing' ? 'under_review' : rawStatus;
-    const staffNotes = document.getElementById('review-staff-notes').value.trim();
+    const staffNotes = document.getElementById('review-staff-notes')?.value.trim() || '';
+
+    const submitBtn = document.getElementById('form-review-partner')?.querySelector('button[type="submit"]');
+    const origHtml = submitBtn ? submitBtn.innerHTML : '';
 
     try {
+      isSavingReview = true;
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving Decision...';
+      }
+
       if (window.WeBakeAdminAPI) {
         await window.WeBakeAdminAPI.patch(`/partner/${activeAppId}/status`, {
           status: targetStatus,
           staffNotes: staffNotes
         });
       }
+
       if (window.WeBakeAdmin) {
-        window.WeBakeAdmin.showToast(`Application ${activeAppId} updated in database to: ${targetStatus}`, 'success');
+        window.WeBakeAdmin.showToast(`Application ${activeAppId} updated to: ${targetStatus}`, 'success');
       }
+
       if (reviewModal) reviewModal.classList.remove('active');
-      renderPartners();
+      await renderPartners(true);
     } catch (err) {
-      if (window.WeBakeAdmin) window.WeBakeAdmin.showToast('Failed to update application: ' + err.message, 'danger');
+      console.error('[Save Review Status Error]:', err);
+      if (window.WeBakeAdmin) {
+        window.WeBakeAdmin.showToast('Failed to update application: ' + err.message, 'danger');
+      }
+    } finally {
+      isSavingReview = false;
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = origHtml;
+      }
     }
   }
 
+  // --- Near-Real-Time Polling for Admin Pipeline (every 12 seconds) ---
+  function startAdminPolling() {
+    if (adminPollTimer) clearInterval(adminPollTimer);
+    adminPollTimer = setInterval(() => {
+      if (document.visibilityState !== 'hidden') {
+        renderPartners(true);
+      }
+    }, 12000);
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      renderPartners(true);
+    }
+  });
+
   document.addEventListener('DOMContentLoaded', () => {
-    renderPartners();
+    renderPartners(false);
+    startAdminPolling();
 
     document.querySelectorAll('.order-tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.order-tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentTab = btn.dataset.tab;
-        renderPartners();
+        renderPartners(false);
       });
     });
 
@@ -238,7 +289,7 @@
     });
 
     window.addEventListener('weBakeAdminUpdate', () => {
-      renderPartners();
+      renderPartners(true);
     });
   });
 

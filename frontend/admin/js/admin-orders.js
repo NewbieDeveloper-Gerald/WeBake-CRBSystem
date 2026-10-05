@@ -117,7 +117,10 @@
             </td>
             <td>
               <div class="order-customer-info">
-                <span class="customer-name">${window.escapeHtml ? window.escapeHtml(o.customer?.name || 'Customer') : (o.customer?.name || 'Customer')}</span>
+                <span class="customer-name">
+                  ${window.escapeHtml ? window.escapeHtml(o.customer?.name || 'Customer') : (o.customer?.name || 'Customer')}
+                  ${o.isPriorityPartner ? '<span class="badge" style="background:#fef3c7; color:#92400e; border:1px solid #fcd34d; font-size:0.7rem; padding:1px 5px; border-radius:4px; margin-left:4px; vertical-align:middle;"><i class="fas fa-crown"></i> Priority Partner</span>' : ''}
+                </span>
                 <span class="customer-contact">${window.escapeHtml ? window.escapeHtml(o.customer?.contact || o.customer?.email || 'No contact') : (o.customer?.contact || o.customer?.email || 'No contact')}</span>
               </div>
             </td>
