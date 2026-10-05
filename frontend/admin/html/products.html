@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WeBake Admin — Product Catalog &amp; Bundle Pricing</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="../css/admin-globals.css">
+</head>
+<body>
+  <div class="admin-layout">
+    <!-- Sidebar -->
+    <aside class="admin-sidebar">
+      <div class="sidebar-brand">
+        <div class="sidebar-logo-icon">
+          <i class="fas fa-bread-slice"></i>
+        </div>
+        <div class="brand-text">
+          <h2>WeBake</h2>
+          <span>Admin Portal</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-title">Operations</div>
+        <a href="walkin-pos.html" class="nav-item-link pos-highlight">
+          <i class="fas fa-cash-register"></i>
+          <span>Walk-In / POS</span>
+        </a>
+        <a href="dashboard.html" class="nav-item-link">
+          <i class="fas fa-chart-pie"></i>
+          <span>Dashboard</span>
+        </a>
+        <a href="orders.html" class="nav-item-link">
+          <i class="fas fa-clipboard-list"></i>
+          <span>Orders &amp; Verify</span>
+          <span class="nav-badge" id="sidebar-orders-badge">0</span>
+        </a>
+        <a href="refunds.html" class="nav-item-link">
+          <i class="fas fa-undo-alt"></i>
+          <span>Refunds Queue</span>
+          <span class="nav-badge" id="sidebar-refunds-badge">0</span>
+        </a>
+
+        <div class="nav-section-title">Bakery Management</div>
+        <a href="inventory.html" class="nav-item-link">
+          <i class="fas fa-boxes-stacked"></i>
+          <span>Daily Inventory</span>
+        </a>
+        <a href="products.html" class="nav-item-link active">
+          <i class="fas fa-tags"></i>
+          <span>Product Catalog</span>
+        </a>
+        <a href="partners.html" class="nav-item-link">
+          <i class="fas fa-handshake"></i>
+          <span>Reseller Partners</span>
+          <span class="nav-badge" id="sidebar-partners-badge">0</span>
+        </a>
+        <a href="settings.html" class="nav-item-link restricted-owner">
+          <i class="fas fa-cog"></i>
+          <span>Bakery Settings</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="staff-profile-card">
+          <div class="staff-avatar">GV</div>
+          <div class="staff-details">
+            <div class="staff-name">Gerald V.</div>
+            <div class="staff-role-badge">Owner / Admin</div>
+          </div>
+        </div>
+        <div class="sidebar-actions">
+          <a href="../../customer/html/home.html" target="_blank" class="btn-sidebar" title="Open Customer Storefront">
+            <i class="fas fa-external-link-alt"></i> Store
+          </a>
+          <button type="button" class="btn-sidebar" id="btn-switch-role" title="Switch Staff Role">
+            <i class="fas fa-user-shield"></i> Role
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Wrapper -->
+    <div class="main-wrapper">
+      <!-- Topbar -->
+      <header class="admin-topbar">
+        <div class="topbar-left">
+          <button type="button" class="mobile-menu-toggle" aria-label="Toggle Navigation">
+            <i class="fas fa-bars"></i>
+          </button>
+          <div class="page-headline">
+            <h1>Product Catalog &amp; Pricing</h1>
+            <p>Manage bakery items, wholesale bundle pricing, and daily availability</p>
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <div class="live-sync-pill">
+            <span class="pulse-dot"></span>
+            <span>Live Sync Active</span>
+          </div>
+          <button type="button" class="role-switcher-btn" id="role-switch-text">
+            Role: Owner (Admin)
+          </button>
+        </div>
+      </header>
+
+      <!-- Content Area -->
+      <main class="content-area">
+        <!-- Catalog Header Card -->
+        <div class="admin-card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <h3>Bakery Catalog Items</h3>
+              <p>Mamon, Otap, Eggnog, Buttertoast &amp; new specialty products</p>
+            </div>
+            <button type="button" class="btn btn-primary" id="btn-open-add-product">
+              <i class="fas fa-plus"></i> Add New Product
+            </button>
+          </div>
+          <div class="table-responsive">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Bundle Price</th>
+                  <th>Pcs / Bundle</th>
+                  <th>Loose Piece</th>
+                  <th>Availability</th>
+                  <th>Quick Toggle</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="products-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Modal: Add New Product -->
+  <div class="modal-backdrop" id="modal-add-product">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fas fa-plus-circle"></i> Add Bakery Product</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-add-p">&times;</button>
+      </div>
+      <form id="form-add-product">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label form-label-required">Product Name</label>
+            <input type="text" id="add-p-name" class="form-input" placeholder="e.g. Ensaimada, Pandesal..." required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Description</label>
+            <textarea id="add-p-desc" class="form-textarea" rows="2" placeholder="Brief description of delicacy..."></textarea>
+          </div>
+
+          <div class="form-row-3">
+            <div class="form-group">
+              <label class="form-label form-label-required">Bundle Price (&#8369;)</label>
+              <input type="number" id="add-p-price" class="form-input" value="105" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label form-label-required">Pcs per Bundle</label>
+              <input type="number" id="add-p-pcs" class="form-input" value="25" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Loose Price (&#8369;)</label>
+              <input type="number" id="add-p-loose" class="form-input" value="5" required>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-check"></i> Add to Catalog
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Edit Product -->
+  <div class="modal-backdrop" id="modal-edit-product">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fas fa-edit"></i> Edit Product Details</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-edit-p">&times;</button>
+      </div>
+      <form id="form-edit-product">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label form-label-required">Product Name</label>
+            <input type="text" id="edit-p-name" class="form-input" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Description</label>
+            <textarea id="edit-p-desc" class="form-textarea" rows="2"></textarea>
+          </div>
+
+          <div class="form-row-3">
+            <div class="form-group">
+              <label class="form-label form-label-required">Bundle Price (&#8369;)</label>
+              <input type="number" id="edit-p-price" class="form-input" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label form-label-required">Pcs per Bundle</label>
+              <input type="number" id="edit-p-pcs" class="form-input" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Loose Price (&#8369;)</label>
+              <input type="number" id="edit-p-loose" class="form-input" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Stock Availability</label>
+            <select id="edit-p-status" class="form-select">
+              <option value="in_stock">In Stock (Available)</option>
+              <option value="low_stock">Low Stock</option>
+              <option value="out_of_stock">Sold Out / Unavailable Today</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save"></i> Save Changes
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="../../customer/js/config.js"></script>
+  <script src="../js/admin-api.js"></script>
+  <script src="../js/admin-main.js"></script>
+  <script src="../js/admin-auth.js"></script>
+  <script src="../js/admin-products.js"></script>
+</body>
+</html>

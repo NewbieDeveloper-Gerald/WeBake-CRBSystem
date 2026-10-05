@@ -16,6 +16,9 @@ const productRoutes = require('./routes/productRoutes');
 const partnerRoutes = require('./routes/partnerRoutes');
 const authRoutes = require('./routes/authRoutes');
 const cartRoutes = require('./routes/cartRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
+
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -23,13 +26,18 @@ const PORT = process.env.PORT || 5000;
 // CORS configuration (Allows frontend requests from local dev or Render hosting)
 app.use(cors({
   origin: process.env.CLIENT_ORIGIN || '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Email']
 }));
 
 // Body parser
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve frontend static files
+app.use('/admin', express.static(path.join(__dirname, '../frontend/admin')));
+app.use('/customer', express.static(path.join(__dirname, '../frontend/customer')));
+app.use(express.static(path.join(__dirname, '../frontend')));
 
 // Health Check Endpoint (Reports Server, Mailer & Supabase DB health)
 app.get('/api/health', async (req, res) => {
@@ -56,6 +64,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/partner', partnerRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/cart', cartRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {

@@ -135,12 +135,14 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please enter your password.' });
     }
 
-    // 1. Query user by email
+    // 1. Query user by email with role metadata
     const userQuery = `
-      SELECT u.id, u.role_id, u.full_name, u.email_address, u.contact_number,
+      SELECT u.id, u.role_id, r.role_name, r.display_title,
+             u.full_name, u.email_address, u.contact_number,
              u.password_hash, u.partner_status, u.is_active, u.saved_cart,
              a.address_line1 AS address
       FROM users u
+      JOIN roles r ON u.role_id = r.id
       LEFT JOIN user_addresses a ON a.user_id = u.id AND a.is_default = TRUE
       WHERE LOWER(u.email_address) = $1
       LIMIT 1;
@@ -286,6 +288,9 @@ router.post('/login', async (req, res) => {
         email: user.email_address,
         contact: user.contact_number,
         address: user.address || '',
+        role: user.role_name || 'customer',
+        roleTitle: user.display_title || 'Customer',
+        roleId: user.role_id,
         partnerStatus: partnerStatus,
         partnerAppId: partnerAppId,
         partnerDetails: partnerDetails,
@@ -403,10 +408,12 @@ router.all('/sync', async (req, res) => {
     }
 
     const userRes = await db.query(`
-      SELECT u.id, u.role_id, u.full_name, u.email_address, u.contact_number,
+      SELECT u.id, u.role_id, r.role_name, r.display_title,
+             u.full_name, u.email_address, u.contact_number,
              u.partner_status, u.is_active, u.saved_cart,
              a.address_line1 AS address
       FROM users u
+      JOIN roles r ON u.role_id = r.id
       LEFT JOIN user_addresses a ON a.user_id = u.id AND a.is_default = TRUE
       WHERE LOWER(u.email_address) = $1
       LIMIT 1;
@@ -522,6 +529,9 @@ router.all('/sync', async (req, res) => {
         email: user.email_address,
         contact: user.contact_number,
         address: user.address || '',
+        role: user.role_name || 'customer',
+        roleTitle: user.display_title || 'Customer',
+        roleId: user.role_id,
         partnerStatus: partnerStatus,
         partnerAppId: partnerAppId,
         partnerDetails: partnerDetails,
@@ -536,6 +546,43 @@ router.all('/sync', async (req, res) => {
       success: false,
       message: 'Failed to sync user: ' + error.message
     });
+  }
+});
+
+/**
+ * GET /api/auth/users/customers
+ * Returns registered customers for the Admin Customer Directory
+ */
+router.get('/users/customers', async (req, res) => {
+  try {
+    const q = `
+      SELECT u.id, u.full_name AS name, u.email_address AS email, u.contact_number AS contact,
+             u.partner_status, u.created_at,
+             COUNT(DISTINCT o.id) AS total_orders,
+             COALESCE(SUM(CASE WHEN o.status NOT IN ('cancelled', 'refunded') THEN o.grand_total ELSE 0 END), 0) AS lifetime_value
+      FROM users u
+      LEFT JOIN orders o ON (o.user_id = u.id OR LOWER(o.customer_email) = LOWER(u.email_address))
+      WHERE u.role_id = 1
+      GROUP BY u.id, u.full_name, u.email_address, u.contact_number, u.partner_status, u.created_at
+      ORDER BY lifetime_value DESC;
+    `;
+    const { rows } = await db.query(q);
+    return res.json({
+      success: true,
+      customers: rows.map(r => ({
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        contact: r.contact,
+        partnerStatus: r.partner_status,
+        totalOrders: parseInt(r.total_orders || 0, 10),
+        lifetimeValue: parseFloat(r.lifetime_value || 0),
+        createdAt: r.created_at
+      }))
+    });
+  } catch (error) {
+    console.error('[Admin Customers Query Error]:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch customers', error: error.message });
   }
 });
 

@@ -152,4 +152,114 @@ router.get('/track/:code', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/partner/all
+ * Retrieves all wholesale reseller applications for Admin Partners Board
+ */
+router.get('/all', async (req, res) => {
+  try {
+    const q = `
+      SELECT 
+        id, application_code, user_id, applicant_name, applicant_email, applicant_phone,
+        business_name, business_type, years_in_operation, estimated_weekly_volume,
+        delivery_address, products_of_interest, additional_notes, status,
+        admin_notes, submitted_at, reviewed_at, updated_at
+      FROM partner_applications
+      ORDER BY submitted_at DESC;
+    `;
+    const { rows } = await db.query(q);
+    return res.json({
+      success: true,
+      count: rows.length,
+      partners: rows.map(r => ({
+        id: r.id,
+        appId: r.application_code,
+        businessName: r.business_name,
+        businessType: r.business_type,
+        fullName: r.applicant_name,
+        email: r.applicant_email,
+        phone: r.applicant_phone,
+        address: r.delivery_address,
+        weeklyVolume: r.estimated_weekly_volume,
+        products: r.products_of_interest,
+        notes: r.additional_notes,
+        status: r.status,
+        discountRate: r.status === 'approved' ? 15 : 0,
+        staffNotes: r.admin_notes || '',
+        date: new Date(r.submitted_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+        details: {
+          'business-name': r.business_name,
+          'business-type': r.business_type,
+          'owner-name': r.applicant_name,
+          phone: r.applicant_phone,
+          email: r.applicant_email,
+          address: r.delivery_address,
+          volume: r.estimated_weekly_volume
+        }
+      }))
+    });
+  } catch (err) {
+    console.error('[Admin Partners Query Error]:', err);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve partners.', error: err.message });
+  }
+});
+
+/**
+ * PATCH /api/partner/:code/status
+ * Updates reseller application status and synchronizes user role/status
+ */
+router.patch('/:code/status', async (req, res) => {
+  const client = await db.getClient();
+  try {
+    const { code } = req.params;
+    const { status, staffNotes } = req.body || {};
+
+    if (!status) {
+      return res.status(400).json({ success: false, message: 'Status is required.' });
+    }
+
+    await client.query('BEGIN');
+    const appRes = await client.query(`
+      SELECT id, user_id, applicant_email, status FROM partner_applications
+      WHERE application_code = $1;
+    `, [code.trim()]);
+
+    if (appRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Application not found.' });
+    }
+    const app = appRes.rows[0];
+
+    await client.query(`
+      UPDATE partner_applications
+      SET status = $1, admin_notes = COALESCE($2, admin_notes), reviewed_at = NOW(), updated_at = NOW()
+      WHERE id = $3;
+    `, [status, staffNotes, app.id]);
+
+    // If approved, update user's partner_status in users table
+    if (status === 'approved') {
+      await client.query(`
+        UPDATE users
+        SET partner_status = 'active', role_id = 2, updated_at = NOW()
+        WHERE id = $1 OR LOWER(email_address) = $2;
+      `, [app.user_id || 0, (app.applicant_email || '').toLowerCase()]);
+    } else if (status === 'rejected') {
+      await client.query(`
+        UPDATE users
+        SET partner_status = 'rejected', updated_at = NOW()
+        WHERE id = $1 OR LOWER(email_address) = $2;
+      `, [app.user_id || 0, (app.applicant_email || '').toLowerCase()]);
+    }
+
+    await client.query('COMMIT');
+    return res.json({ success: true, message: `Application ${code} updated to ${status}.`, status });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[Update Partner Application Error]:', err);
+    return res.status(500).json({ success: false, message: 'Failed to update application.', error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;
