@@ -531,7 +531,8 @@ router.post('/cancel', async (req, res) => {
       params.push(cleanEmail);
       query += ` AND LOWER(applicant_email) = $1`;
     }
-    query += ` ORDER BY id DESC LIMIT 1;`;
+    // Prioritize active, approved, or pending applications over already finished ones
+    query += ` ORDER BY CASE WHEN status IN ('approved', 'under_review', 'pending') THEN 1 ELSE 2 END ASC, id DESC LIMIT 1;`;
 
     const appRes = await client.query(query, params);
 
@@ -542,8 +543,12 @@ router.post('/cancel', async (req, res) => {
       app = appRes.rows[0];
     }
 
-    const userTargetEmail = cleanEmail || (app ? app.applicant_email : '');
-    const userTargetId = app ? app.user_id : null;
+    const userTargetEmail = (cleanEmail || (app ? app.applicant_email : '')).trim().toLowerCase();
+    let userTargetId = app ? app.user_id : null;
+    if (!userTargetId && userTargetEmail) {
+      const uRes = await client.query('SELECT id FROM users WHERE LOWER(email_address) = $1 LIMIT 1;', [userTargetEmail]);
+      if (uRes.rows.length > 0) userTargetId = uRes.rows[0].id;
+    }
     const targetAppCode = cleanAppId || (app ? app.application_code : '');
 
     // Cancel all matching applications for this applicant/code
@@ -553,7 +558,9 @@ router.post('/cancel', async (req, res) => {
           admin_notes = COALESCE(admin_notes, '') || $1,
           reviewed_at = NOW(),
           updated_at = NOW()
-      WHERE (application_code ILIKE $2 OR LOWER(applicant_email) = $3 OR user_id = $4)
+      WHERE ((application_code IS NOT NULL AND application_code != '' AND application_code ILIKE $2)
+          OR (applicant_email IS NOT NULL AND LOWER(applicant_email) = $3)
+          OR (user_id IS NOT NULL AND user_id = $4))
         AND status NOT IN ('cancelled');
     `, [cancelNote, targetAppCode, userTargetEmail, userTargetId || 0]);
 
@@ -564,7 +571,7 @@ router.post('/cancel', async (req, res) => {
         SET partner_status = 'cancelled',
             role_id = CASE WHEN role_id = 4 THEN 4 ELSE 1 END,
             updated_at = NOW()
-        WHERE id = $1 OR LOWER(email_address) = $2;
+        WHERE (id = $1 OR LOWER(email_address) = $2) AND role_id != 4;
       `, [userTargetId || 0, userTargetEmail]);
     }
 

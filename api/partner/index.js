@@ -212,7 +212,7 @@ async function handleCancel(req, res, pool) {
       }
     }
 
-    querySql += ` LIMIT 1;`;
+    querySql += ` ORDER BY CASE WHEN status IN ('approved', 'under_review', 'pending') THEN 1 ELSE 2 END ASC, id DESC LIMIT 1;`;
     const appRes = await client.query(querySql, params);
 
     if (appRes.rows.length === 0) {
@@ -222,26 +222,44 @@ async function handleCancel(req, res, pool) {
 
     const app = appRes.rows[0];
 
-    // Cannot cancel already approved/active reseller without admin support
-    if (app.status === 'approved') {
-      await client.query('ROLLBACK');
-      return sendJson(res, 400, {
-        success: false,
-        message: 'Approved wholesale partners cannot be self-cancelled. Please contact support.'
-      });
+    let userTargetId = app.user_id;
+    if (!userTargetId && cleanEmail) {
+      const uRes = await client.query('SELECT id FROM users WHERE LOWER(email_address) = $1 LIMIT 1;', [cleanEmail]);
+      if (uRes.rows.length > 0) userTargetId = uRes.rows[0].id;
     }
 
-    await client.query('UPDATE partner_applications SET status = $1 WHERE id = $2;', ['cancelled', app.id]);
+    const cancelTargetCode = app.application_code || cleanAppId || '';
+    const cancelTargetEmail = (app.applicant_email || cleanEmail || '').toLowerCase();
 
-    if (app.user_id) {
-      await client.query('UPDATE users SET partner_status = $1 WHERE id = $2;', ['cancelled', app.user_id]);
+    await client.query(`
+      UPDATE partner_applications
+      SET status = 'cancelled',
+          admin_notes = COALESCE(admin_notes, '') || ' [Cancelled by customer]',
+          reviewed_at = NOW(),
+          updated_at = NOW()
+      WHERE ((application_code IS NOT NULL AND application_code != '' AND application_code ILIKE $1)
+          OR (applicant_email IS NOT NULL AND LOWER(applicant_email) = $2)
+          OR (user_id IS NOT NULL AND user_id = $3))
+        AND status NOT IN ('cancelled');
+    `, [cancelTargetCode, cancelTargetEmail, userTargetId || 0]);
+
+    if (userTargetId || cancelTargetEmail) {
+      await client.query(`
+        UPDATE users
+        SET partner_status = 'cancelled',
+            role_id = CASE WHEN role_id = 4 THEN 4 ELSE 1 END,
+            updated_at = NOW()
+        WHERE (id = $1 OR LOWER(email_address) = $2) AND role_id != 4;
+      `, [userTargetId || 0, cancelTargetEmail]);
     }
 
     await client.query('COMMIT');
 
     return sendJson(res, 200, {
       success: true,
-      message: 'Wholesale partnership application cancelled successfully.'
+      message: 'Wholesale partnership application cancelled successfully.',
+      appId: app.application_code || cleanAppId,
+      status: 'cancelled'
     });
 
   } catch (e) {
@@ -252,15 +270,74 @@ async function handleCancel(req, res, pool) {
   }
 }
 
+async function handleMyStatus(req, res, pool) {
+  const session = readSession(req);
+  const callerEmail = (req.headers['x-user-email'] || req.query?.email || session?.email || '').trim().toLowerCase();
+  const callerCode = (req.query?.code || req.query?.appId || '').trim();
+
+  if (!callerEmail && !callerCode) {
+    return sendJson(res, 400, { success: false, message: 'Authentication email or reference code is required.' });
+  }
+
+  try {
+    let query = `
+      SELECT id, application_code, applicant_name, applicant_email, business_name,
+             business_type, status, admin_notes, submitted_at, updated_at, reviewed_at
+      FROM partner_applications
+      WHERE 1=1
+    `;
+    const params = [];
+    if (callerCode && callerEmail) {
+      params.push(callerCode, callerEmail);
+      query += ` AND application_code ILIKE $1 AND LOWER(applicant_email) = $2`;
+    } else if (callerEmail) {
+      params.push(callerEmail);
+      query += ` AND LOWER(applicant_email) = $1`;
+    } else {
+      params.push(callerCode);
+      query += ` AND application_code ILIKE $1`;
+    }
+    query += ` ORDER BY updated_at DESC, id DESC LIMIT 1;`;
+
+    const { rows } = await pool.query(query, params);
+    if (rows.length === 0) {
+      return sendJson(res, 404, { success: false, message: 'No partnership application found.' });
+    }
+
+    const app = rows[0];
+    return sendJson(res, 200, {
+      success: true,
+      application: {
+        applicationCode: app.application_code,
+        applicantName: app.applicant_name,
+        businessName: app.business_name,
+        businessType: app.business_type,
+        status: app.status,
+        adminNotes: app.admin_notes || '',
+        staffNotes: app.admin_notes || '',
+        submittedAt: app.submitted_at,
+        updatedAt: app.updated_at,
+        reviewedAt: app.reviewed_at
+      }
+    });
+  } catch (err) {
+    return sendError(res, 500, 'Failed to fetch partner status.', err);
+  }
+}
+
 module.exports = async function handler(req, res) {
-  if (handleCors(req, res, 'POST, OPTIONS')) return;
+  if (handleCors(req, res, 'GET, POST, OPTIONS')) return;
+
+  const action = req.query?.action || (req.url.split('?')[0].split('/').filter(Boolean).pop());
+  const pool = getPool();
+
+  if (req.method === 'GET' || action === 'my-status') {
+    return await handleMyStatus(req, res, pool);
+  }
 
   if (req.method !== 'POST') {
     return sendJson(res, 405, { success: false, message: 'Method not allowed' });
   }
-
-  const action = req.query?.action || (req.url.split('?')[0].split('/').filter(Boolean).pop());
-  const pool = getPool();
 
   try {
     if (action === 'cancel') {

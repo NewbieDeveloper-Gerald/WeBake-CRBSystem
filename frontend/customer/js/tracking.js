@@ -643,6 +643,8 @@
 
       if (window.WeBakeModals && typeof window.WeBakeModals.confirmCancelPartner === 'function') {
         window.WeBakeModals.confirmCancelPartner({ onConfirm: doCancelPartner });
+      } else if (confirm('Are you sure you want to cancel your partnership request? This action cannot be undone.')) {
+        doCancelPartner();
       }
     });
 

@@ -870,78 +870,99 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      const cancelBtn = document.getElementById('cancel-partner-btn');
-      if (cancelBtn) {
-        cancelBtn.addEventListener('click', () => {
-          const doCancel = async () => {
-            const freshAll = DashboardStore.getUsers();
-            const target = freshAll.find(u => DashboardStore.sameEmail(u.email, session.email));
-            const savedAppId = target?.partnerAppId || session.partnerAppId || myApp?.appId;
+      // Dedicated handler for partner cancellation
+      const doCancel = async () => {
+        const freshAll = DashboardStore.getUsers();
+        const target = freshAll.find(u => DashboardStore.sameEmail(u.email, session.email));
+        const savedAppId = target?.partnerAppId || session.partnerAppId || currentUser?.partnerAppId || myApp?.appId;
 
-            if (target) {
-              target.partnerStatus = 'cancelled';
-              target.role = 'customer';
-              target.roleId = 1;
-              target.partnerDetails = null;
-              DashboardStore.saveUsers(freshAll);
-            }
+        if (target) {
+          target.partnerStatus = 'cancelled';
+          target.role = 'customer';
+          target.roleId = 1;
+          target.partnerDetails = null;
+          DashboardStore.saveUsers(freshAll);
+        }
 
-            // Also update persistent session
-            session.partnerStatus = 'cancelled';
-            session.role = 'customer';
-            session.roleId = 1;
-            session.partnerDetails = null;
-            DashboardStore.saveSession(session);
+        // Also update persistent session & in-memory currentUser
+        session.partnerStatus = 'cancelled';
+        session.role = 'customer';
+        session.roleId = 1;
+        session.partnerDetails = null;
+        DashboardStore.saveSession(session);
 
-            const allApps = DashboardStore.getApplications();
-            let appChanged = false;
-            allApps.forEach(a => {
-              if ((savedAppId && a.appId && a.appId.toUpperCase() === savedAppId.toUpperCase()) ||
-                  (a.details?.email && DashboardStore.sameEmail(a.details.email, session.email)) ||
-                  (a.email && DashboardStore.sameEmail(a.email, session.email))) {
-                a.status = 'cancelled';
-                a.cancelledAt = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-                appChanged = true;
-              }
-            });
-            if (appChanged) {
-              DashboardStore.saveApplications(allApps);
-            }
+        if (currentUser) {
+          currentUser.partnerStatus = 'cancelled';
+          currentUser.role = 'customer';
+          currentUser.roleId = 1;
+          currentUser.partnerDetails = null;
+        }
 
-            // Immediately re-render cancelled UI
-            if (partnerPollTimer) {
-              clearInterval(partnerPollTimer);
-              partnerPollTimer = null;
-            }
-            this.render();
-            toast('Partnership request cancelled.');
-            window.dispatchEvent(new CustomEvent('weBakePartnerChange'));
+        lastKnownPartnerState.status = 'cancelled';
 
-            // Persist to Supabase cloud database
-            const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
-              window.location.protocol === 'file:' ||
-              window.location.hostname === 'localhost' ||
-              window.location.hostname === '127.0.0.1'
-                ? 'http://localhost:5000/api'
-                : '/api'
-            );
-            try {
-              await fetch(`${apiBase}/partner/cancel`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: session.email, appId: savedAppId })
-              });
-              // Perform cloud sync so all state is verified and remains cancelled
-              await syncFromCloud();
-            } catch (e) {
-              console.warn('[Cloud Partner Cancel Notice]:', e);
-            }
-          };
-
-          if (window.WeBakeModals && typeof window.WeBakeModals.confirmCancelPartner === 'function') {
-            window.WeBakeModals.confirmCancelPartner({ onConfirm: doCancel });
+        const allApps = DashboardStore.getApplications();
+        let appChanged = false;
+        allApps.forEach(a => {
+          if ((savedAppId && a.appId && a.appId.toUpperCase() === savedAppId.toUpperCase()) ||
+              (a.details?.email && DashboardStore.sameEmail(a.details.email, session.email)) ||
+              (a.email && DashboardStore.sameEmail(a.email, session.email))) {
+            a.status = 'cancelled';
+            a.cancelledAt = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+            appChanged = true;
           }
         });
+        if (appChanged) {
+          DashboardStore.saveApplications(allApps);
+        }
+
+        // Immediately stop polling and re-render cancelled UI
+        if (partnerPollTimer) {
+          clearInterval(partnerPollTimer);
+          partnerPollTimer = null;
+        }
+        this.render();
+        toast('Partnership request cancelled.');
+        window.dispatchEvent(new CustomEvent('weBakePartnerChange'));
+
+        // Persist to cloud database
+        const apiBase = (window.WEBAKE_CONFIG && window.WEBAKE_CONFIG.API_BASE) || window.WEBAKE_API_BASE || (
+          window.location.protocol === 'file:' ||
+          window.location.hostname === 'localhost' ||
+          window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:5000/api'
+            : '/api'
+        );
+        try {
+          const res = await fetch(`${apiBase}/partner/cancel`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: session.email, appId: savedAppId })
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok || json.success === false) {
+            console.warn('[Partner Cancel Server Notice]:', json.message);
+          }
+          // Perform cloud sync so all state is verified and remains cancelled
+          await syncFromCloud();
+        } catch (e) {
+          console.warn('[Cloud Partner Cancel Notice]:', e);
+        }
+      };
+
+      const triggerCancelPrompt = () => {
+        if (window.WeBakeModals && typeof window.WeBakeModals.confirmCancelPartner === 'function') {
+          window.WeBakeModals.confirmCancelPartner({ onConfirm: doCancel });
+        } else if (confirm('Are you sure you want to cancel your wholesale partnership? This action cannot be undone.')) {
+          doCancel();
+        }
+      };
+
+      const cancelBtn = document.getElementById('cancel-partner-btn');
+      if (cancelBtn) {
+        cancelBtn.onclick = (e) => {
+          e.preventDefault();
+          triggerCancelPrompt();
+        };
       }
     }
   };
