@@ -43,14 +43,6 @@
   ],
   "rewrites": [
     {
-      "source": "/api/otp/:action",
-      "destination": "/api/otp?action=:action"
-    },
-    {
-      "source": "/api/orders/:action",
-      "destination": "/api/orders?action=:action"
-    },
-    {
       "source": "/",
       "destination": "/frontend/customer/html/home.html"
     }

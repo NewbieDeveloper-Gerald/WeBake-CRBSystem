@@ -22,12 +22,21 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// CORS configuration (Allows frontend requests from local dev or Render hosting)
+// CORS configuration for the separately hosted customer and admin frontends.
+// CLIENT_ORIGIN accepts a comma-separated allow-list; '*' preserves the
+// existing open-origin behavior when no deployment-specific list is supplied.
+const allowedOrigins = (process.env.CLIENT_ORIGIN || '*')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    callback(null, !origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Email', 'X-Admin-Role']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Email', 'X-Admin-Role', 'Idempotency-Key']
 }));
 
 // Body parser

@@ -12,8 +12,12 @@
                   window.location.hostname === 'localhost' ||
                   window.location.hostname === '127.0.0.1';
 
+  // After deploying the Express API to Render, replace this with the service
+  // URL shown in the Render dashboard, followed by /api.
+  const RENDER_API_BASE = 'https://YOUR-RENDER-SERVICE.onrender.com/api';
+
   window.WEBAKE_CONFIG = Object.freeze({
-    API_BASE: window.WEBAKE_API_BASE || (isLocal ? 'http://localhost:5000/api' : '/api'),
+    API_BASE: window.WEBAKE_API_BASE || (isLocal ? 'http://localhost:5000/api' : RENDER_API_BASE),
     PAYMENT_PHONE: '0912 221 7577',
     PAYMENT_NAME: 'Angelita B. Amadeo',
     SUPPORT_EMAIL: 'crbwebake@gmail.com',

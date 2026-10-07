@@ -1,4 +1,7 @@
-# Ignore standalone backend server (Serverless API runs from /api)
+# Render hosts the Express API; do not deploy the legacy serverless handlers.
+api/
+
+# Ignore standalone backend server
 backend/
 
 # Ignore scratch scripts, tests, and temporary data
